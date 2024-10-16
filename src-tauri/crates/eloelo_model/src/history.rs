@@ -3,7 +3,7 @@ use std::collections::HashMap;
 use chrono::{DateTime, Local};
 use serde::{Deserialize, Serialize};
 
-use crate::{GameId, PlayerId};
+use crate::{GameId, PlayerId, WinScale};
 
 #[derive(Debug, Default, Clone, PartialEq, Serialize, Deserialize)]
 pub struct History {
@@ -15,6 +15,7 @@ pub struct HistoryEntry {
     pub timestamp: DateTime<Local>,
     pub winner: Vec<PlayerId>,
     pub loser: Vec<PlayerId>,
+    pub scale: Option<WinScale>,
 }
 
 impl HistoryEntry {
@@ -40,6 +41,7 @@ impl From<LegacyHistoryEntry> for HistoryEntry {
             timestamp: DateTime::from(DateTime::UNIX_EPOCH),
             winner,
             loser,
+            scale: None,
         }
     }
 }

@@ -135,11 +135,8 @@ fn add_noise(history: &[HistoryEntry]) -> Vec<HistoryEntry> {
         return history.into_iter().cloned().collect();
     }
     let alter_i = Uniform::new(0, history.len()).sample(&mut rand::thread_rng());
-    let altered_item = HistoryEntry {
-        timestamp: history[alter_i].timestamp,
-        winner: history[alter_i].loser.clone(),
-        loser: history[alter_i].winner.clone(),
-    };
+    let mut altered_item = history[alter_i].clone();
+    std::mem::swap(&mut altered_item.winner, &mut altered_item.loser);
 
     let mut altered_history: Vec<HistoryEntry> = Vec::new();
     altered_history.extend(history.iter().take(alter_i).cloned());

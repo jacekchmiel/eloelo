@@ -261,7 +261,7 @@ fn ensure_dir_created(path: &Path) -> Result<()> {
 mod test {
     use chrono::Local;
 
-    use eloelo_model::PlayerId;
+    use eloelo_model::{PlayerId, WinScale};
 
     use super::*;
 
@@ -277,6 +277,7 @@ mod test {
                     timestamp: timestamp.clone(),
                     winner: vec![PlayerId::from("Winner")],
                     loser: vec![PlayerId::from("Loser")],
+                    scale: Some(WinScale::Advantage),
                 }],
             },
         );
@@ -289,6 +290,7 @@ mod test {
                         timestamp: timestamp.clone(),
                         winner: vec![PlayerId::from("Winner")],
                         loser: vec![PlayerId::from("Loser")],
+                        scale: Some(WinScale::Advantage),
                     }]
                 )]
                 .into_iter()
@@ -307,6 +309,7 @@ mod test {
                 timestamp: other_timestamp.clone(),
                 winner: vec![PlayerId::from("Other Winner")],
                 loser: vec![PlayerId::from("Other Loser")],
+                scale: Some(WinScale::Advantage),
             }],
         );
 
@@ -319,6 +322,7 @@ mod test {
                     timestamp: timestamp.clone(),
                     winner: vec![PlayerId::from("Winner")],
                     loser: vec![PlayerId::from("Loser")],
+                    scale: Some(WinScale::Advantage),
                 }],
             },
         );
@@ -332,11 +336,13 @@ mod test {
                             timestamp: timestamp.clone(),
                             winner: vec![PlayerId::from("Winner")],
                             loser: vec![PlayerId::from("Loser")],
+                            scale: Some(WinScale::Advantage),
                         },
                         HistoryEntry {
                             timestamp: other_timestamp.clone(),
                             winner: vec![PlayerId::from("Other Winner")],
                             loser: vec![PlayerId::from("Other Loser")],
+                            scale: Some(WinScale::Advantage),
                         }
                     ]
                 )]

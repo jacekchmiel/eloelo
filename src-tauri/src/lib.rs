@@ -3,11 +3,12 @@ use std::thread;
 use anyhow::Error;
 use dead_mans_switch::{dead_mans_switch, DeadMansSwitch};
 use eloelo::elodisco::EloDisco;
-use eloelo::message_bus::{Message, MessageBus, UiUpdate};
+use eloelo::message_bus::{FinishMatch, Message, MessageBus, UiCommand, UiUpdate};
 use eloelo::{store, EloElo};
 use eloelo_model::player::Player;
-use eloelo_model::{GameId, PlayerId, Team};
+use eloelo_model::{GameId, PlayerId, Team, WinScale};
 use log::{debug, info};
+use tauri::ipc::InvokeError;
 use tauri::{AppHandle, Emitter, Manager, State};
 
 mod dead_mans_switch;
@@ -19,22 +20,6 @@ struct TauriStateInner {
 }
 
 type TauriState<'r> = State<'r, TauriStateInner>;
-
-#[derive(Clone, Debug)]
-enum UiCommand {
-    InitializeUi,
-    AddNewPlayer(Player),
-    RemovePlayer(PlayerId),
-    MovePlayerToOtherTeam(String),
-    RemovePlayerFromTeam(String),
-    AddPlayerToTeam(String, Team),
-    ChangeGame(GameId),
-    StartMatch,
-    ShuffleTeams,
-    RefreshElo,
-    FinishMatch(Option<Team>),
-    CloseApplication,
-}
 
 #[tauri::command]
 fn initialize_ui(state: TauriState) {
@@ -123,14 +108,16 @@ fn refresh_elo(state: TauriState) {
         .send(Message::UiCommand(UiCommand::RefreshElo));
 }
 
-fn error(
-    msg: impl std::fmt::Display + std::fmt::Debug + Send + Sync + 'static,
-) -> tauri::ipc::InvokeError {
-    tauri::ipc::InvokeError::from_anyhow(Error::msg(msg))
+fn error(msg: impl std::fmt::Display + std::fmt::Debug + Send + Sync + 'static) -> InvokeError {
+    InvokeError::from_anyhow(Error::msg(msg))
 }
 
 #[tauri::command]
-fn finish_match(state: TauriState, winner: Option<String>) -> Result<(), tauri::ipc::InvokeError> {
+fn finish_match(
+    state: TauriState,
+    winner: Option<String>,
+    scale: Option<String>,
+) -> Result<(), InvokeError> {
     debug!("finish_match({:?})", winner);
     let winner = match winner {
         Some(winner) => {
@@ -138,9 +125,15 @@ fn finish_match(state: TauriState, winner: Option<String>) -> Result<(), tauri::
         }
         None => None,
     };
-    let _ = state
+    let scale = scale
+        .map(|s| WinScale::try_from(s.as_str()).map_err(InvokeError::from))
+        .transpose()?;
+    state
         .message_bus
-        .send(Message::UiCommand(UiCommand::FinishMatch(winner)));
+        .send(Message::UiCommand(UiCommand::FinishMatch(FinishMatch {
+            winner,
+            scale,
+        })));
     Ok(())
 }
 

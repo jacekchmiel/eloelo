@@ -1,12 +1,11 @@
 use std::collections::HashMap;
 
-use eloelo_model::{GameId, PlayerId};
+use eloelo_model::player::Player;
+use eloelo_model::{GameId, PlayerId, Team, WinScale};
 use log::error;
 use serde::Serialize;
 use tokio::sync::broadcast::error::RecvError;
 use tokio::sync::broadcast::{Receiver, Sender};
-
-use crate::UiCommand;
 
 use super::ui_state::UiState;
 
@@ -91,4 +90,26 @@ pub struct AvatarUpdate {
 #[derive(Debug, Clone)]
 pub enum Event {
     MatchStart(MatchStart),
+}
+
+#[derive(Clone, Debug)]
+pub enum UiCommand {
+    InitializeUi,
+    AddNewPlayer(Player),
+    RemovePlayer(PlayerId),
+    MovePlayerToOtherTeam(String),
+    RemovePlayerFromTeam(String),
+    AddPlayerToTeam(String, Team),
+    ChangeGame(GameId),
+    StartMatch,
+    ShuffleTeams,
+    RefreshElo,
+    FinishMatch(FinishMatch),
+    CloseApplication,
+}
+
+#[derive(Clone, Debug)]
+pub struct FinishMatch {
+    pub winner: Option<Team>,
+    pub scale: Option<WinScale>,
 }

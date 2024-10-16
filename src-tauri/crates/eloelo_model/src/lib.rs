@@ -1,6 +1,7 @@
 use std::fmt::Display;
 
 use serde::{Deserialize, Serialize};
+use thiserror::Error;
 
 pub mod history;
 pub mod player;
@@ -85,5 +86,29 @@ impl From<String> for GameId {
 impl From<&str> for GameId {
     fn from(value: &str) -> Self {
         GameId(value.to_string())
+    }
+}
+
+#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
+pub enum WinScale {
+    Equal,
+    Advantage,
+    Pwnage,
+}
+
+#[derive(Error, Debug, Serialize)]
+#[error("Invalid value: {0}")]
+pub struct FromStrError(String);
+
+impl TryFrom<&str> for WinScale {
+    type Error = FromStrError;
+
+    fn try_from(value: &str) -> Result<Self, Self::Error> {
+        match value {
+            "equal" => Ok(WinScale::Equal),
+            "advantage" => Ok(WinScale::Advantage),
+            "pwnage" => Ok(WinScale::Pwnage),
+            other => Err(FromStrError(other.to_string())),
+        }
     }
 }
