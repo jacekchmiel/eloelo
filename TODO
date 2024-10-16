@@ -1,0 +1,26 @@
+# TODO
+
+## HIGH PRIORITY
+
+- [ ] Additional match info: length, advantage
+- [ ] Uniform playerId/discordId
+
+- [ ] Log all matches in separate, append-only file as backup
+- [ ] Crash dump
+
+## LOW PRIORITY
+
+- [ ] Graphs Per player
+  - [ ] Best teammates
+  - [ ] Wins/Loses summary
+  - [ ] Row colors per win/lose
+
+- [ ] Interactive ELO calculation (progress, and live score changes)
+
+- [ ] Settings UI - generated from rust struct (any in TS)
+
+- [ ] Randomize Heroes by type
+
+- [ ] Game graphics
+
+- [ ] Tests and microbenchmarks for ELO calculation

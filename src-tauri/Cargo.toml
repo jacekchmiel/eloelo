@@ -1,0 +1,45 @@
+[workspace]
+members = ["crates/*"]
+
+[workspace.dependencies]
+eloelo_model = { path = "crates/eloelo_model" }
+spawelo = { path = "crates/spawelo" }
+
+[package]
+name = "eloelo"
+version = "0.1.0"
+description = "Calculating ELO scores!"
+authors = ["wazniak"]
+edition = "2021"
+
+[lib]
+name = "eloelo_lib"
+crate-type = ["lib", "cdylib", "staticlib"]
+
+[build-dependencies]
+tauri-build = { version = "2.0.0-rc.13", features = [] }
+
+[dependencies]
+tauri = { version = "2.0.3", features = ["devtools"] }
+tauri-plugin-shell = "2.0.0-rc.3"
+tauri-plugin-log = "2.0.0-rc.2"
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"
+directories = "5.0.1"
+anyhow = "1"
+serde_yaml = "0.9.33"
+rand = "0.8.5"
+chrono = { version = "0.4.38", features = ["serde"] }
+tokio = "1.40.0"
+serenity = "0.12.2"
+log = "0.4.22"
+flexi_logger = "0.29.3"
+itertools = "0.13.0"
+eloelo_model = { workspace = true }
+spawelo = { workspace = true }
+
+[profile.dev.package.spawelo]
+opt-level = 1
+
+[profile.dev.package.eloelo_model]
+opt-level = 1

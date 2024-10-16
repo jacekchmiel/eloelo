@@ -1,0 +1,11 @@
+[package]
+name = "spawelo"
+version = "0.1.0"
+authors = ["wazniak"]
+edition = "2021"
+
+[dependencies]
+itertools = "0.13.0"
+log = "0.4.22"
+rand = "0.8.5"
+eloelo_model = { workspace = true }
