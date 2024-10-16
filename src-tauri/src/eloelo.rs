@@ -17,7 +17,6 @@ use crate::UiCommand;
 
 pub(crate) mod config;
 pub(crate) mod elodisco;
-pub(crate) mod logging;
 pub(crate) mod message_bus;
 pub(crate) mod silly_responder;
 pub(crate) mod store;

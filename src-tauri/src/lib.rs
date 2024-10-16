@@ -12,6 +12,7 @@ use tauri::{AppHandle, Emitter, Manager, State};
 
 mod dead_mans_switch;
 mod eloelo;
+mod logging;
 
 struct TauriStateInner {
     message_bus: MessageBus,
@@ -207,7 +208,7 @@ fn start_worker_threads(
 
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
-    eloelo::logging::init();
+    logging::init();
     let config = store::load_config().unwrap();
     let state = store::load_state(&config).unwrap();
     let bot_state = store::load_bot_state().unwrap();
