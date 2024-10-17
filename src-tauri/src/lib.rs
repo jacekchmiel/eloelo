@@ -117,8 +117,9 @@ fn finish_match(
     state: TauriState,
     winner: Option<String>,
     scale: Option<String>,
+    duration: Option<String>, //TODO: check if we can send Duration
 ) -> Result<(), InvokeError> {
-    debug!("finish_match({:?})", winner);
+    debug!("finish_match({winner:?}, {scale:?}, {duration:?})");
     let winner = match winner {
         Some(winner) => {
             Some(Team::from_str(&winner).ok_or_else(|| error("Invalid team designator"))?)

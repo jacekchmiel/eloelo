@@ -1,5 +1,5 @@
 import React from "react";
-import { invoke } from "@tauri-apps/api/core";
+import { InvokeArgs, invoke as tauriInvoke } from "@tauri-apps/api/core";
 import {
 	Box,
 	Button,
@@ -7,8 +7,12 @@ import {
 	FormControl,
 	Grid,
 	IconButton,
+	Input,
 	InputLabel,
+	List,
+	ListItem,
 	MenuItem,
+	Modal,
 	Select,
 	type SelectChangeEvent,
 	Stack,
@@ -27,6 +31,12 @@ import { HistoryView } from "./HistoryView";
 import { type EloEloStateTransport, parseEloEloState } from "./parse";
 
 const initialAvatarsState: Avatars = [];
+
+const invoke = async (event: string, args: InvokeArgs) => {
+	console.log({ event, args });
+	//FIXME: should we catch something here?
+	await tauriInvoke(event, args);
+};
 
 function GameSelector({
 	selectedGame,
@@ -158,6 +168,11 @@ function MainView({
 		.map((a) => a.player)
 		.filter((p) => activePlayers.find((e) => e.name === p) === undefined)
 		.sort();
+
+	const [finishMatchModalState, setFinishMatchModalState] = React.useState<
+		"left" | "right" | undefined
+	>(undefined);
+
 	return (
 		<>
 			<TeamSelector {...state} avatars={avatars} />
@@ -186,9 +201,10 @@ function MainView({
 						<Grid item xs={6}>
 							<Stack direction="row" justifyContent="right">
 								<Button
-									onClick={async () =>
-										await invoke("finish_match", { winner: "left" })
-									}
+									onClick={() => setFinishMatchModalState("left")}
+									// onClick={async () =>
+									// 	await invoke("finish_match", { winner: "left" })
+									// }
 								>
 									Left Team Won
 								</Button>
@@ -196,11 +212,7 @@ function MainView({
 						</Grid>
 						<Grid item xs={6}>
 							<Stack direction="row" justifyContent="space-between">
-								<Button
-									onClick={async () =>
-										await invoke("finish_match", { winner: "right" })
-									}
-								>
+								<Button onClick={() => setFinishMatchModalState("right")}>
 									Right Team Won
 								</Button>
 								<Button
@@ -220,7 +232,87 @@ function MainView({
 				avatars={avatars}
 				playersToAdd={playersToAdd}
 			/>
+			<FinishMatchModal
+				open={finishMatchModalState !== undefined}
+				onClose={() => setFinishMatchModalState(undefined)}
+				onProceed={async (winScale, duration) =>
+					await invoke("finish_match", {
+						winner: finishMatchModalState,
+						scale: winScale,
+						duration: duration,
+					})
+				}
+			/>
 		</>
+	);
+}
+
+function FinishMatchModal({
+	open,
+	onClose,
+	onProceed,
+}: {
+	open: boolean;
+	onClose: () => void;
+	onProceed: (
+		winScale: "domination" | "advantage" | "even",
+		duration: string,
+	) => void;
+}) {
+	const sx = {
+		position: "absolute",
+		top: "50%",
+		left: "50%",
+		transform: "translate(-50%, -50%)",
+		width: 400,
+		bgcolor: "background.paper",
+		// border: "2px solid #000",
+		boxShadow: 24,
+		p: 4,
+	};
+
+	return (
+		<Modal open={open} onClose={onClose}>
+			<Box sx={sx}>
+				<Typography id="modal-modal-title" variant="h6" component="h2">
+					How it went?
+				</Typography>
+				<List>
+					<ListItem>Duration</ListItem>
+					<ListItem>
+						<Button
+							onClick={async () => {
+								// FIXME: this value is incorrect, but the error message is rather unhelpful
+								onProceed("domination", "1h");
+								onClose();
+							}}
+						>
+							Dominated
+						</Button>
+					</ListItem>
+					<ListItem>
+						<Button
+							onClick={async () => {
+								onProceed("advantage", "1h");
+								onClose();
+							}}
+						>
+							Advantage
+						</Button>
+					</ListItem>
+					<ListItem>
+						<Button
+							onClick={async () => {
+								onProceed("even", "1h");
+								onClose();
+							}}
+						>
+							Even
+						</Button>
+					</ListItem>
+				</List>
+			</Box>
+		</Modal>
 	);
 }
 

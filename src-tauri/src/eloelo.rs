@@ -7,7 +7,7 @@ use config::Config;
 use eloelo_model::history::{History, HistoryEntry};
 use eloelo_model::player::{Player, PlayerDb};
 use eloelo_model::{GameId, GameState, PlayerId, Team};
-use log::{error, info};
+use log::{debug, error, info};
 use message_bus::{Event, FinishMatch, MatchStart, MatchStartTeam, Message, MessageBus, UiCommand};
 use spawelo::ml_elo;
 use store::append_history_entry;
@@ -215,6 +215,7 @@ impl EloElo {
         }
 
         self.game_state = GameState::AssemblingTeams;
+        debug!("finish_match handled");
     }
 
     fn update_elo(&mut self) {
