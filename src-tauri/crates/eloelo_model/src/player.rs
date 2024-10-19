@@ -65,7 +65,7 @@ impl PlayerDb {
         &'a self,
         players: &'a [PlayerId],
         game: &'a GameId,
-    ) -> impl IntoIterator<Item = (&PlayerId, i32)> + 'a {
+    ) -> impl IntoIterator<Item = (&'a PlayerId, i32)> + 'a {
         self.players
             .iter()
             .filter(|(k, _)| players.contains(k))
