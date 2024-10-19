@@ -197,7 +197,12 @@ impl EloElo {
     }
 
     fn finish_match(&mut self, finish_match: FinishMatch) {
-        if let Some(winner) = finish_match.winner {
+        if let FinishMatch::Finished {
+            winner,
+            scale,
+            duration,
+        } = finish_match
+        {
             let (winner, loser) = match winner {
                 Team::Left => (self.left_players.clone(), self.right_players.clone()),
                 Team::Right => (self.right_players.clone(), self.left_players.clone()),
@@ -206,7 +211,8 @@ impl EloElo {
                 timestamp: Local::now(),
                 winner,
                 loser,
-                scale: finish_match.scale,
+                scale,
+                duration,
             };
             let _ =
                 append_history_entry(&self.selected_game, &history_entry).inspect_err(print_err); // TODO: proper error propagation

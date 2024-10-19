@@ -117,24 +117,24 @@ fn finish_match(
     state: TauriState,
     winner: Option<String>,
     scale: Option<String>,
-    duration: Option<String>, //TODO: check if we can send Duration
+    duration: Option<std::time::Duration>, //TODO: check if we can send Duration
 ) -> Result<(), InvokeError> {
     debug!("finish_match({winner:?}, {scale:?}, {duration:?})");
-    let winner = match winner {
+    let cmd = match winner {
+        None => UiCommand::FinishMatch(FinishMatch::Cancelled),
         Some(winner) => {
-            Some(Team::from_str(&winner).ok_or_else(|| error("Invalid team designator"))?)
+            let winner = Team::from_str(&winner).ok_or_else(|| error("Invalid team designator"))?;
+            let scale = WinScale::try_from(scale.ok_or_else(|| error("Missing win scale"))?)
+                .map_err(InvokeError::from_error)?;
+            let duration = duration.ok_or_else(|| error("Missing match duration"))?;
+            UiCommand::FinishMatch(FinishMatch::Finished {
+                winner,
+                scale,
+                duration,
+            })
         }
-        None => None,
     };
-    let scale = scale
-        .map(|s| WinScale::try_from(s.as_str()).map_err(InvokeError::from))
-        .transpose()?;
-    state
-        .message_bus
-        .send(Message::UiCommand(UiCommand::FinishMatch(FinishMatch {
-            winner,
-            scale,
-        })));
+    state.message_bus.send(Message::UiCommand(cmd));
     Ok(())
 }
 

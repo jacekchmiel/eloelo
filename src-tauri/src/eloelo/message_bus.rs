@@ -1,4 +1,5 @@
 use std::collections::HashMap;
+use std::time::Duration;
 
 use eloelo_model::player::Player;
 use eloelo_model::{GameId, PlayerId, Team, WinScale};
@@ -109,7 +110,11 @@ pub enum UiCommand {
 }
 
 #[derive(Clone, Debug)]
-pub struct FinishMatch {
-    pub winner: Option<Team>,
-    pub scale: Option<WinScale>,
+pub enum FinishMatch {
+    Cancelled,
+    Finished {
+        winner: Team,
+        scale: WinScale,
+        duration: Duration,
+    },
 }

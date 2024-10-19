@@ -35,3 +35,4 @@ export type EloEloState = {
 
 export type PlayerAvatar = { player: string; avatarUrl: string };
 export type Avatars = PlayerAvatar[];
+export type WinScale = "pwnage" | "advantage" | "even";

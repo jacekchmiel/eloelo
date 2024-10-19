@@ -2,8 +2,10 @@
 
 ## HIGH PRIORITY
 
-- [ ] Additional match info: length, advantage
+- [x] Additional match info: length, advantage
+- [ ] Display length and advantage on match view
 - [ ] Uniform playerId/discordId
+- [ ] Fix proposed duration in finish match modal
 
 - [ ] Log all matches in separate, append-only file as backup
 - [ ] Crash dump

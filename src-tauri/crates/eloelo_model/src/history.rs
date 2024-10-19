@@ -1,7 +1,8 @@
 use std::collections::HashMap;
+use std::time::Duration;
 
 use chrono::{DateTime, Local};
-use serde::{Deserialize, Serialize};
+use serde::{Deserialize, Deserializer, Serialize, Serializer};
 
 use crate::{GameId, PlayerId, WinScale};
 
@@ -15,7 +16,28 @@ pub struct HistoryEntry {
     pub timestamp: DateTime<Local>,
     pub winner: Vec<PlayerId>,
     pub loser: Vec<PlayerId>,
-    pub scale: Option<WinScale>,
+    #[serde(default)]
+    pub scale: WinScale,
+    #[serde(default = "default_match_duration")]
+    #[serde(serialize_with = "serialize_seconds")]
+    #[serde(deserialize_with = "deserialize_seconds")]
+    pub duration: Duration,
+}
+
+fn default_match_duration() -> Duration {
+    Duration::from_secs(45 * 60)
+}
+
+fn serialize_seconds<S: Serializer>(duration: &Duration, s: S) -> Result<S::Ok, S::Error> {
+    duration.as_secs().serialize(s)
+}
+
+fn deserialize_seconds<'de, D>(d: D) -> Result<Duration, D::Error>
+where
+    D: Deserializer<'de>,
+{
+    let seconds = u64::deserialize(d)?;
+    Ok(Duration::from_secs(seconds))
 }
 
 impl HistoryEntry {
@@ -41,7 +63,8 @@ impl From<LegacyHistoryEntry> for HistoryEntry {
             timestamp: DateTime::from(DateTime::UNIX_EPOCH),
             winner,
             loser,
-            scale: None,
+            scale: WinScale::Even,
+            duration: Duration::from_secs(45 * 60),
         }
     }
 }
