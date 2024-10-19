@@ -16,6 +16,8 @@ jobs:
 
     steps:
     - uses: actions/checkout@v4
+    - name: Install dependencies
+      run: sudo apt-get install libgtk-3-dev
     - name: Check
       working-directory: ./src-tauri
       run: cargo check --verbose
