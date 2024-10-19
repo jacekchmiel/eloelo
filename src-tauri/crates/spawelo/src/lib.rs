@@ -171,7 +171,7 @@ mod test {
 
     #[test]
     fn test_winner_win_probability() {
-        assert_eq!((win_probability(1100.0, 1000.9) * 100.0).round(), 64.0);
+        assert_eq!((win_probability(1100.0, 1000.0) * 100.0).round(), 64.0);
         assert_eq!((win_probability(1200.0, 1000.0) * 100.0).round(), 76.0);
     }
 }
