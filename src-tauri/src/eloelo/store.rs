@@ -277,6 +277,7 @@ mod test {
                     timestamp: timestamp.clone(),
                     winner: vec![PlayerId::from("Winner")],
                     loser: vec![PlayerId::from("Loser")],
+                    win_probability: 0.56,
                 }],
             },
         );
@@ -289,6 +290,7 @@ mod test {
                         timestamp: timestamp.clone(),
                         winner: vec![PlayerId::from("Winner")],
                         loser: vec![PlayerId::from("Loser")],
+                        win_probability: 0.56,
                     }]
                 )]
                 .into_iter()
@@ -307,6 +309,7 @@ mod test {
                 timestamp: other_timestamp.clone(),
                 winner: vec![PlayerId::from("Other Winner")],
                 loser: vec![PlayerId::from("Other Loser")],
+                win_probability: 0.56,
             }],
         );
 
@@ -319,6 +322,7 @@ mod test {
                     timestamp: timestamp.clone(),
                     winner: vec![PlayerId::from("Winner")],
                     loser: vec![PlayerId::from("Loser")],
+                    win_probability: 0.62,
                 }],
             },
         );
@@ -332,11 +336,13 @@ mod test {
                             timestamp: timestamp.clone(),
                             winner: vec![PlayerId::from("Winner")],
                             loser: vec![PlayerId::from("Loser")],
+                            win_probability: 0.62,
                         },
                         HistoryEntry {
                             timestamp: other_timestamp.clone(),
                             winner: vec![PlayerId::from("Other Winner")],
                             loser: vec![PlayerId::from("Other Loser")],
+                            win_probability: 0.56,
                         }
                     ]
                 )]

@@ -208,6 +208,7 @@ impl EloElo {
                 timestamp: Local::now(),
                 winner,
                 loser,
+                win_probability: 0.75,  // TODO(spawek): Get a better estimate from UI or match length.
             };
             let _ =
                 append_history_entry(&self.selected_game, &history_entry).inspect_err(print_err); // TODO: proper error propagation
@@ -219,9 +220,7 @@ impl EloElo {
     }
 
     fn update_elo(&mut self) {
-        let players: Vec<_> = self.players.all().map(|p| p.name.clone()).collect();
-        let players = self.players.get_ranked_owned(&players, &self.selected_game);
-        let updates = ml_elo(self.history_for_elo_calc(), &players);
+        let updates = ml_elo(self.history_for_elo_calc());
 
         for (player, new_elo) in updates.iter() {
             self.players
@@ -299,7 +298,7 @@ impl EloElo {
         info!("Recalculating {} elo from history", &self.selected_game);
         self.reset_elo();
 
-        let elo = ml_elo(self.history_for_elo_calc(), &Default::default());
+        let elo = ml_elo(self.history_for_elo_calc());
         for (player, new_elo) in elo.iter() {
             self.players
                 .set_rank(player, &self.selected_game, *new_elo as i32);

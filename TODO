@@ -3,6 +3,7 @@
 ## HIGH PRIORITY
 
 - [ ] Additional match info: length, advantage
+- [ ] Store match history (the most precious thing we have) in cloud/safe storage, also so it can be shared with other 
 - [ ] Uniform playerId/discordId
 
 - [ ] Log all matches in separate, append-only file as backup
