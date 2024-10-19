@@ -99,7 +99,6 @@ fn backpropagation(
     history: &[HistoryEntry],
     elo: &HashMap<PlayerId, f64>,
 ) -> HashMap<PlayerId, f64> {
-    // TODO(spawek): &
     let mut derivative = HashMap::new();
     for entry in history {
         let winner_elo: f64 = entry.winner.iter().map(|p| elo.get(p).unwrap()).sum();
