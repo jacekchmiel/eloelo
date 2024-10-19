@@ -3,11 +3,12 @@ use std::thread;
 use anyhow::Error;
 use dead_mans_switch::{dead_mans_switch, DeadMansSwitch};
 use eloelo::elodisco::EloDisco;
-use eloelo::message_bus::{Message, MessageBus, UiUpdate};
+use eloelo::message_bus::{FinishMatch, Message, MessageBus, UiCommand, UiUpdate};
 use eloelo::{store, EloElo};
 use eloelo_model::player::Player;
-use eloelo_model::{GameId, PlayerId, Team};
+use eloelo_model::{GameId, PlayerId, Team, WinScale};
 use log::{debug, info};
+use tauri::ipc::InvokeError;
 use tauri::{AppHandle, Emitter, Manager, State};
 
 mod dead_mans_switch;
@@ -19,22 +20,6 @@ struct TauriStateInner {
 }
 
 type TauriState<'r> = State<'r, TauriStateInner>;
-
-#[derive(Clone, Debug)]
-enum UiCommand {
-    InitializeUi,
-    AddNewPlayer(Player),
-    RemovePlayer(PlayerId),
-    MovePlayerToOtherTeam(String),
-    RemovePlayerFromTeam(String),
-    AddPlayerToTeam(String, Team),
-    ChangeGame(GameId),
-    StartMatch,
-    ShuffleTeams,
-    RefreshElo,
-    FinishMatch(Option<Team>),
-    CloseApplication,
-}
 
 #[tauri::command]
 fn initialize_ui(state: TauriState) {
@@ -123,24 +108,33 @@ fn refresh_elo(state: TauriState) {
         .send(Message::UiCommand(UiCommand::RefreshElo));
 }
 
-fn error(
-    msg: impl std::fmt::Display + std::fmt::Debug + Send + Sync + 'static,
-) -> tauri::ipc::InvokeError {
-    tauri::ipc::InvokeError::from_anyhow(Error::msg(msg))
+fn error(msg: impl std::fmt::Display + std::fmt::Debug + Send + Sync + 'static) -> InvokeError {
+    InvokeError::from_anyhow(Error::msg(msg))
 }
 
 #[tauri::command]
-fn finish_match(state: TauriState, winner: Option<String>) -> Result<(), tauri::ipc::InvokeError> {
-    debug!("finish_match({:?})", winner);
-    let winner = match winner {
+fn finish_match(
+    state: TauriState,
+    winner: Option<String>,
+    scale: Option<String>,
+    duration: Option<std::time::Duration>, //TODO: check if we can send Duration
+) -> Result<(), InvokeError> {
+    debug!("finish_match({winner:?}, {scale:?}, {duration:?})");
+    let cmd = match winner {
+        None => UiCommand::FinishMatch(FinishMatch::Cancelled),
         Some(winner) => {
-            Some(Team::from_str(&winner).ok_or_else(|| error("Invalid team designator"))?)
+            let winner = Team::from_str(&winner).ok_or_else(|| error("Invalid team designator"))?;
+            let scale = WinScale::try_from(scale.ok_or_else(|| error("Missing win scale"))?)
+                .map_err(InvokeError::from_error)?;
+            let duration = duration.ok_or_else(|| error("Missing match duration"))?;
+            UiCommand::FinishMatch(FinishMatch::Finished {
+                winner,
+                scale,
+                duration,
+            })
         }
-        None => None,
     };
-    let _ = state
-        .message_bus
-        .send(Message::UiCommand(UiCommand::FinishMatch(winner)));
+    state.message_bus.send(Message::UiCommand(cmd));
     Ok(())
 }
 
