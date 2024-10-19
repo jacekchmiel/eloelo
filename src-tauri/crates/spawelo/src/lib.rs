@@ -17,7 +17,7 @@ fn print_debug(i: usize, history: &[HistoryEntry], elo: &HashMap<PlayerId, f64>,
     if i % 100 == 0 || i == ML_ITERATIONS - 1 {
         debug!(
             "{}/{}, loss: {:.4}, elo_sum: {}",
-            i+1,
+            i + 1,
             ML_ITERATIONS,
             loss,
             elo_sum
@@ -25,18 +25,11 @@ fn print_debug(i: usize, history: &[HistoryEntry], elo: &HashMap<PlayerId, f64>,
     }
 }
 
-pub fn ml_elo(
-    history: &[HistoryEntry]
-) -> HashMap<PlayerId, f64> {
+pub fn ml_elo(history: &[HistoryEntry]) -> HashMap<PlayerId, f64> {
     let mut elo: HashMap<PlayerId, f64> = history
         .iter()
         .flat_map(|e| e.all_players())
-        .map(|p| {
-            (
-                p.clone(),
-                Player::default_elo() as f64
-            )
-        })
+        .map(|p| (p.clone(), Player::default_elo() as f64))
         .collect();
 
     if elo.is_empty() {
@@ -81,16 +74,13 @@ fn log_probabilities(elo: &HashMap<PlayerId, f64>, history: &[HistoryEntry]) {
         let predicted_probability = win_probability(winner_elo, loser_elo);
         debug!(
             "Winner: {}, Loser: {}, Real probability: {:.4}, Predicted probability: {:.4}",
-            winner_elo, loser_elo, entry.win_probability, predicted_probability, 
+            winner_elo, loser_elo, entry.win_probability, predicted_probability,
         );
     }
 }
 
 // L4 loss
-fn loss(
-    history: &[HistoryEntry],
-    elo: &HashMap<PlayerId, f64>,
-) -> f64 {
+fn loss(history: &[HistoryEntry], elo: &HashMap<PlayerId, f64>) -> f64 {
     let mut loss = 0.0;
     for entry in history {
         let winner_elo: f64 = entry.winner.iter().map(|p| elo.get(p).unwrap()).sum();
@@ -108,7 +98,8 @@ fn loss(
 fn backpropagation(
     history: &[HistoryEntry],
     elo: &HashMap<PlayerId, f64>,
-) -> HashMap<PlayerId, f64> {  // TODO(spawek): &
+) -> HashMap<PlayerId, f64> {
+    // TODO(spawek): &
     let mut derivative = HashMap::new();
     for entry in history {
         let winner_elo: f64 = entry.winner.iter().map(|p| elo.get(p).unwrap()).sum();
@@ -124,15 +115,14 @@ fn backpropagation(
 
         // https://www.wolframalpha.com/input?i=%281%2F%281%2B10%5E%28-x%2F400%29%29%29%27
         // -log(10)/(400 (1 + 10^(x/400))^2) + log(10)/(400 (1 + 10^(x/400)))
-        let win_probability_derivative = final_derivative * (
-            -10.0f64.ln() / (400.0 * (1.0 + 10.0f64.powf(elo_diff/400.0)).powf(2.0)) 
-            + 10.0f64.ln() / (400.0 * (1.0 + 10.0f64.powf(elo_diff/400.0)))
-        );
+        let win_probability_derivative = final_derivative
+            * (-10.0f64.ln() / (400.0 * (1.0 + 10.0f64.powf(elo_diff / 400.0)).powf(2.0))
+                + 10.0f64.ln() / (400.0 * (1.0 + 10.0f64.powf(elo_diff / 400.0))));
 
-        for p in &entry.winner{
+        for p in &entry.winner {
             *derivative.entry(p.clone()).or_insert(0.0) += win_probability_derivative;
         }
-        for p in &entry.loser{
+        for p in &entry.loser {
             *derivative.entry(p.clone()).or_insert(0.0) -= win_probability_derivative;
         }
     }

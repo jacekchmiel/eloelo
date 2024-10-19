@@ -208,7 +208,7 @@ impl EloElo {
                 timestamp: Local::now(),
                 winner,
                 loser,
-                win_probability: 0.75,  // TODO(spawek): Get a better estimate from UI or match length.
+                win_probability: 0.75, // TODO(spawek): Get a better estimate from UI or match length.
             };
             let _ =
                 append_history_entry(&self.selected_game, &history_entry).inspect_err(print_err); // TODO: proper error propagation
