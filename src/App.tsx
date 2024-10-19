@@ -1,5 +1,5 @@
-import React from "react";
-import { type InvokeArgs, invoke as tauriInvoke } from "@tauri-apps/api/core";
+import EventNoteIcon from "@mui/icons-material/EventNote";
+import RefreshIcon from "@mui/icons-material/Refresh";
 import {
 	Box,
 	Button,
@@ -18,23 +18,23 @@ import {
 	TextField,
 	Typography,
 } from "@mui/material";
-import { ThemeProvider, createTheme, styled } from "@mui/material/styles";
-import { TeamSelector } from "./TeamSelector";
-import { ThemeSwitcher, ColorModeContext } from "./ThemeSwitcher";
-import { listen } from "@tauri-apps/api/event";
-import { ReserveList } from "./ReserveList";
 import { grey } from "@mui/material/colors";
-import type { Avatars, EloEloState, WinScale } from "./model";
-import RefreshIcon from "@mui/icons-material/Refresh";
-import EventNoteIcon from "@mui/icons-material/EventNote";
-import { HistoryView } from "./HistoryView";
-import { type EloEloStateTransport, parseEloEloState } from "./parse";
+import { ThemeProvider, createTheme, styled } from "@mui/material/styles";
+import { type InvokeArgs, invoke as tauriInvoke } from "@tauri-apps/api/core";
+import { listen } from "@tauri-apps/api/event";
+import React from "react";
 import {
 	elapsedString,
 	isValidDurationString,
 	parseDurationString,
 	serializeDurationSeconds,
 } from "./Duration";
+import { HistoryView } from "./HistoryView";
+import { ReserveList } from "./ReserveList";
+import { TeamSelector } from "./TeamSelector";
+import { ColorModeContext, ThemeSwitcher } from "./ThemeSwitcher";
+import type { Avatars, EloEloState, WinScale } from "./model";
+import { type EloEloStateTransport, parseEloEloState } from "./parse";
 
 const initialAvatarsState: Avatars = [];
 

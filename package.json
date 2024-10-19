@@ -9,7 +9,7 @@
     "preview": "vite preview",
     "tauri": "tauri",
     "test": "vitest",
-    "format": "biome format"
+    "check": "biome check"
   },
   "dependencies": {
     "@emotion/react": "^11.13.0",

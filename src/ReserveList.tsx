@@ -1,3 +1,10 @@
+import AddIcon from "@mui/icons-material/Add";
+import DeleteIcon from "@mui/icons-material/Delete";
+import EditIcon from "@mui/icons-material/Edit";
+import EditOffIcon from "@mui/icons-material/EditOff";
+import PersonIcon from "@mui/icons-material/Person";
+import PersonAddIcon from "@mui/icons-material/PersonAdd";
+import PersonAddAlt1Icon from "@mui/icons-material/PersonAddAlt1";
 import {
 	Autocomplete,
 	Avatar,
@@ -10,19 +17,12 @@ import {
 	ListItemText,
 	Paper,
 	Stack,
-	styled,
 	TextField,
+	styled,
 } from "@mui/material";
-import DeleteIcon from "@mui/icons-material/Delete";
-import PersonIcon from "@mui/icons-material/Person";
-import AddIcon from "@mui/icons-material/Add";
 import { invoke } from "@tauri-apps/api/core";
 import { useState } from "react";
-import PersonAddIcon from "@mui/icons-material/PersonAdd";
-import PersonAddAlt1Icon from "@mui/icons-material/PersonAddAlt1";
-import type { Player, Avatars, PlayerAvatar } from "./model";
-import EditIcon from "@mui/icons-material/Edit";
-import EditOffIcon from "@mui/icons-material/EditOff";
+import type { Avatars, Player, PlayerAvatar } from "./model";
 
 const Header = styled(Box)(({ theme }) => ({
 	...theme.typography.h6,

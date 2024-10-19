@@ -10,8 +10,8 @@ import {
 	TableRow,
 	Tooltip,
 } from "@mui/material";
-import type { HistoryEntry, Avatars } from "./model";
 import React from "react";
+import type { Avatars, HistoryEntry } from "./model";
 
 export function HistoryView({
 	history,

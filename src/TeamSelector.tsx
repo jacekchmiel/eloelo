@@ -1,3 +1,6 @@
+import ChevronLeftIcon from "@mui/icons-material/ChevronLeft";
+import ChevronRightIcon from "@mui/icons-material/ChevronRight";
+import DeleteIcon from "@mui/icons-material/Delete";
 import {
 	Avatar,
 	Box,
@@ -11,11 +14,8 @@ import {
 	Stack,
 	styled,
 } from "@mui/material";
-import ChevronLeftIcon from "@mui/icons-material/ChevronLeft";
-import ChevronRightIcon from "@mui/icons-material/ChevronRight";
-import DeleteIcon from "@mui/icons-material/Delete";
 import { invoke } from "@tauri-apps/api/core";
-import type { Avatars, PlayerAvatar, Game, GameState, Player } from "./model";
+import type { Avatars, Game, GameState, Player, PlayerAvatar } from "./model";
 
 type Side = "left" | "right";
 

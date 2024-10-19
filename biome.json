@@ -11,5 +11,8 @@
 				"noConsole": "warn"
 			}
 		}
+	},
+	"files": {
+		"include": ["src/*"]
 	}
 }
