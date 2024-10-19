@@ -2,9 +2,11 @@
 
 ## HIGH PRIORITY
 
-- [ ] Additional match info: length, advantage
+- [x] Additional match info: length, advantage
+- [ ] Display length and advantage on match view
 - [ ] Store match history (the most precious thing we have) in cloud/safe storage, also so it can be shared with other 
 - [ ] Uniform playerId/discordId
+- [ ] Fix proposed duration in finish match modal
 
 - [ ] Log all matches in separate, append-only file as backup
 - [ ] Crash dump

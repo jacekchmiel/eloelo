@@ -884,6 +884,7 @@ dependencies = [
  "chrono",
  "log",
  "serde",
+ "thiserror",
 ]
 
 [[package]]

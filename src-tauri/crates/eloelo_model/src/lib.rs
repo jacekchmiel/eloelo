@@ -1,6 +1,7 @@
 use std::fmt::Display;
 
 use serde::{Deserialize, Serialize};
+use thiserror::Error;
 
 pub mod history;
 pub mod player;
@@ -85,5 +86,56 @@ impl From<String> for GameId {
 impl From<&str> for GameId {
     fn from(value: &str) -> Self {
         GameId(value.to_string())
+    }
+}
+
+#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
+pub enum WinScale {
+    Even,
+    Advantage,
+    Pwnage,
+}
+
+impl Default for WinScale {
+    fn default() -> Self {
+        WinScale::Even
+    }
+}
+
+#[derive(Error, Debug)]
+#[error("Invalid value: {0}")]
+pub struct FromStrError(String);
+
+impl TryFrom<&str> for WinScale {
+    type Error = FromStrError;
+
+    fn try_from(value: &str) -> Result<Self, Self::Error> {
+        match value {
+            "even" => Ok(WinScale::Even),
+            "advantage" => Ok(WinScale::Advantage),
+            "pwnage" => Ok(WinScale::Pwnage),
+            other => Err(FromStrError(other.to_string())),
+        }
+    }
+}
+
+impl TryFrom<String> for WinScale {
+    type Error = FromStrError;
+
+    fn try_from(value: String) -> Result<Self, Self::Error> {
+        WinScale::try_from(value.as_str())
+    }
+}
+
+#[cfg(test)]
+mod test {
+    use super::*;
+
+    #[test]
+    fn from_str_error() {
+        assert_eq!(
+            &WinScale::try_from("domination").unwrap_err().to_string(),
+            "Invalid value: domination"
+        );
     }
 }

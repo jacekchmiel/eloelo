@@ -7,13 +7,11 @@ use config::Config;
 use eloelo_model::history::{History, HistoryEntry};
 use eloelo_model::player::{Player, PlayerDb};
 use eloelo_model::{GameId, GameState, PlayerId, Team};
-use log::{error, info};
-use message_bus::{Event, MatchStart, MatchStartTeam, Message, MessageBus};
+use log::{debug, error, info};
+use message_bus::{Event, FinishMatch, MatchStart, MatchStartTeam, Message, MessageBus, UiCommand};
 use spawelo::ml_elo;
 use store::append_history_entry;
 use ui_state::{State, UiPlayer, UiState};
-
-use crate::UiCommand;
 
 pub(crate) mod config;
 pub(crate) mod elodisco;
@@ -61,7 +59,7 @@ impl EloElo {
             UiCommand::StartMatch => self.start_match(),
             UiCommand::ShuffleTeams => self.shuffle_teams(),
             UiCommand::RefreshElo => self.recalculate_elo_from_history(),
-            UiCommand::FinishMatch(winner) => self.finish_match(winner),
+            UiCommand::FinishMatch(finish_match) => self.finish_match(finish_match),
             UiCommand::CloseApplication => {
                 if let Err(e) = self.store_state() {
                     error!("store_state failed: {}", e);
@@ -198,8 +196,13 @@ impl EloElo {
             })));
     }
 
-    fn finish_match(&mut self, winner: Option<Team>) {
-        if let Some(winner) = winner {
+    fn finish_match(&mut self, finish_match: FinishMatch) {
+        if let FinishMatch::Finished {
+            winner,
+            scale,
+            duration,
+        } = finish_match
+        {
             let (winner, loser) = match winner {
                 Team::Left => (self.left_players.clone(), self.right_players.clone()),
                 Team::Right => (self.right_players.clone(), self.left_players.clone()),
@@ -209,6 +212,8 @@ impl EloElo {
                 winner,
                 loser,
                 win_probability: 0.75, // TODO(spawek): Get a better estimate from UI or match length.
+                scale,
+                duration,
             };
             let _ =
                 append_history_entry(&self.selected_game, &history_entry).inspect_err(print_err); // TODO: proper error propagation
@@ -217,6 +222,7 @@ impl EloElo {
         }
 
         self.game_state = GameState::AssemblingTeams;
+        debug!("finish_match handled");
     }
 
     fn update_elo(&mut self) {
