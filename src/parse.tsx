@@ -1,10 +1,10 @@
 import type {
-	HistoryEntry,
-	History,
-	Game,
-	Player,
-	GameState,
 	EloEloState,
+	Game,
+	GameState,
+	History,
+	HistoryEntry,
+	Player,
 } from "./model";
 
 type HistoryEntryTransport = {
