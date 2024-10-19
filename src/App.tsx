@@ -29,7 +29,12 @@ import RefreshIcon from "@mui/icons-material/Refresh";
 import EventNoteIcon from "@mui/icons-material/EventNote";
 import { HistoryView } from "./HistoryView";
 import { type EloEloStateTransport, parseEloEloState } from "./parse";
-import { elapsedString, isValidDurationString, parseDurationString, serializeDurationSeconds } from "./Duration";
+import {
+	elapsedString,
+	isValidDurationString,
+	parseDurationString,
+	serializeDurationSeconds,
+} from "./Duration";
 
 const initialAvatarsState: Avatars = [];
 
@@ -40,10 +45,9 @@ const invoke = async (event: string, args: InvokeArgs) => {
 		await tauriInvoke(event, args);
 	} catch (err) {
 		// biome-ignore lint/nursery/noConsole: important log
-		console.error(err)
+		console.error(err);
 	}
 };
-
 
 function GameSelector({
 	selectedGame,
@@ -181,6 +185,7 @@ function MainView({
 		"left" | "right" | undefined
 	>(undefined);
 	const [startTimestamp, setStartTimestamp] = React.useState<Date>(new Date(0));
+	const [duration, setDuration] = React.useState("0m");
 
 	return (
 		<>
@@ -191,20 +196,24 @@ function MainView({
 					<>
 						<Grid item xs={6}>
 							<Stack direction="row" justifyContent="right">
-								<Button onClick={
-									async () => {
+								<Button
+									onClick={async () => {
 										await invoke("start_match", {});
 										setStartTimestamp(new Date());
-										console.log(`Start timestamp ${startTimestamp}`)
-									}
-								}>
+									}}
+								>
 									Start Match
 								</Button>
 							</Stack>
 						</Grid>
 						<Grid item xs={6}>
 							<Stack direction="row" justifyContent="left">
-								<Button onClick={async () => await invoke("shuffle_teams", {})}>
+								<Button
+									onClick={async () => {
+										await invoke("start_match", {});
+										setStartTimestamp(new Date());
+									}}
+								>
 									Shuffle Teams
 								</Button>
 							</Stack>
@@ -216,7 +225,10 @@ function MainView({
 						<Grid item xs={6}>
 							<Stack direction="row" justifyContent="right">
 								<Button
-									onClick={() => setFinishMatchModalState("left")}
+									onClick={() => {
+										setDuration(elapsedString(startTimestamp, new Date()));
+										setFinishMatchModalState("left");
+									}}
 								>
 									Left Team Won
 								</Button>
@@ -224,7 +236,12 @@ function MainView({
 						</Grid>
 						<Grid item xs={6}>
 							<Stack direction="row" justifyContent="space-between">
-								<Button onClick={() => setFinishMatchModalState("right")}>
+								<Button
+									onClick={() => {
+										setDuration(elapsedString(startTimestamp, new Date()));
+										setFinishMatchModalState("right");
+									}}
+								>
 									Right Team Won
 								</Button>
 								<Button
@@ -246,7 +263,8 @@ function MainView({
 			/>
 			<FinishMatchModal
 				open={finishMatchModalState !== undefined}
-				proposedDuration={() => { const elapsed = elapsedString(startTimestamp, new Date()); console.log(elapsed); return elapsed; }}
+				duration={duration}
+				setDuration={setDuration}
 				onClose={() => setFinishMatchModalState(undefined)}
 				onProceed={async (winScale, durationSeconds) =>
 					await invoke("finish_match", {
@@ -262,17 +280,16 @@ function MainView({
 
 function FinishMatchModal({
 	open,
-	proposedDuration,
+	duration,
+	setDuration,
 	onClose,
 	onProceed,
 }: {
 	open: boolean;
-	proposedDuration: () => string;
+	duration: string;
+	setDuration: (duration: string) => void;
 	onClose: () => void;
-	onProceed: (
-		winScale: WinScale,
-		durationSeconds: number,
-	) => Promise<void>;
+	onProceed: (winScale: WinScale, durationSeconds: number) => Promise<void>;
 }) {
 	const sx = {
 		position: "absolute",
@@ -285,10 +302,13 @@ function FinishMatchModal({
 		p: 4,
 	};
 
-	const [duration, setDuration] = React.useState(proposedDuration())
-	const userProvidedDurationInvalid = !isValidDurationString(duration)
+	const userProvidedDurationInvalid = !isValidDurationString(duration);
 
-	const buttons: [WinScale, string][] = [["pwnage", "Pwnage"], ["advantage", "Advantage"], ["even", "Even"]]
+	const buttons: [WinScale, string][] = [
+		["pwnage", "Pwnage"],
+		["advantage", "Advantage"],
+		["even", "Even"],
+	];
 
 	return (
 		<Modal open={open} onClose={onClose}>
@@ -309,17 +329,20 @@ function FinishMatchModal({
 					</ListItem>
 					{buttons.map((b) => {
 						const [command, text] = b;
-						return <ListItem key={command}>
-							<Button variant="contained"
-								onClick={async () => {
-									await onProceed(command, parseDurationString(duration));
-									onClose();
-								}}
-								disabled={userProvidedDurationInvalid}
-							>
-								{text}
-							</Button>
-						</ListItem>
+						return (
+							<ListItem key={command}>
+								<Button
+									variant="contained"
+									onClick={async () => {
+										await onProceed(command, parseDurationString(duration));
+										onClose();
+									}}
+									disabled={userProvidedDurationInvalid}
+								>
+									{text}
+								</Button>
+							</ListItem>
+						);
 					})}
 				</List>
 			</Box>
