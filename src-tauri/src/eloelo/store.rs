@@ -259,9 +259,11 @@ fn ensure_dir_created(path: &Path) -> Result<()> {
 
 #[cfg(test)]
 mod test {
+    use std::time::Duration;
+
     use chrono::Local;
 
-    use eloelo_model::PlayerId;
+    use eloelo_model::{PlayerId, WinScale};
 
     use super::*;
 
@@ -278,6 +280,8 @@ mod test {
                     winner: vec![PlayerId::from("Winner")],
                     loser: vec![PlayerId::from("Loser")],
                     win_probability: 0.56,
+                    scale: WinScale::Advantage,
+                    duration: Duration::from_secs(80 * 60),
                 }],
             },
         );
@@ -291,6 +295,8 @@ mod test {
                         winner: vec![PlayerId::from("Winner")],
                         loser: vec![PlayerId::from("Loser")],
                         win_probability: 0.56,
+                        scale: WinScale::Advantage,
+                        duration: Duration::from_secs(80 * 60),
                     }]
                 )]
                 .into_iter()
@@ -310,6 +316,8 @@ mod test {
                 winner: vec![PlayerId::from("Other Winner")],
                 loser: vec![PlayerId::from("Other Loser")],
                 win_probability: 0.56,
+                scale: WinScale::Advantage,
+                duration: Duration::from_secs(5),
             }],
         );
 
@@ -323,6 +331,8 @@ mod test {
                     winner: vec![PlayerId::from("Winner")],
                     loser: vec![PlayerId::from("Loser")],
                     win_probability: 0.62,
+                    scale: WinScale::Advantage,
+                    duration: Duration::from_secs(5),
                 }],
             },
         );
@@ -337,12 +347,16 @@ mod test {
                             winner: vec![PlayerId::from("Winner")],
                             loser: vec![PlayerId::from("Loser")],
                             win_probability: 0.62,
+                            scale: WinScale::Advantage,
+                            duration: Duration::from_secs(5),
                         },
                         HistoryEntry {
                             timestamp: other_timestamp.clone(),
                             winner: vec![PlayerId::from("Other Winner")],
                             loser: vec![PlayerId::from("Other Loser")],
                             win_probability: 0.56,
+                            scale: WinScale::Advantage,
+                            duration: Duration::from_secs(5),
                         }
                     ]
                 )]

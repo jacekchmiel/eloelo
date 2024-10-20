@@ -1,7 +1,5 @@
-use crate::UiCommand;
-
 use super::config::Config;
-use super::message_bus::{AvatarUpdate, Event, Message, MessageBus, UiUpdate};
+use super::message_bus::{AvatarUpdate, Event, Message, MessageBus, UiCommand, UiUpdate};
 use anyhow::Result;
 use async_elodisco::AsyncEloDisco;
 use bot_state::BotState;

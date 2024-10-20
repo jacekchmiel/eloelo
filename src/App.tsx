@@ -1,5 +1,5 @@
 import React from "react";
-import { invoke } from "@tauri-apps/api/core";
+import { type InvokeArgs, invoke as tauriInvoke } from "@tauri-apps/api/core";
 import {
 	Box,
 	Button,
@@ -8,10 +8,14 @@ import {
 	Grid,
 	IconButton,
 	InputLabel,
+	List,
+	ListItem,
 	MenuItem,
+	Modal,
 	Select,
 	type SelectChangeEvent,
 	Stack,
+	TextField,
 	Typography,
 } from "@mui/material";
 import { ThemeProvider, createTheme, styled } from "@mui/material/styles";
@@ -20,13 +24,30 @@ import { ThemeSwitcher, ColorModeContext } from "./ThemeSwitcher";
 import { listen } from "@tauri-apps/api/event";
 import { ReserveList } from "./ReserveList";
 import { grey } from "@mui/material/colors";
-import type { Avatars, EloEloState } from "./model";
+import type { Avatars, EloEloState, WinScale } from "./model";
 import RefreshIcon from "@mui/icons-material/Refresh";
 import EventNoteIcon from "@mui/icons-material/EventNote";
 import { HistoryView } from "./HistoryView";
 import { type EloEloStateTransport, parseEloEloState } from "./parse";
+import {
+	elapsedString,
+	isValidDurationString,
+	parseDurationString,
+	serializeDurationSeconds,
+} from "./Duration";
 
 const initialAvatarsState: Avatars = [];
+
+const invoke = async (event: string, args: InvokeArgs) => {
+	// biome-ignore lint/nursery/noConsole: important log
+	console.log({ event, args });
+	try {
+		await tauriInvoke(event, args);
+	} catch (err) {
+		// biome-ignore lint/nursery/noConsole: important log
+		console.error(err);
+	}
+};
 
 function GameSelector({
 	selectedGame,
@@ -95,6 +116,7 @@ function EloElo(state: EloEloState) {
 
 	async function listenToAvatarsEvent() {
 		const unlisten = await listen("avatars", (event: { payload: Avatars }) => {
+			// biome-ignore lint/nursery/noConsole: important log
 			console.log({ avatars: event.payload });
 			setAvatarsState(event.payload);
 		});
@@ -158,6 +180,13 @@ function MainView({
 		.map((a) => a.player)
 		.filter((p) => activePlayers.find((e) => e.name === p) === undefined)
 		.sort();
+
+	const [finishMatchModalState, setFinishMatchModalState] = React.useState<
+		"left" | "right" | undefined
+	>(undefined);
+	const [startTimestamp, setStartTimestamp] = React.useState<Date>(new Date(0));
+	const [duration, setDuration] = React.useState("0m");
+
 	return (
 		<>
 			<TeamSelector {...state} avatars={avatars} />
@@ -167,14 +196,24 @@ function MainView({
 					<>
 						<Grid item xs={6}>
 							<Stack direction="row" justifyContent="right">
-								<Button onClick={async () => await invoke("start_match", {})}>
+								<Button
+									onClick={async () => {
+										await invoke("start_match", {});
+										setStartTimestamp(new Date());
+									}}
+								>
 									Start Match
 								</Button>
 							</Stack>
 						</Grid>
 						<Grid item xs={6}>
 							<Stack direction="row" justifyContent="left">
-								<Button onClick={async () => await invoke("shuffle_teams", {})}>
+								<Button
+									onClick={async () => {
+										await invoke("start_match", {});
+										setStartTimestamp(new Date());
+									}}
+								>
 									Shuffle Teams
 								</Button>
 							</Stack>
@@ -186,9 +225,10 @@ function MainView({
 						<Grid item xs={6}>
 							<Stack direction="row" justifyContent="right">
 								<Button
-									onClick={async () =>
-										await invoke("finish_match", { winner: "left" })
-									}
+									onClick={() => {
+										setDuration(elapsedString(startTimestamp, new Date()));
+										setFinishMatchModalState("left");
+									}}
 								>
 									Left Team Won
 								</Button>
@@ -197,9 +237,10 @@ function MainView({
 						<Grid item xs={6}>
 							<Stack direction="row" justifyContent="space-between">
 								<Button
-									onClick={async () =>
-										await invoke("finish_match", { winner: "right" })
-									}
+									onClick={() => {
+										setDuration(elapsedString(startTimestamp, new Date()));
+										setFinishMatchModalState("right");
+									}}
 								>
 									Right Team Won
 								</Button>
@@ -220,7 +261,92 @@ function MainView({
 				avatars={avatars}
 				playersToAdd={playersToAdd}
 			/>
+			<FinishMatchModal
+				open={finishMatchModalState !== undefined}
+				duration={duration}
+				setDuration={setDuration}
+				onClose={() => setFinishMatchModalState(undefined)}
+				onProceed={async (winScale, durationSeconds) =>
+					await invoke("finish_match", {
+						winner: finishMatchModalState,
+						scale: winScale,
+						duration: serializeDurationSeconds(durationSeconds),
+					})
+				}
+			/>
 		</>
+	);
+}
+
+function FinishMatchModal({
+	open,
+	duration,
+	setDuration,
+	onClose,
+	onProceed,
+}: {
+	open: boolean;
+	duration: string;
+	setDuration: (duration: string) => void;
+	onClose: () => void;
+	onProceed: (winScale: WinScale, durationSeconds: number) => Promise<void>;
+}) {
+	const sx = {
+		position: "absolute",
+		top: "50%",
+		left: "50%",
+		transform: "translate(-50%, -50%)",
+		width: 400,
+		bgcolor: "background.paper",
+		boxShadow: 24,
+		p: 4,
+	};
+
+	const userProvidedDurationInvalid = !isValidDurationString(duration);
+
+	const buttons: [WinScale, string][] = [
+		["pwnage", "Pwnage"],
+		["advantage", "Advantage"],
+		["even", "Even"],
+	];
+
+	return (
+		<Modal open={open} onClose={onClose}>
+			<Box sx={sx}>
+				<Typography variant="h6" component="h2">
+					How it went?
+				</Typography>
+				<List>
+					<ListItem>
+						<TextField
+							label="Duration"
+							onChange={(event) => {
+								setDuration(event.target.value);
+							}}
+							error={userProvidedDurationInvalid}
+							value={duration}
+						/>
+					</ListItem>
+					{buttons.map((b) => {
+						const [command, text] = b;
+						return (
+							<ListItem key={command}>
+								<Button
+									variant="contained"
+									onClick={async () => {
+										await onProceed(command, parseDurationString(duration));
+										onClose();
+									}}
+									disabled={userProvidedDurationInvalid}
+								>
+									{text}
+								</Button>
+							</ListItem>
+						);
+					})}
+				</List>
+			</Box>
+		</Modal>
 	);
 }
 
@@ -256,6 +382,7 @@ export default function App() {
 		const unlisten = await listen(
 			"update_ui",
 			(event: { payload: EloEloStateTransport }) => {
+				// biome-ignore lint/nursery/noConsole: important log
 				console.log({ state: event.payload });
 				const parsed = parseEloEloState(event.payload);
 				setEloEloState(parsed);
