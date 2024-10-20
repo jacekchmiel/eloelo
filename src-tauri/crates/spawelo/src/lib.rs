@@ -62,7 +62,7 @@ pub fn ml_elo(history: &[HistoryEntry]) -> HashMap<PlayerId, f64> {
 
 fn log_elo(elo: &HashMap<PlayerId, f64>) {
     let mut elo: Vec<_> = elo.into_iter().collect();
-    elo.sort_by_key(|p| *p.1 as i64 * 1000);
+    elo.sort_by_key(|p| (*p.1 * 1000.0) as i64);
     debug!("Computed elo: {:?}", elo);
 }
 
