@@ -2,6 +2,7 @@ use std::collections::{HashMap, HashSet};
 use std::sync::Arc;
 
 use anyhow::{Context as _, Result};
+use eloelo_model::player::DiscordUsername;
 use log::{debug, error, info, trace, warn};
 use serenity::all::{
     CacheHttp, Channel, ChannelId, Colour, Context, CreateEmbed, CreateEmbedFooter, CreateMessage,
@@ -11,7 +12,7 @@ use tokio::sync::{Mutex, MutexGuard};
 
 use crate::eloelo::config::Config;
 use crate::eloelo::elodisco::command_handler::{parse_command, CommandHandler};
-use crate::eloelo::message_bus::{AvatarUrl, MatchStart, MatchStartTeam};
+use crate::eloelo::message_bus::{AvatarUrl, DiscordPlayerInfo, MatchStart, MatchStartTeam};
 use crate::eloelo::print_err;
 use crate::eloelo::silly_responder::SillyResponder;
 use eloelo_model::PlayerId;
@@ -46,7 +47,7 @@ impl SerenityInitState {
 struct SerenityContext {
     guild_id: GuildId,
     channel_id: ChannelId,
-    members: HashMap<PlayerId, User>,
+    members: HashMap<DiscordUsername, User>,
     ctx: Context,
 }
 
@@ -203,7 +204,7 @@ impl AsyncEloDisco {
         }
     }
 
-    pub async fn fetch_avatars(&self) -> HashMap<PlayerId, Option<AvatarUrl>> {
+    pub async fn fetch_player_info(&self) -> Vec<DiscordPlayerInfo> {
         let Some(serenity) = self.context().await else {
             return Default::default();
         };
@@ -220,7 +221,7 @@ impl AsyncEloDisco {
         self.0.notification_bot.lock().await
     }
 
-    async fn dispatch_command(&self, username: &str, command: &str) -> String {
+    async fn dispatch_command(&self, username: &DiscordUsername, command: &str) -> String {
         let (command, args) = parse_command(command);
         debug!("Received command: {}, args: {:?}", command, args);
         if command == "help" {
@@ -269,7 +270,11 @@ impl AsyncEloDisco {
             .find(|g| g.name == self.0.config.discord_server_name)
     }
 
-    async fn get_guild_members(&self, ctx: &Context, guild: GuildId) -> HashMap<PlayerId, User> {
+    async fn get_guild_members(
+        &self,
+        ctx: &Context,
+        guild: GuildId,
+    ) -> HashMap<DiscordUsername, User> {
         guild
             .members(ctx.http(), None, None)
             .await
@@ -283,7 +288,7 @@ impl AsyncEloDisco {
             .ok()
             .into_iter()
             .flatten()
-            .map(|m| (PlayerId::from(m.display_name()), m.user))
+            .map(|m| (DiscordUsername::from(m.user.name.clone()), m.user))
             .collect()
     }
 
@@ -327,11 +332,11 @@ impl EventHandler for AsyncEloDisco {
             return;
         };
         if msg.content.starts_with("/") {
-            let player = &private_channel.recipient.name;
+            let username = &DiscordUsername::from(private_channel.recipient.name);
             self.respond(
                 &context,
                 msg.channel_id,
-                &self.dispatch_command(&player, &msg.content).await,
+                &self.dispatch_command(&username, &msg.content).await,
             )
             .await;
         } else {
@@ -391,10 +396,7 @@ fn make_team_embed(team: MatchStartTeam, colour: Colour) -> CreateEmbed {
         .footer(CreateEmbedFooter::new(format!("Total rank: {}", total_elo)))
 }
 
-async fn gather_guild_data(
-    ctx: impl CacheHttp,
-    guild: GuildId,
-) -> Result<HashMap<PlayerId, Option<AvatarUrl>>> {
+async fn gather_guild_data(ctx: impl CacheHttp, guild: GuildId) -> Result<Vec<DiscordPlayerInfo>> {
     let members = ctx.http().get_guild_members(guild, None, None).await?;
     let members: HashMap<_, _> = members
         .into_iter()
@@ -402,7 +404,15 @@ async fn gather_guild_data(
         .collect();
     Ok(members
         .into_iter()
-        .filter(|(_, v)| !v.user.bot)
-        .map(|(k, v)| (k, Some(AvatarUrl(v.face()))))
+        .filter(|(_, m)| !m.user.bot)
+        .map(|(id, m)| {
+            let avatar_url = m.user.avatar_url().map(AvatarUrl::from);
+            DiscordPlayerInfo {
+                id,
+                display_name: m.display_name().to_string(),
+                username: DiscordUsername::from(m.user.name),
+                avatar_url,
+            }
+        })
         .collect())
 }

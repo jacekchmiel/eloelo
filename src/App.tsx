@@ -33,10 +33,13 @@ import { HistoryView } from "./HistoryView";
 import { ReserveList } from "./ReserveList";
 import { TeamSelector } from "./TeamSelector";
 import { ColorModeContext, ThemeSwitcher } from "./ThemeSwitcher";
-import type { Avatars, EloEloState, WinScale } from "./model";
+import {
+	extractAvatars,
+	type DiscordPlayerInfo,
+	type EloEloState,
+	type WinScale,
+} from "./model";
 import { type EloEloStateTransport, parseEloEloState } from "./parse";
-
-const initialAvatarsState: Avatars = [];
 
 const invoke = async (event: string, args: InvokeArgs) => {
 	// biome-ignore lint/nursery/noConsole: important log
@@ -103,7 +106,9 @@ const FightText = styled(Typography)({
 });
 
 function EloElo(state: EloEloState) {
-	const [avatarsState, setAvatarsState] = React.useState(initialAvatarsState);
+	const [discordInfoState, setDiscordInfoState] = React.useState<
+		DiscordPlayerInfo[]
+	>([]);
 	React.useEffect(() => {
 		const unlisten = listenToAvatarsEvent();
 
@@ -115,11 +120,14 @@ function EloElo(state: EloEloState) {
 	}, []);
 
 	async function listenToAvatarsEvent() {
-		const unlisten = await listen("avatars", (event: { payload: Avatars }) => {
-			// biome-ignore lint/nursery/noConsole: important log
-			console.log({ avatars: event.payload });
-			setAvatarsState(event.payload);
-		});
+		const unlisten = await listen(
+			"discord_info",
+			(event: { payload: DiscordPlayerInfo[] }) => {
+				// biome-ignore lint/nursery/noConsole: important log
+				console.log({ discord_info: event.payload });
+				setDiscordInfoState(event.payload);
+			},
+		);
 		return unlisten;
 	}
 
@@ -148,10 +156,7 @@ function EloElo(state: EloEloState) {
 					>
 						<EventNoteIcon />
 					</IconButton>
-					<IconButton
-						disabled={true}
-						onClick={async () => await invoke("refresh_elo", {})}
-					>
+					<IconButton onClick={async () => await invoke("refresh_elo", {})}>
 						<RefreshIcon />
 					</IconButton>
 					<ThemeSwitcher />
@@ -160,10 +165,10 @@ function EloElo(state: EloEloState) {
 			{showHistoryState ? (
 				<HistoryView
 					history={getHistoryForCurrentGame(state)}
-					avatars={avatarsState}
+					avatars={extractAvatars(discordInfoState)}
 				/>
 			) : (
-				<MainView state={state} avatars={avatarsState} />
+				<MainView state={state} discord_info={discordInfoState} />
 			)}
 		</Stack>
 	);
@@ -171,15 +176,19 @@ function EloElo(state: EloEloState) {
 
 function MainView({
 	state,
-	avatars,
-}: { state: EloEloState; avatars: Avatars }) {
+	discord_info,
+}: { state: EloEloState; discord_info: DiscordPlayerInfo[] }) {
 	const activePlayers = state.leftPlayers
 		.concat(state.rightPlayers)
 		.concat(state.reservePlayers);
-	const playersToAdd = avatars
-		.map((a) => a.player)
-		.filter((p) => activePlayers.find((e) => e.name === p) === undefined)
+	const playersToAdd = discord_info
+		.filter(
+			(p) =>
+				activePlayers.find((e) => e.discordUsername === p.username) ===
+				undefined,
+		)
 		.sort();
+	const avatars = extractAvatars(discord_info);
 
 	const [finishMatchModalState, setFinishMatchModalState] = React.useState<
 		"left" | "right" | undefined

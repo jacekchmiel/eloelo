@@ -1,5 +1,6 @@
 use std::collections::{HashMap, HashSet};
 
+use eloelo_model::player::DiscordUsername;
 use serde::{Deserialize, Serialize};
 
 use super::dota_bot::Hero;
@@ -7,7 +8,7 @@ use super::dota_bot::Hero;
 //TODO: either introduce separate DiscordUsername type or make PlayerId == username + add display name
 #[derive(Clone, Debug, Default, PartialEq, Serialize, Deserialize)]
 pub struct BotState {
-    pub players: HashMap<String, PlayerBotState>,
+    pub players: HashMap<DiscordUsername, PlayerBotState>,
 }
 
 #[derive(Clone, Debug, Default, PartialEq, Serialize, Deserialize)]

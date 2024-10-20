@@ -6,12 +6,23 @@ use crate::{GameId, PlayerId};
 #[derive(Clone, Debug, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct Player {
-    pub name: PlayerId,
+    pub id: PlayerId,
+    pub display_name: Option<String>,
+    pub discord_username: Option<DiscordUsername>,
     #[serde(default)]
     pub elo: HashMap<GameId, i32>,
 }
 
 impl Player {
+    // fn with_player_id(value: String) -> Self {
+    //     Player {
+    //         id: PlayerId::from(value.clone()),
+    //         display_name: None,
+    //         discord_username: None,
+    //         elo: Default::default(),
+    //     }
+    // }
+
     pub fn default_elo() -> i32 {
         1000
     }
@@ -27,25 +38,7 @@ impl Player {
     }
 }
 
-impl From<PlayerId> for Player {
-    fn from(value: PlayerId) -> Self {
-        Player {
-            name: value,
-            elo: Default::default(),
-        }
-    }
-}
-
-impl From<String> for Player {
-    fn from(value: String) -> Self {
-        Player {
-            name: PlayerId::from(value),
-            elo: Default::default(),
-        }
-    }
-}
-
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub struct PlayerDb {
     players: HashMap<PlayerId, Player>,
 }
@@ -53,8 +46,12 @@ pub struct PlayerDb {
 impl PlayerDb {
     pub fn new(players: impl IntoIterator<Item = Player>) -> Self {
         Self {
-            players: players.into_iter().map(|p| (p.name.clone(), p)).collect(),
+            players: players.into_iter().map(|p| (p.id.clone(), p)).collect(),
         }
+    }
+
+    pub fn get(&self, id: &PlayerId) -> Option<&Player> {
+        self.players.get(id)
     }
 
     pub fn all(&self) -> impl Iterator<Item = &Player> {
@@ -88,7 +85,7 @@ impl PlayerDb {
     }
 
     pub fn insert(&mut self, player: Player) {
-        self.players.insert(player.name.clone(), player);
+        self.players.insert(player.id.clone(), player);
     }
 
     pub fn remove(&mut self, player_id: &PlayerId) -> Option<Player> {
@@ -107,3 +104,18 @@ impl PlayerDb {
 }
 
 pub type PlayerWithElo = (PlayerId, i32);
+
+#[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Serialize, Deserialize, Hash)]
+pub struct DiscordUsername(String);
+
+impl From<String> for DiscordUsername {
+    fn from(value: String) -> Self {
+        DiscordUsername(value)
+    }
+}
+
+impl std::fmt::Display for DiscordUsername {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        self.0.fmt(f)
+    }
+}
