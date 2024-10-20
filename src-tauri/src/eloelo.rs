@@ -251,27 +251,6 @@ impl EloElo {
     }
 
     fn shuffle_teams(&mut self) {
-        // TODO: single shuffle?
-        self.shuffle();
-        let mut best = (
-            self.elo_diff(),
-            self.left_players.clone(),
-            self.right_players.clone(),
-        );
-        for _ in 1..100 {
-            self.shuffle();
-            let diff = self.elo_diff();
-            if diff < best.0 {
-                best.0 = diff;
-                best.1 = self.left_players.clone();
-                best.2 = self.right_players.clone();
-            }
-        }
-        self.left_players = best.1;
-        self.right_players = best.2;
-    }
-
-    fn shuffle(&mut self) -> i32 {
         let left = self
             .players
             .get_ranked_owned(&self.left_players, &self.selected_game);
@@ -279,11 +258,10 @@ impl EloElo {
             .players
             .get_ranked_owned(&self.right_players, &self.selected_game);
 
-        let (diff, left, right) = spawelo::shuffle_teams(left.into_iter().chain(right));
+        let (_, left, right) = spawelo::shuffle_teams(left.into_iter().chain(right));
 
         self.left_players = left.into_iter().map(|p| p.0).collect();
         self.right_players = right.into_iter().map(|p| p.0).collect();
-        diff
     }
 
     fn elo_diff(&self) -> i32 {
