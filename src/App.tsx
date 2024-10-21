@@ -34,10 +34,10 @@ import { ReserveList } from "./ReserveList";
 import { TeamSelector } from "./TeamSelector";
 import { ColorModeContext, ThemeSwitcher } from "./ThemeSwitcher";
 import {
-	extractAvatars,
 	type DiscordPlayerInfo,
 	type EloEloState,
 	type WinScale,
+	extractAvatars,
 } from "./model";
 import { type EloEloStateTransport, parseEloEloState } from "./parse";
 
