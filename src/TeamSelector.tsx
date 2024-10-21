@@ -139,16 +139,12 @@ function TeamRoster({
 	assemblingTeams: boolean;
 	avatars: Avatars;
 }) {
-	const avgElo =
-		players.length !== 0
-			? players.map((p) => p.elo).reduce((s, v) => s + v) / players.length
-			: 0;
-
+	const eloSum = players.map((p) => p.elo).reduce((s, v) => s + v, 0);
 	return (
 		<Paper sx={{ width: "100%", maxWidth: "500px" }}>
 			<Stack sx={{ p: 2 }}>
 				<Header>{name}</Header>
-				<SubHeader>{avgElo.toFixed(0)}</SubHeader>
+				<SubHeader>{eloSum.toFixed(0)}</SubHeader>
 				<List>
 					{players
 						.sort((a, b) => cmp(a.elo, b.elo) * -1)

@@ -210,8 +210,7 @@ function MainView({
 							<Stack direction="row" justifyContent="left">
 								<Button
 									onClick={async () => {
-										await invoke("start_match", {});
-										setStartTimestamp(new Date());
+										await invoke("shuffle_teams", {});
 									}}
 								>
 									Shuffle Teams
