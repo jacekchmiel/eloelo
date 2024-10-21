@@ -19,9 +19,13 @@ jobs:
         with:
           packages: libwebkit2gtk-4.1-dev build-essential curl wget file libxdo-dev libssl-dev libayatana-appindicator3-dev librsvg2-dev
           version: 1.0
+      - uses: Swatinem/rust-cache@v2
       - name: Check
         working-directory: ./src-tauri
         run: cargo check --verbose
+      - name: Build tests
+        working-directory: ./src-tauri
+        run: cargo build --workspace --tests
       - name: Run tests
         working-directory: ./src-tauri
-        run: cargo test --verbose
+        run: cargo test --workspace --verbose
