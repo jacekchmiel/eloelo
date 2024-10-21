@@ -406,7 +406,7 @@ async fn gather_guild_data(ctx: impl CacheHttp, guild: GuildId) -> Result<Vec<Di
         .into_iter()
         .filter(|(_, m)| !m.user.bot)
         .map(|(id, m)| {
-            let avatar_url = m.user.avatar_url().map(AvatarUrl::from);
+            let avatar_url = AvatarUrl::from(m.user.face());
             DiscordPlayerInfo {
                 id,
                 display_name: m.display_name().to_string(),

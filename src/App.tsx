@@ -166,6 +166,10 @@ function EloElo(state: EloEloState) {
 				<HistoryView
 					history={getHistoryForCurrentGame(state)}
 					avatars={extractAvatars(discordInfoState)}
+					players={state.reservePlayers.concat(
+						state.rightPlayers,
+						state.leftPlayers,
+					)}
 				/>
 			) : (
 				<MainView state={state} discord_info={discordInfoState} />

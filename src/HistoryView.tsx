@@ -11,18 +11,28 @@ import {
 	Tooltip,
 } from "@mui/material";
 import React from "react";
-import type { Avatars, HistoryEntry } from "./model";
+import type { Avatars, HistoryEntry, Player } from "./model";
 
 export function HistoryView({
 	history,
+	players,
 	avatars,
-}: { history: HistoryEntry[]; avatars: Avatars }) {
+}: { history: HistoryEntry[]; players: Player[]; avatars: Avatars }) {
 	const [highlightState, setHighlightState] = React.useState<
 		string | undefined
 	>(undefined);
 
 	const onAvatarClick = (player: string) => {
 		setHighlightState((current) => (current === player ? undefined : player));
+	};
+
+	const getPlayersByIds = (ids: string[], players: Player[]): Player[] => {
+		return ids.map((id) => {
+			const player = players.find((p) => p.id === id);
+			return player !== undefined
+				? player
+				: { id, name: id, elo: 0, discordUsername: undefined };
+		});
 	};
 
 	return (
@@ -41,7 +51,7 @@ export function HistoryView({
 							<TableCell>{row.timestamp.toLocaleString()}</TableCell>
 							<TableCell>
 								<TeamCell
-									players={row.winner}
+									players={getPlayersByIds(row.winner, players)}
 									avatars={avatars}
 									highlight={highlightState}
 									onAvatarClick={onAvatarClick}
@@ -49,7 +59,7 @@ export function HistoryView({
 							</TableCell>
 							<TableCell>
 								<TeamCell
-									players={row.loser}
+									players={getPlayersByIds(row.loser, players)}
 									avatars={avatars}
 									highlight={highlightState}
 									onAvatarClick={onAvatarClick}
@@ -69,7 +79,7 @@ function TeamCell({
 	highlight,
 	onAvatarClick,
 }: {
-	players: string[];
+	players: Player[];
 	avatars: Avatars;
 	highlight: string | undefined;
 	onAvatarClick: (player: string) => void;
@@ -78,8 +88,8 @@ function TeamCell({
 		<Stack direction="row" spacing={1}>
 			{players.map((player) => (
 				<AvatarWithFallback
-					key={player}
-					dim={highlight !== undefined && highlight !== player}
+					key={player.id}
+					dim={highlight !== undefined && highlight !== player.id}
 					{...{ avatars, player, onAvatarClick }}
 				/>
 			))}
@@ -94,25 +104,25 @@ function AvatarWithFallback({
 	onAvatarClick,
 }: {
 	avatars: Avatars;
-	player: string;
+	player: Player;
 	dim: boolean;
 	onAvatarClick: (player: string) => void;
 }) {
-	const avatar = avatars.find((a) => a.player === player);
+	const avatar = avatars.find((a) => a.username === player.discordUsername);
 	const sx = dim ? { filter: "grayscale(1) opacity(20%)" } : {};
 
 	return (
-		<Tooltip title={player}>
+		<Tooltip title={player.name}>
 			{avatar !== undefined ? (
 				<Avatar
-					alt={player}
+					alt={player.name}
 					src={avatar.avatarUrl}
-					onClick={() => onAvatarClick(player)}
+					onClick={() => onAvatarClick(player.id)}
 					sx={sx}
 				/>
 			) : (
-				<Avatar sx={sx} onClick={() => onAvatarClick(player)}>
-					{player[0]}
+				<Avatar sx={sx} onClick={() => onAvatarClick(player.id)}>
+					{player.name[0]}
 				</Avatar>
 			)}
 		</Tooltip>

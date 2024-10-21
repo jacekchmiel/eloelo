@@ -96,7 +96,7 @@ pub struct DiscordPlayerInfo {
     pub id: PlayerId,
     pub display_name: String,
     pub username: DiscordUsername,
-    pub avatar_url: Option<AvatarUrl>,
+    pub avatar_url: AvatarUrl,
 }
 
 #[derive(Debug, Clone)]
