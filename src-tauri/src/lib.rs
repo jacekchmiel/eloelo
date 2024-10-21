@@ -5,7 +5,7 @@ use dead_mans_switch::{dead_mans_switch, DeadMansSwitch};
 use eloelo::elodisco::EloDisco;
 use eloelo::message_bus::{FinishMatch, Message, MessageBus, UiCommand, UiUpdate};
 use eloelo::{store, EloElo};
-use eloelo_model::player::Player;
+use eloelo_model::player::{DiscordUsername, Player};
 use eloelo_model::{GameId, PlayerId, Team, WinScale};
 use log::{debug, info};
 use tauri::ipc::InvokeError;
@@ -30,13 +30,16 @@ fn initialize_ui(state: TauriState) {
 }
 
 #[tauri::command]
-fn add_new_player(name: String, state: TauriState) {
-    debug!("add_new_player({:?})", name);
+fn add_new_player(name: String, discord_username: Option<String>, state: TauriState) {
+    debug!("add_new_player({:?}, {:?})", name, discord_username);
     let _ = state
         .message_bus
-        .send(Message::UiCommand(UiCommand::AddNewPlayer(Player::from(
-            name,
-        ))));
+        .send(Message::UiCommand(UiCommand::AddNewPlayer(Player {
+            id: PlayerId::from(name),
+            display_name: None,
+            discord_username: discord_username.map(DiscordUsername::from),
+            elo: Default::default(),
+        })));
 }
 
 #[tauri::command]
@@ -157,9 +160,9 @@ fn start_worker_threads(
                         debug!("< update_ui");
                         app_handle.emit("update_ui", ui_state).unwrap()
                     }
-                    Some(Message::UiUpdate(UiUpdate::Avatars(avatars))) => {
+                    Some(Message::UiUpdate(UiUpdate::DiscordInfo(discord_info))) => {
                         debug!("< avatars");
-                        app_handle.emit("avatars", avatars).unwrap()
+                        app_handle.emit("discord_info", discord_info).unwrap()
                     }
                     Some(Message::UiCommand(UiCommand::CloseApplication)) | None => {
                         info!("Closing MessageBus UI proxy");

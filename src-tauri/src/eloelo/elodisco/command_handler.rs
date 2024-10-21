@@ -1,10 +1,11 @@
 use anyhow::Result;
+use eloelo_model::player::DiscordUsername;
 
 pub trait CommandHandler {
     fn supported_commands(&self) -> Vec<CommandDescription>;
     fn dispatch_command(
         &mut self,
-        username: &str,
+        username: &DiscordUsername,
         command: &str,
         args: &[&str],
     ) -> Option<Result<String>>;

@@ -1,4 +1,3 @@
-use std::borrow::Borrow;
 use std::fmt::Display;
 
 use anyhow::Result;
@@ -104,10 +103,10 @@ impl EloElo {
 
     fn reserve_players(&self) -> impl Iterator<Item = &PlayerId> + '_ {
         self.players.all().filter_map(|p| {
-            if self.is_in_a_team(&p.name) {
+            if self.is_in_a_team(&p.id) {
                 None
             } else {
-                Some(&p.name)
+                Some(&p.id)
             }
         })
     }
@@ -121,10 +120,21 @@ impl EloElo {
             .iter()
             .cloned()
             .map(|player_id| {
-                let rank = self.players.get_rank(&player_id, &self.selected_game);
+                let elo = self.players.get_rank(&player_id, &self.selected_game);
+                let name = self
+                    .players
+                    .get(&player_id)
+                    .and_then(|p| p.display_name.clone())
+                    .unwrap_or_else(|| player_id.to_string());
+                let discord_username = self
+                    .players
+                    .get(&player_id)
+                    .and_then(|p| p.discord_username.as_ref().map(|n| n.to_string()));
                 UiPlayer {
-                    name: player_id,
-                    elo: rank,
+                    id: player_id,
+                    name,
+                    discord_username,
+                    elo,
                 }
             })
             // .map(UiPlayer::build_for(&self.selected_game, self.players.all()))
@@ -171,6 +181,7 @@ impl EloElo {
         self.message_bus
             .send(Message::Event(Event::MatchStart(MatchStart {
                 game: self.selected_game.clone(),
+                player_db: self.players.clone(),
                 left_team: MatchStartTeam {
                     name: self
                         .config
@@ -263,20 +274,6 @@ impl EloElo {
         self.right_players = right.into_iter().map(|p| p.0).collect();
     }
 
-    fn elo_diff(&self) -> i32 {
-        let ranked_left: Vec<_> = self
-            .players
-            .get_ranked(&self.left_players, &self.selected_game)
-            .into_iter()
-            .collect();
-        let ranked_right: Vec<_> = self
-            .players
-            .get_ranked(&self.right_players, &self.selected_game)
-            .into_iter()
-            .collect();
-        elo_diff(&ranked_left, &ranked_right)
-    }
-
     fn recalculate_elo_from_history(&mut self) {
         info!("Recalculating {} elo from history", &self.selected_game);
         self.reset_elo();
@@ -293,20 +290,6 @@ impl EloElo {
             *p.get_elo_mut(&self.selected_game) = Player::default_elo();
         }
     }
-}
-
-fn elo_diff(left: &[(impl Borrow<PlayerId>, i32)], right: &[(impl Borrow<PlayerId>, i32)]) -> i32 {
-    let left_avg = if !left.is_empty() {
-        left.iter().map(|p| p.1).sum::<i32>() / left.len() as i32
-    } else {
-        0
-    };
-    let right_avg = if !right.is_empty() {
-        right.iter().map(|p| p.1).sum::<i32>() / right.len() as i32
-    } else {
-        0
-    };
-    (left_avg - right_avg).abs()
 }
 
 fn remove_player_id(players: &mut Vec<PlayerId>, name: &str) -> Option<PlayerId> {

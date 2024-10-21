@@ -1,4 +1,4 @@
-use eloelo_model::player::Player;
+use eloelo_model::player::{DiscordUsername, Player};
 use eloelo_model::{GameId, PlayerId};
 use serde::{Deserialize, Serialize};
 
@@ -74,14 +74,29 @@ fn right_team_default() -> String {
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
 #[serde(rename_all = "camelCase")]
 pub struct PlayerConfig {
-    pub name: PlayerId,
+    #[serde(alias = "name")] // TODO(j): Legacy field name, remove in 2025
+    pub id: PlayerId,
+    pub display_name: Option<String>,
+    pub discord_username: Option<DiscordUsername>,
 }
 
 impl From<PlayerConfig> for Player {
     fn from(value: PlayerConfig) -> Self {
         Player {
-            name: value.name,
+            id: value.id,
+            display_name: value.display_name,
+            discord_username: value.discord_username,
             elo: Default::default(),
+        }
+    }
+}
+
+impl From<Player> for PlayerConfig {
+    fn from(value: Player) -> Self {
+        PlayerConfig {
+            id: value.id,
+            display_name: value.display_name,
+            discord_username: value.discord_username,
         }
     }
 }

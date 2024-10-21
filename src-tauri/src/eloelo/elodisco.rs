@@ -1,5 +1,5 @@
 use super::config::Config;
-use super::message_bus::{AvatarUpdate, Event, Message, MessageBus, UiCommand, UiUpdate};
+use super::message_bus::{Event, Message, MessageBus, UiCommand, UiUpdate};
 use anyhow::Result;
 use async_elodisco::AsyncEloDisco;
 use bot_state::BotState;
@@ -45,15 +45,9 @@ impl EloDisco {
                         async_elodisco.send_match_start(match_start).await;
                     }
                     Some(Message::UiCommand(UiCommand::InitializeUi)) => {
-                        let avatars = async_elodisco.fetch_avatars().await;
-                        let avatar_updates = avatars
-                            .into_iter()
-                            .map(|(player, avatar_url)| AvatarUpdate { player, avatar_url })
-                            .collect();
-
-                        message_bus.send(Message::UiUpdate(UiUpdate::Avatars(avatar_updates)));
+                        let discord_players = async_elodisco.fetch_player_info().await;
+                        message_bus.send(Message::UiUpdate(UiUpdate::DiscordInfo(discord_players)));
                     }
-                    // Some(Message::UiCommand(UiCOmmand::InitializeUi)))
                     Some(_) => {}
                     None => {
                         info!("EloDisco: message bus closed")

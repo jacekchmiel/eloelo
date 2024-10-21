@@ -1,6 +1,7 @@
 use std::collections::HashMap;
 
 use anyhow::{format_err, Context as _, Result};
+use eloelo_model::player::DiscordUsername;
 use log::{error, info};
 use serenity::all::{Context, CreateMessage, User};
 
@@ -11,15 +12,15 @@ use eloelo_model::PlayerId;
 use super::command_handler::{CommandDescription, CommandHandler};
 
 pub struct NotificationBot {
-    notifications: HashMap<String, bool>,
+    notifications: HashMap<DiscordUsername, bool>,
 }
 
 impl NotificationBot {
-    pub fn new(notifications: HashMap<String, bool>) -> Self {
+    pub fn new(notifications: HashMap<DiscordUsername, bool>) -> Self {
         Self { notifications }
     }
 
-    pub fn get_state(&self) -> &HashMap<String, bool> {
+    pub fn get_state(&self) -> &HashMap<DiscordUsername, bool> {
         &self.notifications
     }
 
@@ -27,32 +28,33 @@ impl NotificationBot {
         &self,
         message: &MatchStart,
         ctx: &Context,
-        members: &HashMap<PlayerId, User>,
+        members: &HashMap<DiscordUsername, User>,
     ) {
         let players = message
             .left_team
             .players
             .keys()
             .chain(message.right_team.players.keys());
-        for p in players {
-            let Some(username) = members.get(p).map(|u| &u.name) else {
-                continue;
-            };
+        let discord_users = players
+            .flat_map(|p| message.player_db.get(p))
+            .flat_map(|p| p.discord_username.as_ref().map(|d| (&p.id, d)));
+        for (player_id, username) in discord_users {
             let notifications_enabled = self.notifications.get(username).copied().unwrap_or(false);
             if notifications_enabled {
-                match members.get(p) {
+                match members.get(username) {
                     Some(user) => {
                         let _ = user
                             .dm(
                                 &ctx,
-                                CreateMessage::new()
-                                    .content(create_personal_match_start_message(p, &message)),
+                                CreateMessage::new().content(create_personal_match_start_message(
+                                    player_id, &message,
+                                )),
                             )
                             .await
                             .context("individual match_start notification")
                             .inspect_err(print_err);
                     }
-                    None => error!("{} not found in guild members", p),
+                    None => error!("{} not found in guild members", username),
                 }
             }
         }
@@ -71,19 +73,19 @@ impl CommandHandler for NotificationBot {
 
     fn dispatch_command(
         &mut self,
-        username: &str,
+        username: &DiscordUsername,
         command: &str,
         args: &[&str],
     ) -> Option<Result<String>> {
         if command == "notifications" {
             let first_arg_is = |pred: &str| args.first().map(|v| *v == pred).unwrap_or(false);
             if first_arg_is("enable") {
-                *self.notifications.entry(username.into()).or_default() = true;
+                *self.notifications.entry(username.clone()).or_default() = true;
                 info!("{} enabled notifications", username);
                 return Some(Ok(String::from("Notifications enabled")));
             }
             if first_arg_is("disable") {
-                *self.notifications.entry(username.into()).or_default() = false;
+                *self.notifications.entry(username.clone()).or_default() = false;
                 info!("{} disabled notifications", username);
                 return Some(Ok(String::from("Notifications disabled")));
             }

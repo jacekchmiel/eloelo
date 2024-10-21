@@ -4,7 +4,7 @@ use std::fmt::Display;
 
 use crate::eloelo::message_bus::MatchStart;
 use crate::eloelo::print_err;
-use eloelo_model::PlayerId;
+use eloelo_model::player::DiscordUsername;
 
 use super::bot_state::DotaBotState;
 use super::command_handler::{CommandDescription, CommandHandler};
@@ -62,23 +62,23 @@ impl Borrow<str> for Hero {
 }
 
 pub struct DotaBot {
-    state: HashMap<String, DotaBotState>,
+    state: HashMap<DiscordUsername, DotaBotState>,
     heroes: HashSet<Hero>,
 }
 
 impl DotaBot {
-    pub fn with_state(state: HashMap<String, DotaBotState>) -> Self {
+    pub fn with_state(state: HashMap<DiscordUsername, DotaBotState>) -> Self {
         Self {
             state,
             heroes: Hero::all(),
         }
     }
 
-    pub fn get_state(&self) -> &HashMap<String, DotaBotState> {
+    pub fn get_state(&self) -> &HashMap<DiscordUsername, DotaBotState> {
         &self.state
     }
 
-    fn random_heroes(&self, player: &str) -> Vec<Hero> {
+    fn random_heroes(&self, player: &DiscordUsername) -> Vec<Hero> {
         let default_config = DotaBotState::default();
         let player_config = self.state.get(player).unwrap_or(&default_config);
         let mut hero_pool: Vec<_> = if !player_config.allowed_heroes.is_empty() {
@@ -94,7 +94,7 @@ impl DotaBot {
         hero_pool.into_iter().take(3).cloned().collect()
     }
 
-    fn random_heroes_str(&self, player: &str) -> String {
+    fn random_heroes_str(&self, player: &DiscordUsername) -> String {
         self.random_heroes(player)
             .into_iter()
             .map(|h| h.0.clone())
@@ -106,17 +106,17 @@ impl DotaBot {
         &self,
         match_start: &MatchStart,
         ctx: &Context,
-        members: &HashMap<PlayerId, User>,
+        members: &HashMap<DiscordUsername, User>,
     ) {
         let players = match_start
             .left_team
             .players
             .keys()
             .chain(match_start.right_team.players.keys());
-        for p in players {
-            let Some(username) = members.get(p).map(|u| &u.name) else {
-                continue;
-            };
+        let discord_users = players
+            .flat_map(|p| match_start.player_db.get(p))
+            .flat_map(|p| &p.discord_username);
+        for username in discord_users {
             let notifications_enabled = self
                 .state
                 .get(username)
@@ -127,7 +127,7 @@ impl DotaBot {
                     "**Your random heroes for this match are**\n{}",
                     self.random_heroes_str(username)
                 );
-                match members.get(p) {
+                match members.get(&username) {
                     Some(user) => {
                         let _ = user
                             .dm(&ctx, CreateMessage::new().content(heroes_message))
@@ -135,7 +135,7 @@ impl DotaBot {
                             .context("dota heroes notification")
                             .inspect_err(print_err);
                     }
-                    None => error!("{} not found in guild members", p),
+                    None => error!("{} not found in guild members", username),
                 }
             }
         }
@@ -221,7 +221,7 @@ impl CommandHandler for DotaBot {
 
     fn dispatch_command(
         &mut self,
-        username: &str,
+        username: &DiscordUsername,
         command: &str,
         args: &[&str],
     ) -> Option<Result<String>> {
@@ -236,7 +236,7 @@ impl CommandHandler for DotaBot {
             )),
             DotaCommand::EnableRandom => {
                 self.state
-                    .entry(username.to_string())
+                    .entry(username.clone())
                     .or_insert(Default::default())
                     .randomizer = true;
                 info!("{} enabled hero randomization", username);
