@@ -72,9 +72,10 @@ fn log_probabilities(elo: &HashMap<PlayerId, f64>, history: &[HistoryEntry]) {
         let loser_elo: f64 = entry.loser.iter().map(|p| elo.get(p).unwrap()).sum();
 
         let predicted_probability = win_probability(winner_elo, loser_elo);
+        let real_probability = entry.advantage_factor();
         debug!(
             "Winner: {}, Loser: {}, Real probability: {:.4}, Predicted probability: {:.4}",
-            winner_elo, loser_elo, entry.win_probability, predicted_probability,
+            winner_elo, loser_elo, real_probability, predicted_probability,
         );
     }
 }
@@ -87,7 +88,7 @@ fn loss(history: &[HistoryEntry], elo: &HashMap<PlayerId, f64>) -> f64 {
         let loser_elo: f64 = entry.loser.iter().map(|p| elo.get(p).unwrap()).sum();
 
         let computed_probability = win_probability(winner_elo, loser_elo);
-        let real_probablity = entry.win_probability;
+        let real_probablity = entry.advantage_factor();
 
         loss += (real_probablity - computed_probability).powf(4.0);
     }
@@ -106,7 +107,7 @@ fn backpropagation(
         let elo_diff = winner_elo - loser_elo;
 
         let computed_probability = win_probability(winner_elo, loser_elo);
-        let real_probability = entry.win_probability;
+        let real_probability = entry.advantage_factor();
 
         // ((x-c)^4)' = 4*(x-c)^3
         // L4 loss

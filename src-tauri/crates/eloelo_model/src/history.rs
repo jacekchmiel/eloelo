@@ -16,7 +16,6 @@ pub struct HistoryEntry {
     pub timestamp: DateTime<Local>,
     pub winner: Vec<PlayerId>,
     pub loser: Vec<PlayerId>,
-    pub win_probability: f64,
     #[serde(default)]
     pub scale: WinScale,
     #[serde(default = "default_match_duration")]
@@ -45,13 +44,21 @@ impl HistoryEntry {
     pub fn all_players(&self) -> impl Iterator<Item = &PlayerId> {
         self.winner.iter().chain(self.loser.iter())
     }
+
+    pub fn advantage_factor(&self) -> f64 {
+        match self.scale {
+            WinScale::Even => 0.65,
+            WinScale::Advantage => 0.8,
+            WinScale::Pwnage => 0.95,
+        }
+    }
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
 pub struct LegacyHistoryEntry {
     pub teams: [Vec<PlayerId>; 2],
     pub winner: i32,
-    pub win_probability: f64,
+    pub scale: WinScale,
 }
 
 impl From<LegacyHistoryEntry> for HistoryEntry {
@@ -60,14 +67,12 @@ impl From<LegacyHistoryEntry> for HistoryEntry {
         if value.winner != 0 {
             std::mem::swap(&mut winner, &mut loser);
         }
-        let win_probability = value.win_probability;
 
         HistoryEntry {
             timestamp: DateTime::from(DateTime::UNIX_EPOCH),
             winner,
             loser,
-            win_probability,
-            scale: WinScale::Even,
+            scale: value.scale,
             duration: Duration::from_secs(45 * 60),
         }
     }

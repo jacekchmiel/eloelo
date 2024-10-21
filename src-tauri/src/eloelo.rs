@@ -211,7 +211,6 @@ impl EloElo {
                 timestamp: Local::now(),
                 winner,
                 loser,
-                win_probability: 0.75, // TODO(spawek): Get a better estimate from UI or match length.
                 scale,
                 duration,
             };
