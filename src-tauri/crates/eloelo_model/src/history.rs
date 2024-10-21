@@ -16,6 +16,7 @@ pub struct HistoryEntry {
     pub timestamp: DateTime<Local>,
     pub winner: Vec<PlayerId>,
     pub loser: Vec<PlayerId>,
+    pub win_probability: f64,
     #[serde(default)]
     pub scale: WinScale,
     #[serde(default = "default_match_duration")]
@@ -50,6 +51,7 @@ impl HistoryEntry {
 pub struct LegacyHistoryEntry {
     pub teams: [Vec<PlayerId>; 2],
     pub winner: i32,
+    pub win_probability: f64,
 }
 
 impl From<LegacyHistoryEntry> for HistoryEntry {
@@ -58,11 +60,13 @@ impl From<LegacyHistoryEntry> for HistoryEntry {
         if value.winner != 0 {
             std::mem::swap(&mut winner, &mut loser);
         }
+        let win_probability = value.win_probability;
 
         HistoryEntry {
             timestamp: DateTime::from(DateTime::UNIX_EPOCH),
             winner,
             loser,
+            win_probability,
             scale: WinScale::Even,
             duration: Duration::from_secs(45 * 60),
         }

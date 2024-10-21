@@ -1,4 +1,3 @@
-use std::borrow::Borrow;
 use std::collections::HashMap;
 use std::time::Instant;
 
@@ -8,66 +7,31 @@ use eloelo_model::PlayerId;
 
 use itertools::Itertools;
 use log::{debug, info};
-use rand::distributions::Uniform;
-use rand::prelude::Distribution;
-use rand::seq::IteratorRandom;
 
-// Calculating ELO in debug mode takes too much time...
-#[cfg(debug_assertions)]
-const ML_ITERATIONS: usize = 50_000;
+// Learning rate is set to very high level to make the computation faster. Learning is not really 100% finished after 1000 iterations, but it gives good results, and blazing fast with this setting
+const LEARNING_RATE: f64 = 100_000.0;
+const ML_ITERATIONS: usize = 1_000;
 
-#[cfg(not(debug_assertions))]
-const ML_ITERATIONS: usize = 50_000;
-
-const PERFECT_PREDICTION_TARGET: f64 = 0.5;
-
-fn print_debug(i: usize, history: &[HistoryEntry], elo: &HashMap<&PlayerId, i64>, elo_sum: i64) {
-    let prob = probability_of_perfect_prediction(history, &elo);
-    if i != 0 && (i % 1000 == 0 || i == ML_ITERATIONS - 1) {
+fn print_debug(i: usize, history: &[HistoryEntry], elo: &HashMap<PlayerId, f64>, elo_sum: f64) {
+    let loss = loss(history, &elo);
+    if i % 100 == 0 || i == ML_ITERATIONS - 1 {
         debug!(
-            "{}/{}, probability_of_perfect_prediction: {:.4}, elo_sum: {}",
+            "{}/{}, loss: {:.4}, elo_sum: {}",
             i + 1,
             ML_ITERATIONS,
-            prob,
+            loss,
             elo_sum
         );
     }
 }
 
-fn should_stop_iteration(
-    i: usize,
-    history: &[HistoryEntry],
-    elo: &HashMap<&PlayerId, i64>,
-) -> bool {
-    if i % 1000 != 1 {
-        return false;
-    }
-
-    let perfect_prediction = probability_of_perfect_prediction(history, elo);
-    let probability_good_enough = perfect_prediction > PERFECT_PREDICTION_TARGET;
-    if probability_good_enough {
-        info!("STOP: Score is good enough: {:.2}", perfect_prediction);
-    }
-    probability_good_enough
-}
-
-pub fn ml_elo(
-    history: &[HistoryEntry],
-    initial_elo_data: &HashMap<PlayerId, i32>,
-) -> HashMap<PlayerId, i64> {
-    let mut elo: HashMap<&PlayerId, i64> = history
+pub fn ml_elo(history: &[HistoryEntry]) -> HashMap<PlayerId, f64> {
+    let mut elo: HashMap<PlayerId, f64> = history
         .iter()
         .flat_map(|e| e.all_players())
-        .map(|p| {
-            (
-                p,
-                initial_elo_data
-                    .get(p)
-                    .copied()
-                    .unwrap_or(Player::default_elo()) as i64,
-            )
-        })
+        .map(|p| (p.clone(), Player::default_elo() as f64))
         .collect();
+
     if elo.is_empty() {
         return Default::default();
     }
@@ -78,96 +42,96 @@ pub fn ml_elo(
         ML_ITERATIONS
     );
 
-    let start = Instant::now();
-    let mut scores = vec![];
+    let start: Instant = Instant::now();
     for i in 0..ML_ITERATIONS {
-        let elo_sum: i64 = elo.values().sum();
-        let noisy_history = add_noise(history);
-
+        let elo_sum: f64 = elo.values().sum();
         print_debug(i, history, &elo, elo_sum);
 
-        let mut rng = rand::thread_rng();
-        let rand_player = elo.keys().choose(&mut rng).unwrap();
-        let score_adj = Uniform::new_inclusive(-30, 30).sample(&mut rng);
-        let mut new_elo = elo.clone();
-        *new_elo.get_mut(rand_player).unwrap() += score_adj;
-
-        let old_score =
-            probability_of_perfect_prediction(&noisy_history, &elo) * regularization_penalty(&elo);
-        let new_score = probability_of_perfect_prediction(&noisy_history, &new_elo)
-            * regularization_penalty(&new_elo);
-        if new_score > old_score {
-            elo = new_elo;
-        }
-        scores.push(new_score);
-
-        if should_stop_iteration(i, history, &elo) {
-            break;
+        let derivative: HashMap<PlayerId, f64> = backpropagation(history, &elo);
+        for (player, diff) in derivative {
+            *elo.entry(player).or_default() += diff * LEARNING_RATE;
         }
     }
+
     log_elo(&elo);
     log_probabilities(&elo, history);
     info!("ELO calculations took {:?}", start.elapsed());
-    elo.into_iter().map(|i| (i.0.clone(), i.1)).collect()
+
+    elo
 }
 
-fn log_elo(elo: &HashMap<&PlayerId, i64>) {
+fn log_elo(elo: &HashMap<PlayerId, f64>) {
     let mut elo: Vec<_> = elo.into_iter().collect();
-    elo.sort_by_key(|p| p.1);
+    elo.sort_by_key(|p| (*p.1 * 1000.0) as i64);
     debug!("Computed elo: {:?}", elo);
 }
 
-fn log_probabilities(elo: &HashMap<&PlayerId, i64>, history: &[HistoryEntry]) {
+fn log_probabilities(elo: &HashMap<PlayerId, f64>, history: &[HistoryEntry]) {
     for entry in history {
-        let winner_elo: i64 = entry.winner.iter().map(|p| elo.get(p).unwrap()).sum();
-        let loser_elo: i64 = entry.loser.iter().map(|p| elo.get(p).unwrap()).sum();
+        let winner_elo: f64 = entry.winner.iter().map(|p| elo.get(p).unwrap()).sum();
+        let loser_elo: f64 = entry.loser.iter().map(|p| elo.get(p).unwrap()).sum();
 
-        let probability = win_probability(winner_elo, loser_elo);
+        let predicted_probability = win_probability(winner_elo, loser_elo);
         debug!(
-            "Winner: {}, Loser: {}, Probability: {:.4}",
-            winner_elo, loser_elo, probability
+            "Winner: {}, Loser: {}, Real probability: {:.4}, Predicted probability: {:.4}",
+            winner_elo, loser_elo, entry.win_probability, predicted_probability,
         );
     }
 }
 
-fn add_noise(history: &[HistoryEntry]) -> Vec<HistoryEntry> {
-    if rand::random::<f32>() > 0.2 {
-        return history.into_iter().cloned().collect();
-    }
-    let alter_i = Uniform::new(0, history.len()).sample(&mut rand::thread_rng());
-    let mut altered_item = history[alter_i].clone();
-    std::mem::swap(&mut altered_item.winner, &mut altered_item.loser);
-
-    let mut altered_history: Vec<HistoryEntry> = Vec::new();
-    altered_history.extend(history.iter().take(alter_i).cloned());
-    altered_history.push(altered_item);
-    altered_history.extend(history.iter().skip(alter_i + 1).cloned());
-
-    altered_history
-}
-
-fn probability_of_perfect_prediction(
-    history: &[HistoryEntry],
-    elo: &HashMap<impl Borrow<PlayerId> + Eq + std::hash::Hash, i64>,
-) -> f64 {
-    let mut probability = 1.0f64;
-
+// L4 loss
+fn loss(history: &[HistoryEntry], elo: &HashMap<PlayerId, f64>) -> f64 {
+    let mut loss = 0.0;
     for entry in history {
-        let winner_elo: i64 = entry.winner.iter().map(|p| elo.get(p).unwrap()).sum();
-        let loser_elo: i64 = entry.loser.iter().map(|p| elo.get(p).unwrap()).sum();
-        probability *= win_probability(winner_elo, loser_elo)
+        let winner_elo: f64 = entry.winner.iter().map(|p| elo.get(p).unwrap()).sum();
+        let loser_elo: f64 = entry.loser.iter().map(|p| elo.get(p).unwrap()).sum();
+
+        let computed_probability = win_probability(winner_elo, loser_elo);
+        let real_probablity = entry.win_probability;
+
+        loss += (real_probablity - computed_probability).powf(4.0);
     }
 
-    probability
+    loss
 }
 
-fn regularization_penalty(elo: &HashMap<impl Borrow<PlayerId> + Eq + std::hash::Hash, i64>) -> f64 {
-    elo.len() as f64 / elo.values().sum::<i64>() as f64
+fn backpropagation(
+    history: &[HistoryEntry],
+    elo: &HashMap<PlayerId, f64>,
+) -> HashMap<PlayerId, f64> {
+    let mut derivative = HashMap::new();
+    for entry in history {
+        let winner_elo: f64 = entry.winner.iter().map(|p| elo.get(p).unwrap()).sum();
+        let loser_elo: f64 = entry.loser.iter().map(|p| elo.get(p).unwrap()).sum();
+        let elo_diff = winner_elo - loser_elo;
+
+        let computed_probability = win_probability(winner_elo, loser_elo);
+        let real_probability = entry.win_probability;
+
+        // ((x-c)^4)' = 4*(x-c)^3
+        // L4 loss
+        let final_derivative = 4.0 * (real_probability - computed_probability).powf(3.0);
+
+        // https://www.wolframalpha.com/input?i=%281%2F%281%2B10%5E%28-x%2F400%29%29%29%27
+        // -log(10)/(400 (1 + 10^(x/400))^2) + log(10)/(400 (1 + 10^(x/400)))
+        let win_probability_derivative = final_derivative
+            * (-10.0f64.ln() / (400.0 * (1.0 + 10.0f64.powf(elo_diff / 400.0)).powf(2.0))
+                + 10.0f64.ln() / (400.0 * (1.0 + 10.0f64.powf(elo_diff / 400.0))));
+
+        for p in &entry.winner {
+            *derivative.entry(p.clone()).or_insert(0.0) += win_probability_derivative;
+        }
+        for p in &entry.loser {
+            *derivative.entry(p.clone()).or_insert(0.0) -= win_probability_derivative;
+        }
+    }
+
+    derivative
 }
 
-fn win_probability(winner_elo: i64, loser_elo: i64) -> f64 {
+fn win_probability(winner_elo: f64, loser_elo: f64) -> f64 {
     let elo_diff = winner_elo as f64 - loser_elo as f64;
-    1.0f64 / (1.0f64 + 10.0f64.powf(-elo_diff / 400.0f64))
+    1.0 / (1.0 + 10.0f64.powf(-elo_diff / 400.0))
 }
 
 pub fn shuffle_teams<'a>(
@@ -206,7 +170,7 @@ mod test {
 
     #[test]
     fn test_winner_win_probability() {
-        assert_eq!((win_probability(1100, 1000) * 100.0).round(), 64.0);
-        assert_eq!((win_probability(1200, 1000) * 100.0).round(), 76.0);
+        assert_eq!((win_probability(1100.0, 1000.0) * 100.0).round(), 64.0);
+        assert_eq!((win_probability(1200.0, 1000.0) * 100.0).round(), 76.0);
     }
 }
