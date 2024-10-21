@@ -32,7 +32,9 @@ impl State {
 #[derive(Clone, Debug, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct UiPlayer {
-    pub name: PlayerId,
+    pub id: PlayerId,
+    pub name: String,
+    pub discord_username: Option<String>,
     pub elo: i32,
 }
 

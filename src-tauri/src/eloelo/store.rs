@@ -90,7 +90,7 @@ pub fn store_config(players: &PlayerDb) -> Result<()> {
         players: players
             .all()
             .cloned()
-            .map(|p| PlayerConfig { name: p.name })
+            .map(|p| PlayerConfig::from(p))
             .collect(),
         ..stored_config
     };

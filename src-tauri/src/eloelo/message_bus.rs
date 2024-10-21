@@ -1,7 +1,7 @@
 use std::collections::HashMap;
 use std::time::Duration;
 
-use eloelo_model::player::Player;
+use eloelo_model::player::{DiscordUsername, Player, PlayerDb};
 use eloelo_model::{GameId, PlayerId, Team, WinScale};
 use log::error;
 use serde::Serialize;
@@ -62,30 +62,41 @@ pub(crate) enum Message {
 #[derive(Debug, Clone)]
 pub enum UiUpdate {
     State(UiState),
-    Avatars(Vec<AvatarUpdate>),
+    DiscordInfo(Vec<DiscordPlayerInfo>),
 }
 
 #[derive(Debug, Clone)]
 pub struct MatchStart {
     pub game: GameId,
+    // Sending full player db seems wasteful though any optimization here seems more wasteful
+    pub player_db: PlayerDb,
     pub left_team: MatchStartTeam,
     pub right_team: MatchStartTeam,
 }
 
 #[derive(Debug, Clone)]
 pub struct MatchStartTeam {
+    // TODO(j): since we have full playerdb in MatchStart, maybe we shouldn't send elo here?
     pub players: HashMap<PlayerId, i32>,
     pub name: String,
 }
 
 #[derive(Debug, Clone, Serialize)]
-pub struct AvatarUrl(pub String);
+pub struct AvatarUrl(String);
+
+impl From<String> for AvatarUrl {
+    fn from(value: String) -> Self {
+        AvatarUrl(value)
+    }
+}
 
 #[derive(Debug, Clone, Serialize)]
 #[serde(rename_all = "camelCase")]
-pub struct AvatarUpdate {
-    pub player: PlayerId,
-    pub avatar_url: Option<AvatarUrl>,
+pub struct DiscordPlayerInfo {
+    pub id: PlayerId,
+    pub display_name: String,
+    pub username: DiscordUsername,
+    pub avatar_url: AvatarUrl,
 }
 
 #[derive(Debug, Clone)]

@@ -150,7 +150,7 @@ function TeamRoster({
 						.sort((a, b) => cmp(a.elo, b.elo) * -1)
 						.map((player) => {
 							const avatarUrl = avatars.find(
-								(a: PlayerAvatar) => a.player === player.name,
+								(a: PlayerAvatar) => a.username === player.discordUsername,
 							)?.avatarUrl;
 							return (
 								<RosterRow

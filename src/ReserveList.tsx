@@ -22,7 +22,7 @@ import {
 } from "@mui/material";
 import { invoke } from "@tauri-apps/api/core";
 import { useState } from "react";
-import type { Avatars, Player, PlayerAvatar } from "./model";
+import type { Avatars, DiscordPlayerInfo, Player, PlayerAvatar } from "./model";
 
 const Header = styled(Box)(({ theme }) => ({
 	...theme.typography.h6,
@@ -92,16 +92,10 @@ function AddRightButton({
 	);
 }
 
-function AddButton({ newPlayerName }: { newPlayerName: string | null }) {
+function AddButton({ show, onClick }: { show: boolean; onClick: () => void }) {
 	return (
-		newPlayerName !== null && (
-			<IconButton
-				edge="end"
-				aria-label="add"
-				onClick={async () =>
-					await invoke("add_new_player", { name: newPlayerName })
-				}
-			>
+		show && (
+			<IconButton edge="end" aria-label="add" onClick={onClick}>
 				<AddIcon />
 			</IconButton>
 		)
@@ -118,7 +112,7 @@ function AvatarPlaceholder() {
 	);
 }
 
-function NewPlayerRow({ players }: { players: string[] }) {
+function NewPlayerRow({ players }: { players: DiscordPlayerInfo[] }) {
 	const [newPlayerName, setNewPlayerName] = useState<string | null>(null);
 	return (
 		<ListItem sx={{ p: 0 }}>
@@ -126,7 +120,7 @@ function NewPlayerRow({ players }: { players: string[] }) {
 			<Autocomplete
 				sx={{ width: 300 }}
 				freeSolo
-				options={players}
+				options={players.map((p) => p.displayName)}
 				renderInput={(params) => (
 					<TextField
 						{...params}
@@ -140,7 +134,21 @@ function NewPlayerRow({ players }: { players: string[] }) {
 					setNewPlayerName(value);
 				}}
 			/>
-			<AddButton {...{ newPlayerName }} />
+			<AddButton
+				show={newPlayerName !== null}
+				onClick={async () => {
+					const discordInfo = players.find(
+						(p) => p.displayName === newPlayerName,
+					);
+					const discordUsername =
+						discordInfo === undefined ? undefined : discordInfo.username;
+					await invoke("add_new_player", {
+						name: newPlayerName,
+						discordUsername,
+					});
+					setNewPlayerName("");
+				}}
+			/>
 		</ListItem>
 	);
 }
@@ -154,13 +162,13 @@ export function ReserveList({
 	players: Player[];
 	assemblingTeams: boolean;
 	avatars: Avatars;
-	playersToAdd: string[];
+	playersToAdd: DiscordPlayerInfo[];
 }) {
 	const [editable, setEditable] = useState(() => false);
 
 	const playerEntries = players.map((player) => {
 		const avatarUrl = avatars.find(
-			(a: PlayerAvatar) => a.player === player.name,
+			(a: PlayerAvatar) => a.username === player.discordUsername,
 		)?.avatarUrl;
 		return (
 			<ListItem key={player.name} sx={{ p: 0 }}>
@@ -171,7 +179,7 @@ export function ReserveList({
 				<ListItemText primary={player.name} secondary={player.elo} />
 				<AddLeftButton playerKey={player.name} disabled={!assemblingTeams} />
 				<AddRightButton playerKey={player.name} disabled={!assemblingTeams} />
-				{editable && <DeleteButton playerKey={player.name} />}
+				{editable && <DeleteButton playerKey={player.id} />}
 			</ListItem>
 		);
 	});

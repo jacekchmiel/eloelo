@@ -1,5 +1,7 @@
 export type Player = {
+	id: string;
 	name: string;
+	discordUsername: string | undefined;
 	elo: number;
 };
 
@@ -33,6 +35,19 @@ export type EloEloState = {
 	history: History;
 };
 
-export type PlayerAvatar = { player: string; avatarUrl: string };
-export type Avatars = PlayerAvatar[];
+export type PlayerAvatar = { username: string; avatarUrl: string | undefined };
+export type Avatars = PlayerAvatar[]; // TODO: this type could be removed
+export type DiscordPlayerInfo = {
+	displayName: string;
+	username: string;
+	avatarUrl: string | undefined;
+};
 export type WinScale = "pwnage" | "advantage" | "even";
+
+export function extractAvatars(
+	discord_info: DiscordPlayerInfo[],
+): PlayerAvatar[] {
+	return discord_info.map((e) => {
+		return { username: e.username, avatarUrl: e.avatarUrl };
+	});
+}
