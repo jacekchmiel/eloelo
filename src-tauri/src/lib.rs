@@ -121,6 +121,7 @@ fn finish_match(
     winner: Option<String>,
     scale: Option<String>,
     duration: Option<std::time::Duration>, //TODO: check if we can send Duration
+    fake: Option<bool>,
 ) -> Result<(), InvokeError> {
     debug!("finish_match({winner:?}, {scale:?}, {duration:?})");
     let cmd = match winner {
@@ -130,10 +131,12 @@ fn finish_match(
             let scale = WinScale::try_from(scale.ok_or_else(|| error("Missing win scale"))?)
                 .map_err(InvokeError::from_error)?;
             let duration = duration.ok_or_else(|| error("Missing match duration"))?;
+            let fake = fake.unwrap_or(false);
             UiCommand::FinishMatch(FinishMatch::Finished {
                 winner,
                 scale,
                 duration,
+                fake,
             })
         }
     };

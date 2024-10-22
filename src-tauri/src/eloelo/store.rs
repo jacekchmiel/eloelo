@@ -3,7 +3,6 @@ use std::fs::{self, File};
 use std::path::{Path, PathBuf};
 
 use anyhow::{Context, Result};
-use chrono::DateTime;
 use log::{debug, info};
 use serde::de::DeserializeOwned;
 use serde::{Deserialize, Serialize};
@@ -11,7 +10,7 @@ use serde::{Deserialize, Serialize};
 use super::config::{Config, PlayerConfig};
 use super::elodisco::bot_state::BotState;
 use super::ui_state::State;
-use eloelo_model::history::{History, HistoryEntry, LegacyHistoryEntry};
+use eloelo_model::history::{History, HistoryEntry};
 use eloelo_model::player::PlayerDb;
 use eloelo_model::GameId;
 
@@ -104,26 +103,6 @@ struct HistorySerializeWrapper {
     entries: Vec<HistoryEntry>,
 }
 
-#[derive(Serialize, Deserialize, PartialEq)]
-struct LegacyHistorySerializeWrapper {
-    game: GameId,
-    entries: Vec<LegacyHistoryEntry>,
-}
-
-impl From<LegacyHistorySerializeWrapper> for HistorySerializeWrapper {
-    fn from(value: LegacyHistorySerializeWrapper) -> Self {
-        let mut history = HistorySerializeWrapper {
-            game: value.game,
-            entries: value.entries.into_iter().map(HistoryEntry::from).collect(),
-        };
-        for (i, entry) in history.entries.iter_mut().enumerate() {
-            entry.timestamp = DateTime::from(DateTime::UNIX_EPOCH)
-                + std::time::Duration::from_secs(i as u64 * 3600)
-        }
-        history
-    }
-}
-
 pub fn append_history_entry(game: &GameId, entry: &HistoryEntry) -> Result<()> {
     let mut entries = if history_path(game).is_file() {
         load_history_file(&history_path(game))?
@@ -141,7 +120,6 @@ pub fn append_history_entry(game: &GameId, entry: &HistoryEntry) -> Result<()> {
 }
 
 const HISTORY_SUFFIX: &str = ".history.yaml";
-const LEGACY_HISTORY_SUFFIX: &str = ".old.history.yaml";
 
 pub fn load_history() -> Result<History> {
     let mut out = History::default();
@@ -149,25 +127,16 @@ pub fn load_history() -> Result<History> {
     for dir_entry in fs::read_dir(data_dir())? {
         let dir_entry = dir_entry?;
         if is_regular_history_file(&dir_entry.path()) {
-            if is_legacy_history_file(&dir_entry.path()) {
-                info!(
-                    "Store: Legacy history File: {}",
-                    dir_entry.path().to_string_lossy()
-                );
-                let history = load_legacy_history_file(&dir_entry.path())?;
-                prepend_game_history(&mut out, history);
-            } else {
-                info!(
-                    "Store: History File: {}",
-                    dir_entry.path().to_string_lossy()
-                );
-                let history_file = File::open(dir_entry.path())?;
-                let history: HistorySerializeWrapper = serde_yaml::from_reader(history_file)?;
-                out.entries
-                    .entry(history.game)
-                    .or_default()
-                    .extend(history.entries);
-            }
+            info!(
+                "Store: History File: {}",
+                dir_entry.path().to_string_lossy()
+            );
+            let history_file = File::open(dir_entry.path())?;
+            let history: HistorySerializeWrapper = serde_yaml::from_reader(history_file)?;
+            out.entries
+                .entry(history.game)
+                .or_default()
+                .extend(history.entries);
         }
     }
     Ok(out)
@@ -186,37 +155,10 @@ fn is_regular_history_file(path: &Path) -> bool {
         .ends_with(HISTORY_SUFFIX)
 }
 
-fn is_legacy_history_file(entry: &Path) -> bool {
-    entry
-        .file_name()
-        .unwrap_or_default()
-        .to_string_lossy()
-        .ends_with(LEGACY_HISTORY_SUFFIX)
-}
-
-fn load_legacy_history_file(path: &Path) -> Result<HistorySerializeWrapper> {
-    let history_file = File::open(path)?;
-    let history: LegacyHistorySerializeWrapper = serde_yaml::from_reader(history_file)?;
-    Ok(history.into())
-}
-
 fn history_path(game: &GameId) -> PathBuf {
     let safe_game_id = game.as_str().replace(" ", "_").replace(":", "_");
     let filename = format!("{}{}", safe_game_id, HISTORY_SUFFIX);
     data_dir().join(filename)
-}
-
-fn prepend_game_history(out: &mut History, mut history: HistorySerializeWrapper) {
-    out.entries
-        .entry(history.game)
-        .and_modify(|e| {
-            // swap to make legacy history appear at the beginning
-            std::mem::swap(e, &mut history.entries);
-            // append whatever was originally in the entry
-            // e.extend(history.entries);
-        })
-        .or_default()
-        .extend(history.entries);
 }
 
 fn store_file_with_backup<T>(path: &Path, data: &T) -> Result<()>
@@ -255,108 +197,4 @@ fn ensure_dir_created(path: &Path) -> Result<()> {
             .with_context(|| format!("Cannot create {}", &dir.to_string_lossy()))?;
     }
     Ok(())
-}
-
-#[cfg(test)]
-mod test {
-    use std::time::Duration;
-
-    use chrono::Local;
-
-    use eloelo_model::{PlayerId, WinScale};
-
-    use super::*;
-
-    #[test]
-    fn test_prepend_history_empty() {
-        let mut history = History::default();
-        let timestamp = Local::now();
-        prepend_game_history(
-            &mut history,
-            HistorySerializeWrapper {
-                game: GameId::from("Dota 2"),
-                entries: vec![HistoryEntry {
-                    timestamp: timestamp.clone(),
-                    winner: vec![PlayerId::from("Winner")],
-                    loser: vec![PlayerId::from("Loser")],
-                    scale: WinScale::Advantage,
-                    duration: Duration::from_secs(80 * 60),
-                }],
-            },
-        );
-        assert_eq!(
-            history,
-            History {
-                entries: [(
-                    GameId::from("Dota 2"),
-                    vec![HistoryEntry {
-                        timestamp: timestamp.clone(),
-                        winner: vec![PlayerId::from("Winner")],
-                        loser: vec![PlayerId::from("Loser")],
-                        scale: WinScale::Advantage,
-                        duration: Duration::from_secs(80 * 60),
-                    }]
-                )]
-                .into_iter()
-                .collect()
-            }
-        )
-    }
-
-    #[test]
-    fn test_prepend_history_non_empty() {
-        let mut history = History::default();
-        let other_timestamp = Local::now();
-        history.entries.insert(
-            GameId::from("Dota 2"),
-            vec![HistoryEntry {
-                timestamp: other_timestamp.clone(),
-                winner: vec![PlayerId::from("Other Winner")],
-                loser: vec![PlayerId::from("Other Loser")],
-                scale: WinScale::Advantage,
-                duration: Duration::from_secs(5),
-            }],
-        );
-
-        let timestamp = Local::now();
-        prepend_game_history(
-            &mut history,
-            HistorySerializeWrapper {
-                game: GameId::from("Dota 2"),
-                entries: vec![HistoryEntry {
-                    timestamp: timestamp.clone(),
-                    winner: vec![PlayerId::from("Winner")],
-                    loser: vec![PlayerId::from("Loser")],
-                    scale: WinScale::Advantage,
-                    duration: Duration::from_secs(5),
-                }],
-            },
-        );
-        assert_eq!(
-            history,
-            History {
-                entries: [(
-                    GameId::from("Dota 2"),
-                    vec![
-                        HistoryEntry {
-                            timestamp: timestamp.clone(),
-                            winner: vec![PlayerId::from("Winner")],
-                            loser: vec![PlayerId::from("Loser")],
-                            scale: WinScale::Advantage,
-                            duration: Duration::from_secs(5),
-                        },
-                        HistoryEntry {
-                            timestamp: other_timestamp.clone(),
-                            winner: vec![PlayerId::from("Other Winner")],
-                            loser: vec![PlayerId::from("Other Loser")],
-                            scale: WinScale::Advantage,
-                            duration: Duration::from_secs(5),
-                        }
-                    ]
-                )]
-                .into_iter()
-                .collect()
-            }
-        )
-    }
 }
