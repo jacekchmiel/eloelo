@@ -5,6 +5,8 @@ import {
 	Button,
 	CssBaseline,
 	FormControl,
+	FormControlLabel,
+	FormLabel,
 	Grid,
 	IconButton,
 	InputLabel,
@@ -12,6 +14,8 @@ import {
 	ListItem,
 	MenuItem,
 	Modal,
+	Radio,
+	RadioGroup,
 	Select,
 	type SelectChangeEvent,
 	Stack,
@@ -178,6 +182,13 @@ function EloElo(state: EloEloState) {
 	);
 }
 
+type FinishMatchModalState = {
+	show: boolean;
+	winner?: "left" | "right";
+	fake?: boolean;
+	duration?: string;
+};
+
 function MainView({
 	state,
 	discord_info,
@@ -194,11 +205,9 @@ function MainView({
 		.sort();
 	const avatars = extractAvatars(discord_info);
 
-	const [finishMatchModalState, setFinishMatchModalState] = React.useState<
-		"left" | "right" | undefined
-	>(undefined);
+	const [finishMatchModalState, setFinishMatchModalState] =
+		React.useState<FinishMatchModalState>({ show: false });
 	const [startTimestamp, setStartTimestamp] = React.useState<Date>(new Date(0));
-	const [duration, setDuration] = React.useState("0m");
 
 	return (
 		<>
@@ -228,6 +237,18 @@ function MainView({
 								>
 									Shuffle Teams
 								</Button>
+								<Button
+									color="error"
+									onClick={async () => {
+										setFinishMatchModalState({
+											fake: true,
+											show: true,
+											duration: "45m",
+										});
+									}}
+								>
+									Add Fake
+								</Button>
 							</Stack>
 						</Grid>
 					</>
@@ -238,8 +259,11 @@ function MainView({
 							<Stack direction="row" justifyContent="right">
 								<Button
 									onClick={() => {
-										setDuration(elapsedString(startTimestamp, new Date()));
-										setFinishMatchModalState("left");
+										setFinishMatchModalState({
+											winner: "left",
+											show: true,
+											duration: elapsedString(startTimestamp, new Date()),
+										});
 									}}
 								>
 									Left Team Won
@@ -250,8 +274,11 @@ function MainView({
 							<Stack direction="row" justifyContent="space-between">
 								<Button
 									onClick={() => {
-										setDuration(elapsedString(startTimestamp, new Date()));
-										setFinishMatchModalState("right");
+										setFinishMatchModalState({
+											winner: "right",
+											show: true,
+											duration: elapsedString(startTimestamp, new Date()),
+										});
 									}}
 								>
 									Right Team Won
@@ -274,34 +301,19 @@ function MainView({
 				playersToAdd={playersToAdd}
 			/>
 			<FinishMatchModal
-				open={finishMatchModalState !== undefined}
-				duration={duration}
-				setDuration={setDuration}
-				onClose={() => setFinishMatchModalState(undefined)}
-				onProceed={async (winScale, durationSeconds) =>
-					await invoke("finish_match", {
-						winner: finishMatchModalState,
-						scale: winScale,
-						duration: serializeDurationSeconds(durationSeconds),
-					})
-				}
+				state={finishMatchModalState}
+				setState={setFinishMatchModalState}
 			/>
 		</>
 	);
 }
 
 function FinishMatchModal({
-	open,
-	duration,
-	setDuration,
-	onClose,
-	onProceed,
+	state,
+	setState,
 }: {
-	open: boolean;
-	duration: string;
-	setDuration: (duration: string) => void;
-	onClose: () => void;
-	onProceed: (winScale: WinScale, durationSeconds: number) => Promise<void>;
+	state: FinishMatchModalState;
+	setState: React.Dispatch<React.SetStateAction<FinishMatchModalState>>;
 }) {
 	const sx = {
 		position: "absolute",
@@ -314,42 +326,89 @@ function FinishMatchModal({
 		p: 4,
 	};
 
-	const userProvidedDurationInvalid = !isValidDurationString(duration);
-
+	const userProvidedDurationInvalid = !isValidDurationString(state.duration);
+	const showWinnerChoice = state.fake !== undefined && state.fake;
 	const buttons: [WinScale, string][] = [
 		["pwnage", "Pwnage"],
 		["advantage", "Advantage"],
 		["even", "Even"],
 	];
 
+	const winnerTeam = state.winner === "left" ? "Left Team" : "Right Team";
+	const heading = state.fake
+		? "Enter fake result"
+		: `${winnerTeam} won! How it went?`;
+	const noWinner = state.winner === undefined;
+
 	return (
-		<Modal open={open} onClose={onClose}>
+		<Modal open={state.show} onClose={() => setState({ show: false })}>
 			<Box sx={sx}>
 				<Typography variant="h6" component="h2">
-					How it went?
+					{heading}
 				</Typography>
+				{showWinnerChoice && (
+					<FormControl>
+						<FormLabel>Winner</FormLabel>
+						<RadioGroup
+							row
+							onChange={(event) => {
+								setState((current) => {
+									return {
+										winner: event.target.value as "left" | "right",
+										...current,
+									};
+								});
+							}}
+						>
+							<FormControlLabel
+								value="left"
+								control={<Radio />}
+								label="Left Team"
+							/>
+							<FormControlLabel
+								value="right"
+								control={<Radio />}
+								label="Right Team"
+							/>
+						</RadioGroup>
+					</FormControl>
+				)}
 				<List>
 					<ListItem>
 						<TextField
 							label="Duration"
 							onChange={(event) => {
-								setDuration(event.target.value);
+								setState((current) => {
+									return {
+										...current,
+										duration: event.target.value,
+									};
+								});
 							}}
 							error={userProvidedDurationInvalid}
-							value={duration}
+							value={state.duration ?? "0m"}
 						/>
 					</ListItem>
 					{buttons.map((b) => {
-						const [command, text] = b;
+						const [scale, text] = b;
 						return (
-							<ListItem key={command}>
+							<ListItem key={scale}>
 								<Button
 									variant="contained"
 									onClick={async () => {
-										await onProceed(command, parseDurationString(duration));
-										onClose();
+										await invoke("finish_match", {
+											winner: state.winner,
+											scale,
+											duration: serializeDurationSeconds(
+												parseDurationString(
+													state.duration === undefined ? "0" : state.duration,
+												),
+											),
+											fake: state.fake,
+										});
+										setState({ show: false });
 									}}
-									disabled={userProvidedDurationInvalid}
+									disabled={userProvidedDurationInvalid || noWinner}
 								>
 									{text}
 								</Button>
