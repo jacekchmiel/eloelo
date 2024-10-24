@@ -31,7 +31,10 @@ export function parseDurationString(duration: string): number {
 	throw Error(`Invalid duration ${duration}`);
 }
 
-export function isValidDurationString(duration: string): boolean {
+export function isValidDurationString(duration: string | undefined): boolean {
+	if (duration === undefined) {
+		return false;
+	}
 	try {
 		parseDurationString(duration);
 	} catch (error) {

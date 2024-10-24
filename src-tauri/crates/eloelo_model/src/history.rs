@@ -22,6 +22,13 @@ pub struct HistoryEntry {
     #[serde(serialize_with = "serialize_seconds")]
     #[serde(deserialize_with = "deserialize_seconds")]
     pub duration: Duration,
+    #[serde(default)]
+    #[serde(skip_serializing_if = "is_default")]
+    pub fake: bool,
+}
+
+fn is_default<T: Default + PartialEq<T>>(v: &T) -> bool {
+    v == &Default::default()
 }
 
 fn default_match_duration() -> Duration {
@@ -50,30 +57,6 @@ impl HistoryEntry {
             WinScale::Even => 0.65,
             WinScale::Advantage => 0.8,
             WinScale::Pwnage => 0.95,
-        }
-    }
-}
-
-#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
-pub struct LegacyHistoryEntry {
-    pub teams: [Vec<PlayerId>; 2],
-    pub winner: i32,
-    pub scale: WinScale,
-}
-
-impl From<LegacyHistoryEntry> for HistoryEntry {
-    fn from(value: LegacyHistoryEntry) -> Self {
-        let [mut winner, mut loser] = value.teams;
-        if value.winner != 0 {
-            std::mem::swap(&mut winner, &mut loser);
-        }
-
-        HistoryEntry {
-            timestamp: DateTime::from(DateTime::UNIX_EPOCH),
-            winner,
-            loser,
-            scale: value.scale,
-            duration: Duration::from_secs(45 * 60),
         }
     }
 }

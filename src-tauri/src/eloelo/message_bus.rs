@@ -127,5 +127,6 @@ pub enum FinishMatch {
         winner: Team,
         scale: WinScale,
         duration: Duration,
+        fake: bool,
     },
 }

@@ -212,6 +212,7 @@ impl EloElo {
             winner,
             scale,
             duration,
+            fake,
         } = finish_match
         {
             let (winner, loser) = match winner {
@@ -224,6 +225,7 @@ impl EloElo {
                 loser,
                 scale,
                 duration,
+                fake,
             };
             let _ =
                 append_history_entry(&self.selected_game, &history_entry).inspect_err(print_err); // TODO: proper error propagation
