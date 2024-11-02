@@ -31,7 +31,13 @@ pub struct EloElo {
 }
 
 impl EloElo {
-    pub fn new(state: State, history: History, config: Config, message_bus: MessageBus) -> Self {
+    pub fn new(
+        state: Option<State>,
+        history: History,
+        config: Config,
+        message_bus: MessageBus,
+    ) -> Self {
+        let state = state.unwrap_or_else(|| State::new(config.default_game().clone()));
         let mut elo = EloElo {
             selected_game: state.selected_game,
             players: PlayerDb::new(config.players.clone().into_iter().map(Player::from)),

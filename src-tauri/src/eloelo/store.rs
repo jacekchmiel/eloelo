@@ -32,13 +32,14 @@ pub fn data_dir() -> PathBuf {
     project_dirs.data_dir().to_owned()
 }
 
-pub fn load_state(config: &Config) -> Result<State> {
+pub fn load_state() -> Result<Option<State>> {
     info!("Store: State file: {}", state_file_path().to_string_lossy());
     if !state_file_path().exists() {
-        store_state(&State::new(config.default_game().clone()))?;
+        return Ok(None);
     }
     let state_file = File::open(state_file_path())?;
-    Ok(serde_yaml::from_reader(state_file)?)
+    let state = serde_yaml::from_reader(state_file)?;
+    Ok(Some(state))
 }
 
 pub fn store_state(state: &State) -> Result<()> {
