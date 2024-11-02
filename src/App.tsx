@@ -1,4 +1,5 @@
 import EventNoteIcon from "@mui/icons-material/EventNote";
+
 import RefreshIcon from "@mui/icons-material/Refresh";
 import {
 	Box,
@@ -46,12 +47,10 @@ import {
 import { type EloEloStateTransport, parseEloEloState } from "./parse";
 
 const invoke = async (event: string, args: InvokeArgs) => {
-	// biome-ignore lint/nursery/noConsole: important log
-	console.log({ event, args });
+	console.info({ event, args });
 	try {
 		await tauriInvoke(event, args);
 	} catch (err) {
-		// biome-ignore lint/nursery/noConsole: important log
 		console.error(err);
 	}
 };
@@ -127,7 +126,6 @@ function EloElo(state: EloEloState) {
 		const unlisten = await listen(
 			"discord_info",
 			(event: { payload: DiscordPlayerInfo[] }) => {
-				// biome-ignore lint/nursery/noConsole: important log
 				console.log({ discord_info: event.payload });
 				setDiscordInfoState(event.payload);
 			},
@@ -453,7 +451,6 @@ export default function App() {
 		const unlisten = await listen(
 			"update_ui",
 			(event: { payload: EloEloStateTransport }) => {
-				// biome-ignore lint/nursery/noConsole: important log
 				console.log({ state: event.payload });
 				const parsed = parseEloEloState(event.payload);
 				setEloEloState(parsed);

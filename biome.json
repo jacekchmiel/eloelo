@@ -7,12 +7,20 @@
 		"enabled": true,
 		"rules": {
 			"recommended": true,
-			"nursery": {
-				"noConsole": "warn"
+			"suspicious": {
+				"noConsole": {
+					"level": "warn",
+					"options": {
+						"allow": ["assert", "error", "info", "warn"]
+					}
+				}
 			}
 		}
 	},
 	"files": {
 		"include": ["src/*"]
+	},
+	"formatter": {
+		"lineEnding": "crlf"
 	}
 }
