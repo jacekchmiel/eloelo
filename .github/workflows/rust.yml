@@ -3,8 +3,14 @@ name: Rust
 on:
   push:
     branches: ["main"]
+    paths:
+      - src-tauri/**
+      - package.json
   pull_request:
     branches: ["main"]
+    paths:
+      - src-tauri/**
+      - package.json
 
 env:
   CARGO_TERM_COLOR: always
