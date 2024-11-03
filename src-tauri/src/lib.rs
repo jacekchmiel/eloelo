@@ -43,38 +43,45 @@ fn add_new_player(name: String, discord_username: Option<String>, state: TauriSt
 }
 
 #[tauri::command]
-fn remove_player(name: String, state: TauriState) {
-    debug!("remove_player({:?})", name);
+fn remove_player(id: String, state: TauriState) {
+    debug!("remove_player({:?})", id);
     let _ = state
         .message_bus
         .send(Message::UiCommand(UiCommand::RemovePlayer(PlayerId::from(
-            name,
+            id,
         ))));
 }
 
 #[tauri::command]
-fn move_player_to_other_team(name: String, state: TauriState) {
-    debug!("move_player_to_other_team({:?})", name);
+fn move_player_to_other_team(id: String, state: TauriState) {
+    debug!("move_player_to_other_team({:?})", id);
     let _ = state
         .message_bus
-        .send(Message::UiCommand(UiCommand::MovePlayerToOtherTeam(name)));
+        .send(Message::UiCommand(UiCommand::MovePlayerToOtherTeam(
+            PlayerId::from(id),
+        )));
 }
 
 #[tauri::command]
-fn remove_player_from_team(name: String, state: TauriState) {
-    debug!("remove_player_from_team({:?})", name);
+fn remove_player_from_team(id: String, state: TauriState) {
+    debug!("remove_player_from_team({:?})", id);
     let _ = state
         .message_bus
-        .send(Message::UiCommand(UiCommand::RemovePlayerFromTeam(name)));
+        .send(Message::UiCommand(UiCommand::RemovePlayerFromTeam(
+            PlayerId::from(id),
+        )));
 }
 
 #[tauri::command]
-fn add_player_to_team(name: String, team: String, state: TauriState) {
-    debug!("add_player_to_team({:?})", name);
+fn add_player_to_team(id: String, team: String, state: TauriState) {
+    debug!("add_player_to_team({:?})", id);
     let team = Team::from_str(&team).expect("String with valid team value");
     let _ = state
         .message_bus
-        .send(Message::UiCommand(UiCommand::AddPlayerToTeam(name, team)));
+        .send(Message::UiCommand(UiCommand::AddPlayerToTeam(
+            PlayerId::from(id),
+            team,
+        )));
 }
 
 #[tauri::command]

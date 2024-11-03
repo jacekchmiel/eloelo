@@ -38,7 +38,7 @@ function DeleteButton({
 		<IconButton
 			{...props}
 			edge="end"
-			onClick={async () => await invoke("remove_player", { name: playerKey })}
+			onClick={async () => await invoke("remove_player", { id: playerKey })}
 		>
 			<DeleteIcon />
 		</IconButton>
@@ -66,7 +66,7 @@ function AddLeftButton({
 			edge="end"
 			aria-label="add_left"
 			onClick={async () =>
-				await invoke("add_player_to_team", { name: playerKey, team: "left" })
+				await invoke("add_player_to_team", { id: playerKey, team: "left" })
 			}
 		>
 			<PersonAddIcon />
@@ -84,7 +84,7 @@ function AddRightButton({
 			edge="end"
 			aria-label="add_right"
 			onClick={async () =>
-				await invoke("add_player_to_team", { name: playerKey, team: "right" })
+				await invoke("add_player_to_team", { id: playerKey, team: "right" })
 			}
 		>
 			<PersonAddAlt1Icon />
@@ -113,7 +113,7 @@ function AvatarPlaceholder() {
 }
 
 function NewPlayerRow({ players }: { players: DiscordPlayerInfo[] }) {
-	const [newPlayerName, setNewPlayerName] = useState<string | null>(null);
+	const [newPlayerId, setNewPlayerId] = useState<string | null>(null);
 	return (
 		<ListItem sx={{ p: 0 }}>
 			<AvatarPlaceholder />
@@ -126,27 +126,27 @@ function NewPlayerRow({ players }: { players: DiscordPlayerInfo[] }) {
 						{...params}
 						label="Add new player"
 						onChange={(event) => {
-							setNewPlayerName(event.target.value);
+							setNewPlayerId(event.target.value);
 						}}
 					/>
 				)}
 				onChange={(_, value) => {
-					setNewPlayerName(value);
+					setNewPlayerId(value);
 				}}
 			/>
 			<AddButton
-				show={newPlayerName !== null}
+				show={newPlayerId !== null}
 				onClick={async () => {
 					const discordInfo = players.find(
-						(p) => p.displayName === newPlayerName,
+						(p) => p.displayName === newPlayerId,
 					);
 					const discordUsername =
 						discordInfo === undefined ? undefined : discordInfo.username;
 					await invoke("add_new_player", {
-						name: newPlayerName,
+						id: newPlayerId,
 						discordUsername,
 					});
-					setNewPlayerName("");
+					setNewPlayerId("");
 				}}
 			/>
 		</ListItem>
@@ -171,14 +171,14 @@ export function ReserveList({
 			(a: PlayerAvatar) => a.username === player.discordUsername,
 		)?.avatarUrl;
 		return (
-			<ListItem key={player.name} sx={{ p: 0 }}>
+			<ListItem key={player.id} sx={{ p: 0 }}>
 				{/* <MoveButton playerKey={name} /> */}
 				<ListItemAvatar>
 					<Avatar src={avatarUrl} />
 				</ListItemAvatar>
 				<ListItemText primary={player.name} secondary={player.elo} />
-				<AddLeftButton playerKey={player.name} disabled={!assemblingTeams} />
-				<AddRightButton playerKey={player.name} disabled={!assemblingTeams} />
+				<AddLeftButton playerKey={player.id} disabled={!assemblingTeams} />
+				<AddRightButton playerKey={player.id} disabled={!assemblingTeams} />
 				{editable && <DeleteButton playerKey={player.id} />}
 			</ListItem>
 		);

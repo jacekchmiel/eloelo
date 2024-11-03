@@ -42,7 +42,7 @@ function MoveButton({
 			edge={side === "left" ? "end" : "start"}
 			aria-label="delete"
 			onClick={async () =>
-				await invoke("move_player_to_other_team", { name: playerKey })
+				await invoke("move_player_to_other_team", { id: playerKey })
 			}
 		>
 			{side === "left" ? <ChevronRightIcon /> : <ChevronLeftIcon />}
@@ -61,7 +61,7 @@ function DeleteButton({
 			edge={side === "left" ? "start" : "end"}
 			aria-label="delete"
 			onClick={async () =>
-				await invoke("remove_player_from_team", { name: playerKey })
+				await invoke("remove_player_from_team", { id: playerKey })
 			}
 		>
 			<DeleteIcon />
@@ -103,13 +103,13 @@ function RosterRow({
 		>
 			<DeleteButton
 				side={side}
-				playerKey={player.name}
+				playerKey={player.id}
 				disabled={!assemblingTeams}
 			/>
 			<PlayerProfile {...{ player }} avatarUrl={avatarUrl} />
 			<MoveButton
 				side={side}
-				playerKey={player.name}
+				playerKey={player.id}
 				disabled={!assemblingTeams}
 			/>
 		</ListItem>
