@@ -126,7 +126,7 @@ function EloElo(state: EloEloState) {
 		const unlisten = await listen(
 			"discord_info",
 			(event: { payload: DiscordPlayerInfo[] }) => {
-				console.log({ discord_info: event.payload });
+				console.info({ discord_info: event.payload });
 				setDiscordInfoState(event.payload);
 			},
 		);
@@ -451,7 +451,7 @@ export default function App() {
 		const unlisten = await listen(
 			"update_ui",
 			(event: { payload: EloEloStateTransport }) => {
-				console.log({ state: event.payload });
+				console.info({ state: event.payload });
 				const parsed = parseEloEloState(event.payload);
 				setEloEloState(parsed);
 			},
