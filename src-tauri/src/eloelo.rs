@@ -131,13 +131,14 @@ impl EloElo {
     }
 
     fn default_elo_for_current_game(&self) -> i32 {
-        let elo_sum: i32 = self
+        let players_ranks: Vec<i32> = self
             .left_players
             .iter()
             .chain(self.right_players.iter())
             .flat_map(|p| self.players.get_rank(p, &self.selected_game))
-            .sum();
-        elo_sum / (self.left_players.len() + self.right_players.len()) as i32
+            .collect();
+        let elo_sum: i32 = players_ranks.iter().sum();
+        elo_sum / players_ranks.len() as i32
     }
 
     fn build_ui_players(&self, player_ids: &[PlayerId], default_elo: i32) -> Vec<UiPlayer> {
