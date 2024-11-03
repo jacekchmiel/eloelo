@@ -30,6 +30,15 @@ impl Team {
     }
 }
 
+impl Display for Team {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.write_str(match self {
+            Team::Left => "Left Team",
+            Team::Right => "Right Team",
+        })
+    }
+}
+
 #[derive(Debug, Clone, Serialize, Deserialize, Eq, PartialEq, PartialOrd, Ord, Hash)]
 pub struct PlayerId(String);
 
@@ -38,6 +47,7 @@ impl PlayerId {
         self.0.as_str()
     }
 }
+
 impl From<String> for PlayerId {
     fn from(value: String) -> Self {
         PlayerId(value)
@@ -89,7 +99,7 @@ impl From<&str> for GameId {
     }
 }
 
-#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize, Deserialize)]
 pub enum WinScale {
     Even,
     Advantage,
@@ -99,6 +109,17 @@ pub enum WinScale {
 impl Default for WinScale {
     fn default() -> Self {
         WinScale::Even
+    }
+}
+
+impl std::fmt::Display for WinScale {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        let txt = match self {
+            WinScale::Even => "Even",
+            WinScale::Advantage => "Advantage",
+            WinScale::Pwnage => "Pwnage",
+        };
+        f.write_str(txt)
     }
 }
 

@@ -156,7 +156,7 @@ fn is_regular_history_file(path: &Path) -> bool {
         .ends_with(HISTORY_SUFFIX)
 }
 
-fn history_path(game: &GameId) -> PathBuf {
+pub fn history_path(game: &GameId) -> PathBuf {
     let safe_game_id = game.as_str().replace(" ", "_").replace(":", "_");
     let filename = format!("{}{}", safe_game_id, HISTORY_SUFFIX);
     data_dir().join(filename)

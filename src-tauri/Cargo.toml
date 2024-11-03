@@ -37,9 +37,14 @@ flexi_logger = "0.29.3"
 itertools = "0.13.0"
 eloelo_model = { workspace = true }
 spawelo = { workspace = true }
+duct = "0.13.7"
 
 [profile.dev.package.spawelo]
 opt-level = 1
 
 [profile.dev.package.eloelo_model]
 opt-level = 1
+
+[dev-dependencies]
+env_logger = "0.11.5"
+tempdir = "0.3.7"
