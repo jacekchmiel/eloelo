@@ -341,57 +341,57 @@ function FinishMatchModal({
 	return (
 		<Modal open={state.show} onClose={() => setState({ show: false })}>
 			<Box sx={sx}>
-				<Typography variant="h6" component="h2">
-					{heading}
-				</Typography>
-				{showWinnerChoice && (
-					<FormControl>
-						<FormLabel>Winner</FormLabel>
-						<RadioGroup
-							row
-							onChange={(event) => {
-								setState((current) => {
-									return {
-										winner: event.target.value as "left" | "right",
-										...current,
-									};
-								});
-							}}
-						>
-							<FormControlLabel
-								value="left"
-								control={<Radio />}
-								label="Left Team"
-							/>
-							<FormControlLabel
-								value="right"
-								control={<Radio />}
-								label="Right Team"
-							/>
-						</RadioGroup>
-					</FormControl>
-				)}
-				<List>
-					<ListItem>
-						<TextField
-							label="Duration"
-							onChange={(event) => {
-								setState((current) => {
-									return {
-										...current,
-										duration: event.target.value,
-									};
-								});
-							}}
-							error={userProvidedDurationInvalid}
-							value={state.duration ?? "0m"}
-						/>
-					</ListItem>
-					{buttons.map((b) => {
-						const [scale, text] = b;
-						return (
-							<ListItem key={scale}>
+				<Stack spacing={4}>
+					<Typography variant="h6" component="h2">
+						{heading}
+					</Typography>
+					{showWinnerChoice && (
+						<FormControl>
+							<FormLabel>Winner</FormLabel>
+							<RadioGroup
+								row
+								onChange={(event) => {
+									setState((current) => {
+										return {
+											winner: event.target.value as "left" | "right",
+											...current,
+										};
+									});
+								}}
+							>
+								<FormControlLabel
+									value="left"
+									control={<Radio />}
+									label="Left Team"
+								/>
+								<FormControlLabel
+									value="right"
+									control={<Radio />}
+									label="Right Team"
+								/>
+							</RadioGroup>
+						</FormControl>
+					)}
+					<TextField
+						label="Duration"
+						variant="standard"
+						onChange={(event) => {
+							setState((current) => {
+								return {
+									...current,
+									duration: event.target.value,
+								};
+							});
+						}}
+						error={userProvidedDurationInvalid}
+						value={state.duration ?? "0m"}
+					/>
+					<Stack spacing={2}>
+						{buttons.map((b) => {
+							const [scale, text] = b;
+							return (
 								<Button
+									key={scale}
 									variant="contained"
 									onClick={async () => {
 										await invoke("finish_match", {
@@ -410,10 +410,10 @@ function FinishMatchModal({
 								>
 									{text}
 								</Button>
-							</ListItem>
-						);
-					})}
-				</List>
+							);
+						})}
+					</Stack>
+				</Stack>
 			</Box>
 		</Modal>
 	);
