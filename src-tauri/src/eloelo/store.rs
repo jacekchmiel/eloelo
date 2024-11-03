@@ -14,7 +14,7 @@ use eloelo_model::history::{History, HistoryEntry};
 use eloelo_model::player::PlayerDb;
 use eloelo_model::GameId;
 
-const HISTORY_SUFFIX: &str = ".history.yaml";
+const HISTORY_SUFFIX: &str = ".history.json";
 const HISTORY_GIT_DIR: &str = "history_git";
 
 fn state_file_path() -> PathBuf {
@@ -109,18 +109,21 @@ struct HistorySerializeWrapper {
 
 pub fn append_history_entry(game: &GameId, entry: &HistoryEntry) -> Result<()> {
     let mut entries = if history_path(game).is_file() {
-        load_history_file(&history_path(game))?
+        load_history_file(&history_path(game))?.entries
     } else {
         vec![]
     };
     entries.push(entry.clone());
-    store_file_with_backup(
-        &history_path(game),
+
+    let out_file = File::create(&history_path(game))?;
+    serde_json::to_writer_pretty(
+        out_file,
         &HistorySerializeWrapper {
             game: game.clone(),
             entries,
         },
-    )
+    )?;
+    Ok(())
 }
 
 pub fn history_dir() -> PathBuf {
@@ -137,8 +140,7 @@ pub fn load_history() -> Result<History> {
                 "Store: History File: {}",
                 dir_entry.path().to_string_lossy()
             );
-            let history_file = File::open(dir_entry.path())?;
-            let history: HistorySerializeWrapper = serde_yaml::from_reader(history_file)?;
+            let history = load_history_file(&dir_entry.path())?;
             out.entries
                 .entry(history.game)
                 .or_default()
@@ -148,10 +150,10 @@ pub fn load_history() -> Result<History> {
     Ok(out)
 }
 
-fn load_history_file(path: &Path) -> Result<Vec<HistoryEntry>> {
+fn load_history_file(path: &Path) -> Result<HistorySerializeWrapper> {
     let history_file = File::open(path)?;
-    let history: HistorySerializeWrapper = serde_yaml::from_reader(history_file)?;
-    Ok(history.entries)
+    let history: HistorySerializeWrapper = serde_json::from_reader(history_file)?;
+    Ok(history)
 }
 
 fn is_regular_history_file(path: &Path) -> bool {
