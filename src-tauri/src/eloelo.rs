@@ -96,12 +96,13 @@ impl EloElo {
 
     pub fn ui_state(&self) -> UiState {
         let reserve_players: Vec<_> = self.reserve_players().cloned().collect();
+        let default_elo = self.default_elo_for_current_game();
         UiState {
             available_games: self.config.games.clone(),
             selected_game: self.selected_game.clone(),
-            left_players: self.build_ui_players(&self.left_players),
-            right_players: self.build_ui_players(&self.right_players),
-            reserve_players: self.build_ui_players(&reserve_players),
+            left_players: self.build_ui_players(&self.left_players, default_elo),
+            right_players: self.build_ui_players(&self.right_players, default_elo),
+            reserve_players: self.build_ui_players(&reserve_players, default_elo),
             game_state: self.game_state,
             history: self.history.clone(),
         }
@@ -121,12 +122,25 @@ impl EloElo {
         self.left_players.contains(p) || self.right_players.contains(p)
     }
 
-    fn build_ui_players(&self, player_ids: &[PlayerId]) -> Vec<UiPlayer> {
+    fn default_elo_for_current_game(&self) -> i32 {
+        let elo_sum: i32 = self
+            .left_players
+            .iter()
+            .chain(self.right_players.iter())
+            .flat_map(|p| self.players.get_rank(p, &self.selected_game))
+            .sum();
+        elo_sum / (self.left_players.len() + self.right_players.len()) as i32
+    }
+
+    fn build_ui_players(&self, player_ids: &[PlayerId], default_elo: i32) -> Vec<UiPlayer> {
         player_ids
             .iter()
             .cloned()
             .map(|player_id| {
-                let elo = self.players.get_rank(&player_id, &self.selected_game);
+                let elo = self
+                    .players
+                    .get_rank(&player_id, &self.selected_game)
+                    .unwrap_or(default_elo);
                 let name = self
                     .players
                     .get(&player_id)
@@ -183,6 +197,7 @@ impl EloElo {
     }
 
     fn start_match(&mut self) {
+        let default_elo = self.default_elo_for_current_game();
         self.game_state = GameState::MatchInProgress;
         self.message_bus
             .send(Message::Event(Event::MatchStart(MatchStart {
@@ -195,9 +210,11 @@ impl EloElo {
                         .iter()
                         .find(|g| g.name == self.selected_game)
                         .map_or("Left Team".to_string(), |g| g.left_team.clone()),
-                    players: self
-                        .players
-                        .get_ranked_owned(&self.left_players, &self.selected_game),
+                    players: self.players.get_ranked_owned(
+                        &self.left_players,
+                        &self.selected_game,
+                        default_elo,
+                    ),
                 },
                 right_team: MatchStartTeam {
                     name: self
@@ -206,9 +223,11 @@ impl EloElo {
                         .iter()
                         .find(|g| g.name == self.selected_game)
                         .map_or("Right Team".to_string(), |g| g.right_team.clone()),
-                    players: self
-                        .players
-                        .get_ranked_owned(&self.right_players, &self.selected_game),
+                    players: self.players.get_ranked_owned(
+                        &self.right_players,
+                        &self.selected_game,
+                        default_elo,
+                    ),
                 },
             })));
     }
@@ -269,12 +288,13 @@ impl EloElo {
     }
 
     fn shuffle_teams(&mut self) {
-        let left = self
-            .players
-            .get_ranked_owned(&self.left_players, &self.selected_game);
-        let right = self
-            .players
-            .get_ranked_owned(&self.right_players, &self.selected_game);
+        let default_elo = self.default_elo_for_current_game();
+        let left =
+            self.players
+                .get_ranked_owned(&self.left_players, &self.selected_game, default_elo);
+        let right =
+            self.players
+                .get_ranked_owned(&self.right_players, &self.selected_game, default_elo);
 
         let (_, left, right) = spawelo::shuffle_teams(left.into_iter().chain(right));
 
@@ -284,18 +304,11 @@ impl EloElo {
 
     fn recalculate_elo_from_history(&mut self) {
         info!("Recalculating {} elo from history", &self.selected_game);
-        self.reset_elo();
 
         let elo = ml_elo(self.history_for_elo_calc());
         for (player, new_elo) in elo.iter() {
             self.players
                 .set_rank(player, &self.selected_game, *new_elo as i32);
-        }
-    }
-
-    fn reset_elo(&mut self) {
-        for p in self.players.all_mut() {
-            *p.get_elo_mut(&self.selected_game) = Player::default_elo();
         }
     }
 }
