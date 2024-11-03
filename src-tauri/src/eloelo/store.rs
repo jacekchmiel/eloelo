@@ -145,7 +145,6 @@ pub fn load_history() -> Result<History> {
                 .extend(history.entries);
         }
     }
-    debug!("History data: {:#?}", out);
     Ok(out)
 }
 

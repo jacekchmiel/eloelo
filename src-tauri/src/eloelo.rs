@@ -63,9 +63,11 @@ impl EloElo {
             UiCommand::InitializeUi => {}
             UiCommand::AddNewPlayer(player) => self.add_new_player(player),
             UiCommand::RemovePlayer(player_id) => self.remove_player(&player_id),
-            UiCommand::MovePlayerToOtherTeam(name) => self.move_player_to_other_team(name),
-            UiCommand::RemovePlayerFromTeam(name) => self.remove_player_from_team(name),
-            UiCommand::AddPlayerToTeam(name, team) => self.add_player_to_team(name, team),
+            UiCommand::MovePlayerToOtherTeam(player_id) => {
+                self.move_player_to_other_team(&player_id)
+            }
+            UiCommand::RemovePlayerFromTeam(player_id) => self.remove_player_from_team(&player_id),
+            UiCommand::AddPlayerToTeam(player_id, team) => self.add_player_to_team(player_id, team),
             UiCommand::ChangeGame(game_id) => self.change_game(game_id),
             UiCommand::StartMatch => self.start_match(),
             UiCommand::ShuffleTeams => self.shuffle_teams(),
@@ -175,25 +177,25 @@ impl EloElo {
         self.players.remove(player_id);
     }
 
-    fn move_player_to_other_team(&mut self, name: String) {
-        if let Some(player) = remove_player_id(&mut self.left_players, &name) {
+    fn move_player_to_other_team(&mut self, player_id: &PlayerId) {
+        if let Some(player) = remove_player_id(&mut self.left_players, player_id) {
             self.right_players.push(player);
             return;
         }
-        if let Some(player) = remove_player_id(&mut self.right_players, &name) {
+        if let Some(player) = remove_player_id(&mut self.right_players, player_id) {
             self.left_players.push(player);
         }
     }
 
-    fn remove_player_from_team(&mut self, name: String) {
-        remove_player_id(&mut self.left_players, &name)
-            .or_else(|| remove_player_id(&mut self.right_players, &name));
+    fn remove_player_from_team(&mut self, player_id: &PlayerId) {
+        remove_player_id(&mut self.left_players, player_id)
+            .or_else(|| remove_player_id(&mut self.right_players, player_id));
     }
 
-    fn add_player_to_team(&mut self, name: String, team: Team) {
+    fn add_player_to_team(&mut self, player_id: PlayerId, team: Team) {
         match team {
-            Team::Left => self.left_players.push(PlayerId::from(name)),
-            Team::Right => self.right_players.push(PlayerId::from(name)),
+            Team::Left => self.left_players.push(player_id),
+            Team::Right => self.right_players.push(player_id),
         }
     }
 
@@ -367,11 +369,11 @@ impl EloElo {
     }
 }
 
-fn remove_player_id(players: &mut Vec<PlayerId>, name: &str) -> Option<PlayerId> {
+fn remove_player_id(players: &mut Vec<PlayerId>, player_id: &PlayerId) -> Option<PlayerId> {
     players
         .iter()
         .enumerate()
-        .find_map(|(i, p)| if p.as_str() == name { Some(i) } else { None })
+        .find_map(|(i, p)| if p == player_id { Some(i) } else { None })
         .map(|idx| players.remove(idx))
 }
 
