@@ -141,6 +141,12 @@ mod tests {
     fn clone_upstream(tmp_dir: &Path, name: &str) -> Result<PathBuf> {
         let repo_dir = tmp_dir.join(name);
         cmd!("git", "clone", "upstream", name).dir(&tmp_dir).run()?;
+        cmd!("git", "config", "user.email", "eloelo@example.com")
+            .dir(&repo_dir)
+            .run()?;
+        cmd!("git", "config", "user.name", "Elo Elo")
+            .dir(&repo_dir)
+            .run()?;
         Ok(repo_dir)
     }
 
@@ -178,7 +184,7 @@ mod tests {
     }
 
     #[test]
-    fn test_sync_from_upstream() -> Result<()> {
+    fn test_sync() -> Result<()> {
         let tmp_dir = TempDir::new("testing")?;
         prepare_upstream(tmp_dir.path())?;
 
