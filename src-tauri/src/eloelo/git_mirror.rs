@@ -1,11 +1,9 @@
 // Mirrors file changes in a git repository
 
-use anyhow::{format_err, Result};
+use anyhow::Result;
 use duct::{cmd, Expression};
 use log::{error, info, warn};
-use std::io::prelude::*;
 use std::path::PathBuf;
-use std::{fs, path::Path};
 
 pub struct GitMirror {
     path: PathBuf,
@@ -75,41 +73,23 @@ impl GitMirror {
         return status;
     }
 
-    pub fn mirror_file(&self, source: &Path, relative_to: &Path, message: &str) -> Result<()> {
-        let mut source_file = fs::File::open(source)?;
-        let mut source_data = Vec::new();
-        source_file.read_to_end(&mut source_data)?;
-        let content = String::from_utf8(source_data)?;
-
-        let target = source.strip_prefix(relative_to)?;
-        let target = &self.path.join(target);
-        self.write(target, &content, message)
-    }
-
-    pub fn write(&self, path: &Path, content: &str, message: &str) -> Result<()> {
-        if !self.can_work {
-            return Err(format_err!("GitMirror: Cannot work"));
+    pub fn sync(&self, msg: Option<&str>) -> Result<()> {
+        if self.has_uncommited_changes()? {
+            self.commit(msg.unwrap_or("Sync uncommited changes"))?;
+            self.push()?;
+        } else {
+            self.pull()?;
         }
-        // check if path is relative
-        if !path.strip_prefix(&self.path).is_ok() {
-            return Err(format_err!(
-                "{} is not relative to repo root",
-                path.to_string_lossy()
-            ));
-        }
-
-        self.write_to_file(path, content)?;
-        self.add(path)?;
-        self.commit(message)?;
-        self.push()?;
         Ok(())
     }
 
-    fn add(&self, path: &Path) -> Result<()> {
-        self.run(cmd!("git", "add", path.to_string_lossy().to_string()))?;
-        Ok(())
+    pub fn has_uncommited_changes(&self) -> Result<bool> {
+        let out = self.run(cmd!("git", "status", "--short"))?;
+        Ok(!out.stdout.is_empty())
     }
+
     fn commit(&self, message: &str) -> Result<()> {
+        self.run(cmd!("git", "add", "*"))?;
         self.run(cmd!("git", "commit", "-m", message, "-a"))?;
         Ok(())
     }
@@ -119,9 +99,8 @@ impl GitMirror {
         Ok(())
     }
 
-    fn write_to_file(&self, path: &Path, content: &str) -> Result<()> {
-        let mut file = fs::File::create(path)?;
-        file.write_all(content.as_bytes())?;
+    fn pull(&self) -> Result<()> {
+        self.run(cmd!("git", "pull"))?;
         Ok(())
     }
 
@@ -132,6 +111,9 @@ impl GitMirror {
 
 #[cfg(test)]
 mod tests {
+    use std::fs::File;
+    use std::io::{Read as _, Write as _};
+    use std::path::Path;
     use std::str::FromStr as _;
     use tempdir::TempDir;
 
@@ -139,31 +121,10 @@ mod tests {
 
     #[test]
     fn test_invalid_dir() -> Result<()> {
-        let dir = PathBuf::from_str("/repo")?;
-        let file = dir.join("a_file.txt");
+        let dir = PathBuf::from_str("/invalid_dir")?;
         let repo = GitMirror::new(dir);
 
-        assert!(repo.write(&file, "some text").is_err());
-        Ok(())
-    }
-
-    #[test]
-    fn test_not_a_git_repo() -> Result<()> {
-        let tmp_dir = TempDir::new("repo")?;
-        let file = tmp_dir.path().join("a_file.txt");
-        let repo = GitMirror::new(tmp_dir.path().to_path_buf());
-
-        assert!(repo.write(&file, "some text").is_err());
-        Ok(())
-    }
-
-    #[test]
-    fn test_not_relative_file() -> Result<()> {
-        let tmp_dir = TempDir::new("repo")?;
-        let file = PathBuf::from_str("/a_file.txt")?;
-        let repo = GitMirror::new(tmp_dir.path().to_path_buf());
-
-        assert!(repo.write(&file, "some text").is_err());
+        assert!(repo.sync(None).is_err());
         Ok(())
     }
 
@@ -183,52 +144,72 @@ mod tests {
         Ok(repo_dir)
     }
 
-    #[test]
-    fn test_can_write() -> Result<()> {
-        let tmp_dir = TempDir::new("testing")?;
-        prepare_upstream(tmp_dir.path())?;
-        let repo_dir = clone_upstream(tmp_dir.path(), "repo")?;
-
-        let file = repo_dir.join("a_file.txt");
-        let repo = GitMirror::new(repo_dir.to_path_buf());
-
-        repo.write(&file, "some content")?;
-
-        Ok(())
-    }
-
-    fn create_new_file(path: &Path, content: &str) -> Result<PathBuf> {
-        let mut file = fs::File::create_new(path)?;
+    fn create_file(path: &Path, content: &str) -> Result<PathBuf> {
+        let mut file = File::create(path)?;
         file.write_all(content.as_bytes())?;
         Ok(path.to_owned())
     }
 
     fn read_file(path: &Path) -> Result<String> {
-        let mut file = fs::File::open(path)?;
+        let mut file = File::open(path)?;
         let mut buf = Vec::new();
         file.read_to_end(&mut buf)?;
 
         Ok(String::from_utf8(buf)?)
     }
 
+    fn commit_file(root: &Path, filename: &str, content: &str) -> Result<()> {
+        let ext_clone_dir = clone_upstream(&root, "ext")?;
+        create_file(&ext_clone_dir.join(filename), content)?;
+        cmd!("git", "add", "*").dir(&ext_clone_dir).run()?;
+        cmd!("git", "commit", "-am", "Commit Message")
+            .dir(&ext_clone_dir)
+            .run()?;
+        cmd!("git", "push").dir(&ext_clone_dir).run()?;
+        std::fs::remove_dir_all(ext_clone_dir)?;
+        Ok(())
+    }
+
+    fn read_upstream_file(root: &Path, name: &str) -> Result<String> {
+        let ext_clone_dir = clone_upstream(&root, "ext")?;
+        let content = read_file(&ext_clone_dir.join(name))?;
+        std::fs::remove_dir_all(ext_clone_dir)?;
+        Ok(content)
+    }
+
     #[test]
-    fn test_mirror_file() -> Result<()> {
+    fn test_sync_from_upstream() -> Result<()> {
         let tmp_dir = TempDir::new("testing")?;
         prepare_upstream(tmp_dir.path())?;
+
         let repo_dir = clone_upstream(tmp_dir.path(), "repo")?;
-
-        let some_file = create_new_file(&tmp_dir.path().join("some_file.txt"), "some content")?;
-
         let repo = GitMirror::new(repo_dir.to_path_buf());
-        repo.mirror_file(&some_file, tmp_dir.path())?;
 
-        // Mirrored file should be pushed to upstream. We should be able to read it from another
-        // clone.
-        let second_clone_dir = clone_upstream(&tmp_dir.path(), "repo2")?;
+        commit_file(tmp_dir.path(), "some_file.txt", "initial data")?;
+
+        // Initial sync
+        repo.sync(None)?;
+        assert_eq!(read_file(&repo_dir.join("some_file.txt"))?, "initial data");
+
+        // External change and another sync
+        commit_file(tmp_dir.path(), "other_file.txt", "other data")?;
+
+        repo.sync(None)?;
+        assert_eq!(read_file(&repo_dir.join("some_file.txt"))?, "initial data");
+        assert_eq!(read_file(&repo_dir.join("other_file.txt"))?, "other data");
+
+        // Internal change and sync (visible externally)
+        create_file(&repo_dir.join("internal_file.txt"), "internal data")?;
+        repo.sync(Some("Create internal file"))?;
+
         assert_eq!(
-            read_file(&second_clone_dir.join("some_file.txt"))?,
-            "some content"
+            read_upstream_file(tmp_dir.path(), "internal_file.txt")?,
+            "internal data"
         );
+
+        // Internal update and sync (visible externally)
+        create_file(&repo_dir.join("internal_file.txt"), "new internal data")?;
+        repo.sync(Some("Update internal file"))?;
 
         Ok(())
     }

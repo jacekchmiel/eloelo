@@ -8,7 +8,7 @@ use eloelo_model::history::{History, HistoryEntry};
 use eloelo_model::player::{Player, PlayerDb};
 use eloelo_model::{GameId, GameState, PlayerId, Team, WinScale};
 use git_mirror::GitMirror;
-use log::{debug, error, info};
+use log::{debug, error, info, warn};
 use message_bus::{Event, FinishMatch, MatchStart, MatchStartTeam, Message, MessageBus, UiCommand};
 use spawelo::ml_elo;
 use ui_state::{State, UiPlayer, UiState};
@@ -34,16 +34,15 @@ pub struct EloElo {
 }
 
 impl EloElo {
-    pub fn new(
-        state: Option<State>,
-        history: History,
-        config: Config,
-        message_bus: MessageBus,
-    ) -> Self {
+    pub fn new(state: Option<State>, config: Config, message_bus: MessageBus) -> Self {
         let state = state.unwrap_or_else(|| State::new(config.default_game().clone()));
+
         let _ = std::fs::create_dir_all(&config.history_git_mirror)
             .inspect_err(|e| error!("Cannot create git mirror directory - {e}"));
         let git_mirror = GitMirror::new(config.history_git_mirror.clone());
+        let _ = git_mirror.sync(None).inspect_err(print_err);
+        let history = unwrap_or_def_verbose(store::load_history());
+
         let mut elo = EloElo {
             selected_game: state.selected_game,
             players: PlayerDb::new(config.players.clone().into_iter().map(Player::from)),
@@ -247,7 +246,7 @@ impl EloElo {
             fake,
         } = finish_match
         {
-            let message = self.mk_finish_match_commit_message(winner, scale, duration, fake);
+            let commit_message = self.mk_finish_match_commit_message(winner, scale, duration, fake);
             let (winner, loser) = match winner {
                 Team::Left => (self.left_players.clone(), self.right_players.clone()),
                 Team::Right => (self.right_players.clone(), self.left_players.clone()),
@@ -264,11 +263,7 @@ impl EloElo {
                 .inspect_err(print_err); // TODO: proper error propagation
             let _ = self
                 .git_mirror
-                .mirror_file(
-                    &store::history_path(&self.selected_game),
-                    &store::data_dir(),
-                    &message,
-                )
+                .sync(Some(&commit_message))
                 .inspect_err(print_err); // TODO: proper error propagation
             self.history_for_current_game_mut().push(history_entry);
             self.update_elo();
@@ -329,10 +324,20 @@ impl EloElo {
 
     fn history_for_elo_calc(&self) -> &[HistoryEntry] {
         let n = self.config.max_elo_history;
+        debug!("Selected game: {}, Max history: {}", self.selected_game, n);
         match self.history.entries.get(&self.selected_game) {
-            Some(history) if n > 0 && history.len() > n => &history[history.len() - n..],
-            Some(history) => &history,
-            None => &[],
+            Some(history) => {
+                debug!("Entries count: {}", history.len());
+                if n > 0 && history.len() > n {
+                    &history[history.len() - n..]
+                } else {
+                    &history
+                }
+            }
+            None => {
+                warn!("No history entries found");
+                &[]
+            }
         }
     }
 
@@ -372,6 +377,18 @@ fn remove_player_id(players: &mut Vec<PlayerId>, name: &str) -> Option<PlayerId>
 
 pub(crate) fn print_err<E: Display>(e: &E) {
     error!("{}", e);
+}
+
+pub(crate) fn unwrap_or_def_verbose<T, E>(result: Result<T, E>) -> T
+where
+    T: Default,
+    E: std::fmt::Display,
+{
+    result
+        .inspect_err(|e| {
+            error!("ERROR: {e}");
+        })
+        .unwrap_or_default()
 }
 
 fn duration_minutes(d: Duration) -> String {
