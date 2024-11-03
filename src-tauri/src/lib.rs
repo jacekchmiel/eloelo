@@ -1,14 +1,13 @@
-use core::fmt;
 use std::thread;
 
 use anyhow::Error;
 use dead_mans_switch::{dead_mans_switch, DeadMansSwitch};
 use eloelo::elodisco::EloDisco;
 use eloelo::message_bus::{FinishMatch, Message, MessageBus, UiCommand, UiUpdate};
-use eloelo::{store, EloElo};
+use eloelo::{store, unwrap_or_def_verbose, EloElo};
 use eloelo_model::player::{DiscordUsername, Player};
 use eloelo_model::{GameId, PlayerId, Team, WinScale};
-use log::{debug, error, info};
+use log::{debug, info};
 use tauri::ipc::InvokeError;
 use tauri::{AppHandle, Emitter, Manager, State};
 
@@ -207,29 +206,16 @@ fn start_worker_threads(
     });
 }
 
-fn unwrap_or_def_verbose<T, E>(result: Result<T, E>) -> T
-where
-    T: Default,
-    E: fmt::Display,
-{
-    result
-        .inspect_err(|e| {
-            error!("ERROR: {e}");
-        })
-        .unwrap_or_default()
-}
-
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
     logging::init();
     let config = unwrap_or_def_verbose(store::load_config());
     let state = unwrap_or_def_verbose(store::load_state());
     let bot_state = unwrap_or_def_verbose(store::load_bot_state());
-    let history = unwrap_or_def_verbose(store::load_history());
     let message_bus = MessageBus::new();
     let (dead_man_switch, dead_man_observer) = dead_mans_switch();
     let _elodisco = EloDisco::new(config.clone(), bot_state, message_bus.clone());
-    let eloelo = EloElo::new(state, history, config, message_bus.clone());
+    let eloelo = EloElo::new(state, config, message_bus.clone());
     tauri::Builder::default()
         .setup({
             let message_bus = message_bus.clone();

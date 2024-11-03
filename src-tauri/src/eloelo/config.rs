@@ -1,6 +1,10 @@
+use std::path::PathBuf;
+
 use eloelo_model::player::{DiscordUsername, Player};
-use eloelo_model::{GameId, PlayerId};
+use eloelo_model::{GameId, PlayerId, Team};
 use serde::{Deserialize, Serialize};
+
+use super::store;
 
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
 #[serde(rename_all = "camelCase")]
@@ -22,6 +26,13 @@ pub struct Config {
 
     #[serde(default)]
     pub max_elo_history: usize,
+
+    #[serde(default = "default_history_git_mirror")]
+    pub history_git_mirror: PathBuf,
+}
+
+fn default_history_git_mirror() -> PathBuf {
+    store::data_dir().join("history_git")
 }
 
 impl Default for Config {
@@ -33,6 +44,7 @@ impl Default for Config {
             discord_server_name: Default::default(),
             discord_channel_name: Default::default(),
             max_elo_history: 0,
+            history_git_mirror: default_history_git_mirror(),
         }
     }
 }
@@ -59,6 +71,13 @@ impl Game {
             name,
             left_team: left_team_default(),
             right_team: right_team_default(),
+        }
+    }
+
+    pub fn team_name(&self, t: Team) -> &str {
+        match t {
+            Team::Left => &self.left_team,
+            Team::Right => &self.right_team,
         }
     }
 }

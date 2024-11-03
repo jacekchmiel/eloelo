@@ -1,19 +1,21 @@
 use std::fmt::Display;
+use std::time::Duration;
 
 use anyhow::Result;
 use chrono::Local;
 use config::Config;
 use eloelo_model::history::{History, HistoryEntry};
 use eloelo_model::player::{Player, PlayerDb};
-use eloelo_model::{GameId, GameState, PlayerId, Team};
-use log::{debug, error, info};
+use eloelo_model::{GameId, GameState, PlayerId, Team, WinScale};
+use git_mirror::GitMirror;
+use log::{debug, error, info, warn};
 use message_bus::{Event, FinishMatch, MatchStart, MatchStartTeam, Message, MessageBus, UiCommand};
 use spawelo::ml_elo;
-use store::append_history_entry;
 use ui_state::{State, UiPlayer, UiState};
 
 pub(crate) mod config;
 pub(crate) mod elodisco;
+mod git_mirror;
 pub(crate) mod message_bus;
 pub(crate) mod silly_responder;
 pub(crate) mod store;
@@ -28,16 +30,19 @@ pub struct EloElo {
     history: History,
     config: Config,
     message_bus: MessageBus,
+    git_mirror: GitMirror,
 }
 
 impl EloElo {
-    pub fn new(
-        state: Option<State>,
-        history: History,
-        config: Config,
-        message_bus: MessageBus,
-    ) -> Self {
+    pub fn new(state: Option<State>, config: Config, message_bus: MessageBus) -> Self {
         let state = state.unwrap_or_else(|| State::new(config.default_game().clone()));
+
+        let _ = std::fs::create_dir_all(&config.history_git_mirror)
+            .inspect_err(|e| error!("Cannot create git mirror directory - {e}"));
+        let git_mirror = GitMirror::new(config.history_git_mirror.clone());
+        let _ = git_mirror.sync(None).inspect_err(print_err);
+        let history = unwrap_or_def_verbose(store::load_history());
+
         let mut elo = EloElo {
             selected_game: state.selected_game,
             players: PlayerDb::new(config.players.clone().into_iter().map(Player::from)),
@@ -47,6 +52,7 @@ impl EloElo {
             history,
             config,
             message_bus,
+            git_mirror,
         };
         elo.recalculate_elo_from_history();
         elo
@@ -240,6 +246,7 @@ impl EloElo {
             fake,
         } = finish_match
         {
+            let commit_message = self.mk_finish_match_commit_message(winner, scale, duration, fake);
             let (winner, loser) = match winner {
                 Team::Left => (self.left_players.clone(), self.right_players.clone()),
                 Team::Right => (self.right_players.clone(), self.left_players.clone()),
@@ -252,14 +259,51 @@ impl EloElo {
                 duration,
                 fake,
             };
-            let _ =
-                append_history_entry(&self.selected_game, &history_entry).inspect_err(print_err); // TODO: proper error propagation
+            let _ = store::append_history_entry(&self.selected_game, &history_entry)
+                .inspect_err(print_err); // TODO: proper error propagation
+            let _ = self
+                .git_mirror
+                .sync(Some(&commit_message))
+                .inspect_err(print_err); // TODO: proper error propagation
             self.history_for_current_game_mut().push(history_entry);
             self.update_elo();
         }
 
         self.game_state = GameState::AssemblingTeams;
         debug!("finish_match handled");
+    }
+
+    fn mk_finish_match_commit_message(
+        &self,
+        winner: Team,
+        scale: WinScale,
+        duration: Duration,
+        fake: bool,
+    ) -> String {
+        let winner_team = self.get_team_name(winner);
+        let match_type = if fake { "Fake Match" } else { "Match" };
+        [
+            format!(
+                "{} {} - {} {}",
+                match_type, self.selected_game, winner_team, scale
+            ),
+            String::from(""),
+            format!("Duration: {}", duration_minutes(duration)),
+        ]
+        .join("\n")
+    }
+
+    fn get_team_name(&self, t: Team) -> String {
+        self.config
+            .games
+            .iter()
+            .find_map(|g| {
+                if g.name == self.selected_game {
+                    return Some(g.team_name(t).to_string());
+                }
+                None
+            })
+            .unwrap_or_else(|| t.to_string())
     }
 
     fn update_elo(&mut self) {
@@ -280,10 +324,20 @@ impl EloElo {
 
     fn history_for_elo_calc(&self) -> &[HistoryEntry] {
         let n = self.config.max_elo_history;
+        debug!("Selected game: {}, Max history: {}", self.selected_game, n);
         match self.history.entries.get(&self.selected_game) {
-            Some(history) if n > 0 && history.len() > n => &history[history.len() - n..],
-            Some(history) => &history,
-            None => &[],
+            Some(history) => {
+                debug!("Entries count: {}", history.len());
+                if n > 0 && history.len() > n {
+                    &history[history.len() - n..]
+                } else {
+                    &history
+                }
+            }
+            None => {
+                warn!("No history entries found");
+                &[]
+            }
         }
     }
 
@@ -323,4 +377,20 @@ fn remove_player_id(players: &mut Vec<PlayerId>, name: &str) -> Option<PlayerId>
 
 pub(crate) fn print_err<E: Display>(e: &E) {
     error!("{}", e);
+}
+
+pub(crate) fn unwrap_or_def_verbose<T, E>(result: Result<T, E>) -> T
+where
+    T: Default,
+    E: std::fmt::Display,
+{
+    result
+        .inspect_err(|e| {
+            error!("ERROR: {e}");
+        })
+        .unwrap_or_default()
+}
+
+fn duration_minutes(d: Duration) -> String {
+    format!("{}m", d.as_secs() / 60)
 }

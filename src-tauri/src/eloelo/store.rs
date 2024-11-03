@@ -14,6 +14,9 @@ use eloelo_model::history::{History, HistoryEntry};
 use eloelo_model::player::PlayerDb;
 use eloelo_model::GameId;
 
+const HISTORY_SUFFIX: &str = ".history.yaml";
+const HISTORY_GIT_DIR: &str = "history_git";
+
 fn state_file_path() -> PathBuf {
     data_dir().join("state.yaml")
 }
@@ -120,12 +123,14 @@ pub fn append_history_entry(game: &GameId, entry: &HistoryEntry) -> Result<()> {
     )
 }
 
-const HISTORY_SUFFIX: &str = ".history.yaml";
+pub fn history_dir() -> PathBuf {
+    data_dir().join(HISTORY_GIT_DIR)
+}
 
 pub fn load_history() -> Result<History> {
     let mut out = History::default();
-    info!("Store: Data Dir: {}", data_dir().to_string_lossy());
-    for dir_entry in fs::read_dir(data_dir())? {
+    info!("Store: History Dir: {}", history_dir().to_string_lossy());
+    for dir_entry in fs::read_dir(history_dir())? {
         let dir_entry = dir_entry?;
         if is_regular_history_file(&dir_entry.path()) {
             info!(
@@ -140,6 +145,7 @@ pub fn load_history() -> Result<History> {
                 .extend(history.entries);
         }
     }
+    debug!("History data: {:#?}", out);
     Ok(out)
 }
 
@@ -156,10 +162,10 @@ fn is_regular_history_file(path: &Path) -> bool {
         .ends_with(HISTORY_SUFFIX)
 }
 
-fn history_path(game: &GameId) -> PathBuf {
+pub fn history_path(game: &GameId) -> PathBuf {
     let safe_game_id = game.as_str().replace(" ", "_").replace(":", "_");
     let filename = format!("{}{}", safe_game_id, HISTORY_SUFFIX);
-    data_dir().join(filename)
+    history_dir().join(filename)
 }
 
 fn store_file_with_backup<T>(path: &Path, data: &T) -> Result<()>
