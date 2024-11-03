@@ -262,7 +262,7 @@ impl EloElo {
     fn history_for_elo_calc(&self) -> &[HistoryEntry] {
         let n = self.config.max_elo_history;
         match self.history.entries.get(&self.selected_game) {
-            Some(history) if n > 0 => &history[history.len() - n..],
+            Some(history) if n > 0 && history.len() > n => &history[history.len() - n..],
             Some(history) => &history,
             None => &[],
         }
