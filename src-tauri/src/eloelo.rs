@@ -138,7 +138,11 @@ impl EloElo {
             .flat_map(|p| self.players.get_rank(p, &self.selected_game))
             .collect();
         let elo_sum: i32 = players_ranks.iter().sum();
-        elo_sum / players_ranks.len() as i32
+        if players_ranks.is_empty() {
+            0
+        } else {
+            elo_sum / players_ranks.len() as i32
+        }
     }
 
     fn build_ui_players(&self, player_ids: &[PlayerId], default_elo: i32) -> Vec<UiPlayer> {
