@@ -43,6 +43,7 @@ import {
 	extractAvatars,
 } from "./model";
 import { type EloEloStateTransport, parseEloEloState } from "./parse";
+import { usePreferredColorScheme } from "./usePreferredColorScheme";
 
 const invoke = async (event: string, args: InvokeArgs) => {
 	console.info({ event, args });
@@ -107,6 +108,9 @@ const FightText = styled(Typography)({
 });
 
 function EloElo(state: EloEloState) {
+	const { resetApplicationLoadingBackgroundStyles } = usePreferredColorScheme();
+	resetApplicationLoadingBackgroundStyles();
+
 	const [discordInfoState, setDiscordInfoState] = React.useState<
 		DiscordPlayerInfo[]
 	>([]);
@@ -465,7 +469,8 @@ export default function App() {
 		await invoke("initialize_ui", {});
 	}
 
-	const [mode, setMode] = React.useState<"light" | "dark">("light");
+	const { getPreferredColorScheme } = usePreferredColorScheme();
+	const [mode, setMode] = React.useState(getPreferredColorScheme());
 	const colorMode = React.useMemo(
 		() => ({
 			toggleColorMode: () => {
