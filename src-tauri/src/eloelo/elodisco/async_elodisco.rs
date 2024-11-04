@@ -15,7 +15,7 @@ use crate::eloelo::elodisco::command_handler::{parse_command, CommandHandler};
 use crate::eloelo::message_bus::{AvatarUrl, DiscordPlayerInfo, MatchStart, MatchStartTeam};
 use crate::eloelo::print_err;
 use crate::eloelo::silly_responder::SillyResponder;
-use eloelo_model::PlayerId;
+use eloelo_model::{GameId, PlayerId};
 use tokio::sync::watch;
 
 use super::bot_state::{BotState, PlayerBotState};
@@ -193,12 +193,15 @@ impl AsyncEloDisco {
                 .await
                 .match_start(&match_start, &ctx, &members)
                 .await;
-            self.0
-                .dota_bot
-                .lock()
-                .await
-                .match_start(&match_start, &ctx, &members)
-                .await
+            // TODO: make dota a hardcoded game
+            if match_start.game == GameId::from("DotA 2") {
+                self.0
+                    .dota_bot
+                    .lock()
+                    .await
+                    .match_start(&match_start, &ctx, &members)
+                    .await
+            }
         } else {
             warn!("Match start not sent: Discord integration not available");
         }
