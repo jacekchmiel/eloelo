@@ -139,7 +139,7 @@ impl EloElo {
             .collect();
         let elo_sum: i32 = players_ranks.iter().sum();
         if players_ranks.is_empty() {
-            0
+            1000
         } else {
             elo_sum / players_ranks.len() as i32
         }
