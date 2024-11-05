@@ -28,6 +28,10 @@ impl Player {
             .entry(game.clone())
             .or_insert(Player::default_elo())
     }
+
+    pub fn remove_elo(&mut self, game: &GameId) {
+        self.elo.remove(game);
+    }
 }
 
 #[derive(Debug, Clone)]
@@ -91,11 +95,30 @@ impl PlayerDb {
     }
 
     pub fn set_rank(&mut self, player_id: &PlayerId, selected_game: &GameId, new_elo: i32) {
+        self.set_rank_impl(player_id, selected_game, Some(new_elo));
+    }
+    pub fn set_rank_impl(
+        &mut self,
+        player_id: &PlayerId,
+        selected_game: &GameId,
+        new_elo: Option<i32>,
+    ) {
         let Some(player) = self.players.get_mut(player_id) else {
             warn!("set_rank: {player_id} does not exist");
             return;
         };
-        *player.get_elo_mut(selected_game) = new_elo;
+        match new_elo {
+            Some(new_elo) => {
+                *player.get_elo_mut(selected_game) = new_elo;
+            }
+            None => {
+                player.remove_elo(selected_game);
+            }
+        }
+    }
+
+    pub fn remove_rank(&mut self, player_id: &PlayerId, selected_game: &GameId) {
+        self.set_rank_impl(player_id, selected_game, None);
     }
 
     pub fn all_mut(&mut self) -> impl Iterator<Item = &mut Player> {

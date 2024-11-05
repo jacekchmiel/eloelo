@@ -370,12 +370,23 @@ impl EloElo {
     }
 
     fn recalculate_elo_from_history(&mut self) {
+        info!("Reloading history");
+        self.history = unwrap_or_def_verbose(store::load_history());
+
         info!("Recalculating {} elo from history", &self.selected_game);
 
-        let elo = ml_elo(self.history_for_elo_calc());
-        for (player, new_elo) in elo.iter() {
-            self.players
-                .set_rank(player, &self.selected_game, *new_elo as i32);
+        let history = self.history_for_elo_calc();
+        if history.is_empty() {
+            let all_players: Vec<_> = self.players.all().map(|p| p.id.clone()).collect();
+            for player in all_players {
+                self.players.remove_rank(&player, &self.selected_game);
+            }
+        } else {
+            let elo = ml_elo(self.history_for_elo_calc());
+            for (player, new_elo) in elo.iter() {
+                self.players
+                    .set_rank(player, &self.selected_game, *new_elo as i32);
+            }
         }
     }
 }
