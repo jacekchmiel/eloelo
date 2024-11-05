@@ -272,6 +272,12 @@ impl EloElo {
                 .git_mirror
                 .sync(Some(&commit_message))
                 .inspect_err(print_err); // TODO: proper error propagation
+
+            // Failsafe history message in log
+            let history_log_msg = serde_json::to_string(&history_entry)
+                .unwrap_or_else(|e| format!("Failed to serialize history: {e}"));
+            info!(target: "history", "FinishMatch: {history_log_msg}");
+
             self.history_for_current_game_mut().push(history_entry);
             self.update_elo();
         }
