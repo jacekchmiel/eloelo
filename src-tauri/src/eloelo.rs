@@ -277,12 +277,14 @@ impl EloElo {
                 .inspect_err(print_err); // TODO: proper error propagation
 
             // Send rich event
-            self.message_bus
-                .send(Message::Event(Event::RichMatchResult(RichMatchResult {
-                    winner_team_name,
-                    duration,
-                    scale,
-                })));
+            if !fake {
+                self.message_bus
+                    .send(Message::Event(Event::RichMatchResult(RichMatchResult {
+                        winner_team_name,
+                        duration,
+                        scale,
+                    })));
+            }
 
             // Failsafe history message in log
             let history_log_msg = serde_json::to_string(&history_entry)
