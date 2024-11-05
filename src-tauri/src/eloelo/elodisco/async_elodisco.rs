@@ -1,5 +1,6 @@
 use std::collections::{HashMap, HashSet};
 use std::sync::Arc;
+use std::time::Duration;
 
 use anyhow::{Context as _, Result};
 use eloelo_model::player::DiscordUsername;
@@ -12,10 +13,12 @@ use tokio::sync::{Mutex, MutexGuard};
 
 use crate::eloelo::config::Config;
 use crate::eloelo::elodisco::command_handler::{parse_command, CommandHandler};
-use crate::eloelo::message_bus::{AvatarUrl, DiscordPlayerInfo, MatchStart, MatchStartTeam};
+use crate::eloelo::message_bus::{
+    AvatarUrl, DiscordPlayerInfo, MatchStart, MatchStartTeam, RichMatchResult,
+};
 use crate::eloelo::print_err;
 use crate::eloelo::silly_responder::SillyResponder;
-use eloelo_model::{GameId, PlayerId};
+use eloelo_model::{GameId, PlayerId, Team, WinScale};
 use tokio::sync::watch;
 
 use super::bot_state::{BotState, PlayerBotState};
@@ -207,6 +210,24 @@ impl AsyncEloDisco {
         }
     }
 
+    pub async fn send_match_result(&self, match_result: RichMatchResult) {
+        if let Some(SerenityContext {
+            ctx, channel_id, ..
+        }) = self.context().await
+        {
+            send_match_result_message(&ctx, &channel_id, match_result).await;
+        }
+    }
+
+    pub async fn send_match_cancelled(&self) {
+        if let Some(SerenityContext {
+            ctx, channel_id, ..
+        }) = self.context().await
+        {
+            send_match_cancelled_message(&ctx, &channel_id).await;
+        }
+    }
+
     pub async fn fetch_player_info(&self) -> Vec<DiscordPlayerInfo> {
         let Some(serenity) = self.context().await else {
             return Default::default();
@@ -384,6 +405,47 @@ async fn send_start_match_message(ctx: &Context, channel: &ChannelId, msg: Match
             make_team_embed(msg.left_team, Colour::DARK_GREEN),
             make_team_embed(msg.right_team, Colour::DARK_RED),
         ]);
+    send_message(channel, ctx, msg).await;
+}
+
+async fn send_match_cancelled_message(ctx: &Context, channel: &ChannelId) {
+    let msg = CreateMessage::new().content("## Match cancelled 😩");
+    send_message(channel, ctx, msg).await;
+}
+
+async fn send_match_result_message(
+    ctx: &Context,
+    channel: &ChannelId,
+    match_result: RichMatchResult,
+) {
+    let msg = CreateMessage::new().content(
+        [
+            format!("## 🏆 {} have won!", match_result.winner_team_name),
+            make_win_scale_comment(match_result.scale),
+            String::new(),
+            make_duration_comment(match_result.duration),
+        ]
+        .join("\n"),
+    );
+    send_message(channel, ctx, msg).await;
+}
+
+fn make_win_scale_comment(scale: WinScale) -> String {
+    let text = match scale {
+        WinScale::Even => "⚖️ The match was even. Good work EloElo!",
+        WinScale::Advantage => "💪 The advantage was significant.",
+        WinScale::Pwnage => "🔥🔥🔥 It was a serious **PWNAGE!!!**",
+    };
+
+    String::from(text)
+}
+
+fn make_duration_comment(duration: Duration) -> String {
+    let minutes = duration.as_secs() / 60;
+    format!("⏱️ It took {minutes} minutes to beat the losers.")
+}
+
+async fn send_message(channel: &ChannelId, ctx: &Context, msg: CreateMessage) {
     let _ = channel.send_message(ctx, msg).await.inspect_err(print_err);
 }
 
