@@ -4,27 +4,11 @@
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>eloelo</title>
-    <style type="text/css">
-      .dark-mode {
-        background-color: #212121;
-      }
-    </style>
   </head>
 
   <body>
+    <script inline-source src="/src/initialColorScheme.js"></script>
     <div id="root"></div>
     <script type="module" src="/src/main.tsx"></script>
   </body>
-
-  <script>
-    (function () {
-      const prefersDarkMode = window.matchMedia(
-        "(prefers-color-scheme: dark)"
-      ).matches;
-
-      if (prefersDarkMode) {
-        document.body.className = "dark-mode";
-      }
-    })();
-  </script>
 </html>
