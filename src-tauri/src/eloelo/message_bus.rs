@@ -81,6 +81,13 @@ pub struct MatchStartTeam {
     pub name: String,
 }
 
+#[derive(Debug, Clone)]
+pub struct RichMatchResult {
+    pub winner_team_name: String,
+    pub duration: Duration,
+    pub scale: WinScale,
+}
+
 #[derive(Debug, Clone, Serialize)]
 pub struct AvatarUrl(String);
 
@@ -102,6 +109,7 @@ pub struct DiscordPlayerInfo {
 #[derive(Debug, Clone)]
 pub enum Event {
     MatchStart(MatchStart),
+    RichMatchResult(RichMatchResult),
 }
 
 #[derive(Clone, Debug)]

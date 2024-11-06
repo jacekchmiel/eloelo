@@ -1,5 +1,5 @@
 use super::config::Config;
-use super::message_bus::{Event, Message, MessageBus, UiCommand, UiUpdate};
+use super::message_bus::{Event, FinishMatch, Message, MessageBus, UiCommand, UiUpdate};
 use anyhow::Result;
 use async_elodisco::AsyncEloDisco;
 use bot_state::BotState;
@@ -47,6 +47,12 @@ impl EloDisco {
                     Some(Message::UiCommand(UiCommand::InitializeUi)) => {
                         let discord_players = async_elodisco.fetch_player_info().await;
                         message_bus.send(Message::UiUpdate(UiUpdate::DiscordInfo(discord_players)));
+                    }
+                    Some(Message::Event(Event::RichMatchResult(rich_match_result))) => {
+                        async_elodisco.send_match_result(rich_match_result).await;
+                    }
+                    Some(Message::UiCommand(UiCommand::FinishMatch(FinishMatch::Cancelled))) => {
+                        async_elodisco.send_match_cancelled().await;
                     }
                     Some(_) => {}
                     None => {

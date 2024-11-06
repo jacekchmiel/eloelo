@@ -9,7 +9,9 @@ use eloelo_model::player::{Player, PlayerDb};
 use eloelo_model::{GameId, GameState, PlayerId, Team, WinScale};
 use git_mirror::GitMirror;
 use log::{debug, error, info, warn};
-use message_bus::{Event, FinishMatch, MatchStart, MatchStartTeam, Message, MessageBus, UiCommand};
+use message_bus::{
+    Event, FinishMatch, MatchStart, MatchStartTeam, Message, MessageBus, RichMatchResult, UiCommand,
+};
 use spawelo::ml_elo;
 use ui_state::{State, UiPlayer, UiState};
 
@@ -139,7 +141,7 @@ impl EloElo {
             .collect();
         let elo_sum: i32 = players_ranks.iter().sum();
         if players_ranks.is_empty() {
-            0
+            1000
         } else {
             elo_sum / players_ranks.len() as i32
         }
@@ -254,6 +256,7 @@ impl EloElo {
         } = finish_match
         {
             let commit_message = self.mk_finish_match_commit_message(winner, scale, duration, fake);
+            let winner_team_name = self.get_team_name(winner);
             let (winner, loser) = match winner {
                 Team::Left => (self.left_players.clone(), self.right_players.clone()),
                 Team::Right => (self.right_players.clone(), self.left_players.clone()),
@@ -272,6 +275,22 @@ impl EloElo {
                 .git_mirror
                 .sync(Some(&commit_message))
                 .inspect_err(print_err); // TODO: proper error propagation
+
+            // Send rich event
+            if !fake {
+                self.message_bus
+                    .send(Message::Event(Event::RichMatchResult(RichMatchResult {
+                        winner_team_name,
+                        duration,
+                        scale,
+                    })));
+            }
+
+            // Failsafe history message in log
+            let history_log_msg = serde_json::to_string(&history_entry)
+                .unwrap_or_else(|e| format!("Failed to serialize history: {e}"));
+            info!(target: "history", "FinishMatch: {history_log_msg}");
+
             self.history_for_current_game_mut().push(history_entry);
             self.update_elo();
         }
@@ -364,12 +383,23 @@ impl EloElo {
     }
 
     fn recalculate_elo_from_history(&mut self) {
+        info!("Reloading history");
+        self.history = unwrap_or_def_verbose(store::load_history());
+
         info!("Recalculating {} elo from history", &self.selected_game);
 
-        let elo = ml_elo(self.history_for_elo_calc());
-        for (player, new_elo) in elo.iter() {
-            self.players
-                .set_rank(player, &self.selected_game, *new_elo as i32);
+        let history = self.history_for_elo_calc();
+        if history.is_empty() {
+            let all_players: Vec<_> = self.players.all().map(|p| p.id.clone()).collect();
+            for player in all_players {
+                self.players.remove_rank(&player, &self.selected_game);
+            }
+        } else {
+            let elo = ml_elo(self.history_for_elo_calc());
+            for (player, new_elo) in elo.iter() {
+                self.players
+                    .set_rank(player, &self.selected_game, *new_elo as i32);
+            }
         }
     }
 }
