@@ -43,7 +43,7 @@ import {
 	extractAvatars,
 } from "./model";
 import { type EloEloStateTransport, parseEloEloState } from "./parse";
-import { usePreferredColorScheme } from "./usePreferredColorScheme";
+import { useColorMode } from "./useColorMode";
 
 const invoke = async (event: string, args: InvokeArgs) => {
 	console.info({ event, args });
@@ -58,7 +58,11 @@ function GameSelector({
 	selectedGame,
 	availableGames,
 	disabled,
-}: { selectedGame: string; availableGames: string[]; disabled: boolean }) {
+}: {
+	selectedGame: string;
+	availableGames: string[];
+	disabled: boolean;
+}) {
 	const handleChange = async (event: SelectChangeEvent<string>) => {
 		await invoke("change_game", { name: event.target.value });
 	};
@@ -108,9 +112,6 @@ const FightText = styled(Typography)({
 });
 
 function EloElo(state: EloEloState) {
-	const { resetApplicationLoadingBackgroundStyles } = usePreferredColorScheme();
-	resetApplicationLoadingBackgroundStyles();
-
 	const [discordInfoState, setDiscordInfoState] = React.useState<
 		DiscordPlayerInfo[]
 	>([]);
@@ -132,6 +133,7 @@ function EloElo(state: EloEloState) {
 				setDiscordInfoState(event.payload);
 			},
 		);
+
 		return unlisten;
 	}
 
@@ -192,7 +194,10 @@ type FinishMatchModalState = {
 function MainView({
 	state,
 	discord_info,
-}: { state: EloEloState; discord_info: DiscordPlayerInfo[] }) {
+}: {
+	state: EloEloState;
+	discord_info: DiscordPlayerInfo[];
+}) {
 	const activePlayers = state.leftPlayers
 		.concat(state.rightPlayers)
 		.concat(state.reservePlayers);
@@ -438,6 +443,7 @@ const initialEloEloState: EloEloState = {
 
 export default function App() {
 	const [eloEloState, setEloEloState] = React.useState(initialEloEloState);
+	const { mode, colorMode } = useColorMode();
 
 	React.useEffect(() => {
 		const unlisten = listenToUiUpdateEvent();
@@ -468,17 +474,6 @@ export default function App() {
 	async function initializeUi() {
 		await invoke("initialize_ui", {});
 	}
-
-	const { getPreferredColorScheme } = usePreferredColorScheme();
-	const [mode, setMode] = React.useState(getPreferredColorScheme());
-	const colorMode = React.useMemo(
-		() => ({
-			toggleColorMode: () => {
-				setMode((prevMode) => (prevMode === "light" ? "dark" : "light"));
-			},
-		}),
-		[],
-	);
 
 	const theme = React.useMemo(
 		() =>
