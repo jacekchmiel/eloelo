@@ -16,13 +16,13 @@ use crate::eloelo::elodisco::command_handler::{parse_command, CommandHandler};
 use crate::eloelo::message_bus::{
     AvatarUrl, DiscordPlayerInfo, MatchStart, MatchStartTeam, RichMatchResult,
 };
-use crate::eloelo::print_err;
 use crate::eloelo::silly_responder::SillyResponder;
-use eloelo_model::{GameId, PlayerId, Team, WinScale};
+use crate::eloelo::{join, print_err};
+use eloelo_model::{GameId, PlayerId, WinScale};
 use tokio::sync::watch;
 
 use super::bot_state::{BotState, PlayerBotState};
-use super::dota_bot::DotaBot;
+use super::dota_bot::{DotaBot, Hero};
 use super::notification_bot::NotificationBot;
 
 enum SerenityInitState {
@@ -189,7 +189,15 @@ impl AsyncEloDisco {
             ..
         }) = self.context().await
         {
-            send_start_match_message(&ctx, &channel_id, match_start.clone()).await;
+            if match_start.game == GameId::from("DotA 2") {
+                let dota_bot = self.0.dota_bot.lock().await;
+                let hero_assignments = dota_bot.match_start(&match_start, &ctx, &members).await;
+                send_start_match_message(&ctx, &channel_id, match_start.clone(), &hero_assignments)
+                    .await;
+            } else {
+                let heroes: HashMap<_, _> = Default::default();
+                send_start_match_message(&ctx, &channel_id, match_start.clone(), &heroes).await;
+            }
             self.0
                 .notification_bot
                 .lock()
@@ -197,14 +205,6 @@ impl AsyncEloDisco {
                 .match_start(&match_start, &ctx, &members)
                 .await;
             // TODO: make dota a hardcoded game
-            if match_start.game == GameId::from("DotA 2") {
-                self.0
-                    .dota_bot
-                    .lock()
-                    .await
-                    .match_start(&match_start, &ctx, &members)
-                    .await
-            }
         } else {
             warn!("Match start not sent: Discord integration not available");
         }
@@ -392,13 +392,16 @@ impl EventHandler for AsyncEloDisco {
             return;
         };
 
-        // spawn_gather_guild_data(ctx, guild.id, self.0.message_bus.clone()).await;
-
         info!("Discord client ready");
     }
 }
 
-async fn send_start_match_message(ctx: &Context, channel: &ChannelId, msg: MatchStart) {
+async fn send_start_match_message(
+    ctx: &Context,
+    channel: &ChannelId,
+    msg: MatchStart,
+    hero_assignments: &HashMap<DiscordUsername, Vec<&Hero>>,
+) {
     let msg = CreateMessage::new()
         .content(format!("# {} Match Starting", msg.game))
         .add_embeds(vec![
@@ -406,6 +409,23 @@ async fn send_start_match_message(ctx: &Context, channel: &ChannelId, msg: Match
             make_team_embed(msg.right_team, Colour::DARK_RED),
         ]);
     send_message(channel, ctx, msg).await;
+    debug!("{}", make_hero_assignments_message(hero_assignments));
+    send_message(
+        channel,
+        ctx,
+        CreateMessage::new().content(make_hero_assignments_message(hero_assignments)),
+    )
+    .await;
+}
+
+fn make_hero_assignments_message(
+    hero_assignments: &HashMap<DiscordUsername, Vec<&Hero>>,
+) -> String {
+    hero_assignments
+        .iter()
+        .map(|(user, heroes)| format!("**{user}**: {}", join(heroes, ", ")))
+        .collect::<Vec<_>>()
+        .join("\n")
 }
 
 async fn send_match_cancelled_message(ctx: &Context, channel: &ChannelId) {
@@ -448,6 +468,13 @@ fn make_duration_comment(duration: Duration) -> String {
 async fn send_message(channel: &ChannelId, ctx: &Context, msg: CreateMessage) {
     let _ = channel.send_message(ctx, msg).await.inspect_err(print_err);
 }
+
+// fn make_player_entry(
+//     player: &Player,
+//     elo: i32,
+//     hero_assignments: &HashMap<DiscordUsername, Vec<&Hero>>,
+// ) {
+// }
 
 fn make_team_embed(team: MatchStartTeam, colour: Colour) -> CreateEmbed {
     let total_elo: i32 = team.players.values().sum();

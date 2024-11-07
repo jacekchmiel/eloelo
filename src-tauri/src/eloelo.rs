@@ -416,6 +416,18 @@ pub(crate) fn print_err<E: Display>(e: &E) {
     error!("{}", e);
 }
 
+pub(crate) fn join<T>(collection: T, sep: &str) -> String
+where
+    T: IntoIterator,
+    T::Item: Display,
+{
+    collection
+        .into_iter()
+        .map(|v| v.to_string())
+        .collect::<Vec<_>>()
+        .join(sep)
+}
+
 pub(crate) fn unwrap_or_def_verbose<T, E>(result: Result<T, E>) -> T
 where
     T: Default,
