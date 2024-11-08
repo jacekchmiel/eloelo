@@ -194,6 +194,7 @@ impl DotaBot {
                 "**Your random heroes for this match are**\n{}",
                 self.random_heroes_str(heroes)
             );
+            // TODO: parallelize sending messages
             match members.get(&username) {
                 Some(user) => {
                     let _ = user

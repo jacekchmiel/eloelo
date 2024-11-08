@@ -32,6 +32,13 @@ impl Player {
     pub fn remove_elo(&mut self, game: &GameId) {
         self.elo.remove(game);
     }
+
+    pub fn get_display_name(&self) -> &str {
+        if let Some(n) = self.display_name.as_ref() {
+            return n;
+        }
+        self.id.as_str()
+    }
 }
 
 #[derive(Debug, Clone)]
