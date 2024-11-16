@@ -529,8 +529,8 @@ fn make_team_embed(team: TeamEmbedData, colour: Colour) -> CreateEmbed {
         .title(team.name)
         .fields(players.into_iter().map(|p| {
             (
-                p.name,
-                format!("{} - {}", p.rank.to_string(), p.recommendations),
+                format!("{}   [{}]", p.name, p.rank),
+                format!("{}", p.recommendations),
                 false,
             )
         }))
