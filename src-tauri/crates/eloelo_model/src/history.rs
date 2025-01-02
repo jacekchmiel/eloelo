@@ -54,8 +54,8 @@ impl HistoryEntry {
 
     pub fn advantage_factor(&self) -> f64 {
         match self.scale {
-            WinScale::Even => 0.65,
-            WinScale::Advantage => 0.8,
+            WinScale::Even => 0.75,
+            WinScale::Advantage => 0.85,
             WinScale::Pwnage => 0.95,
         }
     }

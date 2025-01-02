@@ -9,8 +9,8 @@ use itertools::Itertools;
 use log::{debug, info};
 
 // Learning rate is set to very high level to make the computation faster. Learning is not really 100% finished after 1000 iterations, but it gives good results, and blazing fast with this setting
-const LEARNING_RATE: f64 = 100_000.0;
-const ML_ITERATIONS: usize = 1_000;
+const LEARNING_RATE: f64 = 5000.0;
+const ML_ITERATIONS: usize = 5_000;
 
 fn print_debug(i: usize, history: &[HistoryEntry], elo: &HashMap<PlayerId, f64>, elo_sum: f64) {
     let loss = loss(history, &elo);
@@ -80,7 +80,7 @@ fn log_probabilities(elo: &HashMap<PlayerId, f64>, history: &[HistoryEntry]) {
     }
 }
 
-// L4 loss
+// L2 loss
 fn loss(history: &[HistoryEntry], elo: &HashMap<PlayerId, f64>) -> f64 {
     let mut loss = 0.0;
     for entry in history {
@@ -90,7 +90,7 @@ fn loss(history: &[HistoryEntry], elo: &HashMap<PlayerId, f64>) -> f64 {
         let computed_probability = win_probability(winner_elo, loser_elo);
         let real_probablity = entry.advantage_factor();
 
-        loss += (real_probablity - computed_probability).powf(4.0);
+        loss += (real_probablity - computed_probability).powf(2.0);
     }
 
     loss
@@ -109,9 +109,9 @@ fn backpropagation(
         let computed_probability = win_probability(winner_elo, loser_elo);
         let real_probability = entry.advantage_factor();
 
-        // ((x-c)^4)' = 4*(x-c)^3
-        // L4 loss
-        let final_derivative = 4.0 * (real_probability - computed_probability).powf(3.0);
+        // ((x-c)^2)' = 2*(x-c)
+        // L2 loss
+        let final_derivative = 2.0 * (real_probability - computed_probability);
 
         // https://www.wolframalpha.com/input?i=%281%2F%281%2B10%5E%28-x%2F400%29%29%29%27
         // -log(10)/(400 (1 + 10^(x/400))^2) + log(10)/(400 (1 + 10^(x/400)))

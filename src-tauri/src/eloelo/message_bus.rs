@@ -63,6 +63,7 @@ pub(crate) enum Message {
 pub enum UiUpdate {
     State(UiState),
     DiscordInfo(Vec<DiscordPlayerInfo>),
+    RoleRecommendation(Vec<RoleRecommendation>),
 }
 
 #[derive(Debug, Clone)]
@@ -95,6 +96,15 @@ impl From<String> for AvatarUrl {
     fn from(value: String) -> Self {
         AvatarUrl(value)
     }
+}
+
+#[derive(Debug, Clone, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct RoleRecommendation {
+    pub id: PlayerId,
+    pub username: DiscordUsername, // TODO: Probably keep only one of the ids (the more convenient
+    // from producer perspective
+    pub recommendation: Vec<String>,
 }
 
 #[derive(Debug, Clone, Serialize)]

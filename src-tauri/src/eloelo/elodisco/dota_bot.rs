@@ -3,7 +3,7 @@ use std::collections::{HashMap, HashSet};
 use std::fmt::Display;
 
 use crate::eloelo::message_bus::MatchStart;
-use crate::eloelo::print_err;
+use crate::eloelo::{join, print_err};
 use eloelo_model::player::DiscordUsername;
 
 use super::bot_state::DotaBotState;
@@ -168,7 +168,7 @@ impl DotaBot {
         match_start: &MatchStart,
         ctx: &Context,
         members: &HashMap<DiscordUsername, User>,
-    ) {
+    ) -> HashMap<DiscordUsername, Vec<&Hero>> {
         let players = match_start
             .left_team
             .players
@@ -182,13 +182,19 @@ impl DotaBot {
             .cloned()
             .collect();
 
-        let hero_assignments = self.assign_random_heroes(&users_with_randomizer);
+        let mut hero_assignments: Vec<_> = self
+            .assign_random_heroes(&users_with_randomizer)
+            .into_iter()
+            .collect();
+        hero_assignments.sort_by_key(|u| u.0);
 
-        for (username, heroes) in hero_assignments {
+        for (username, heroes) in &hero_assignments {
+            info!("Hero assignment {username}: {}", join(heroes, ", "));
             let heroes_message = format!(
                 "**Your random heroes for this match are**\n{}",
-                self.random_heroes_str(&heroes)
+                self.random_heroes_str(heroes)
             );
+            // TODO: parallelize sending messages
             match members.get(&username) {
                 Some(user) => {
                     let _ = user
@@ -203,6 +209,10 @@ impl DotaBot {
                 ),
             }
         }
+        hero_assignments
+            .into_iter()
+            .map(|(k, v)| (k.clone(), v))
+            .collect()
     }
 }
 
@@ -360,11 +370,11 @@ mod tests {
     const N: usize = 1_000;
 
     fn player_j() -> DiscordUsername {
-        DiscordUsername::from("j")
+        DiscordUsername::from("j".to_string())
     }
 
     fn player_bixkog() -> DiscordUsername {
-        DiscordUsername::from("bixkog")
+        DiscordUsername::from("bixkog".to_string())
     }
 
     #[test]
