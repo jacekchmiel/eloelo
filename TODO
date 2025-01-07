@@ -2,9 +2,17 @@
 
 ## HIGH PRIORITY
 
+- [ ] Switch to poise - higher level framework for discord
+  - [ ] Migrate slash commands to proper implementation
+  - [ ] Consider modals instead of DM
+  - [ ] Consider ephemeral messages instead of DM
+- [ ] Store heroes in history
+  - [ ] Allow picking heroes from GUI
+  - [ ] Add buttons to Discord message for hero pick
+- [ ] Add hero
 - [x] Additional match info: length, advantage
 - [ ] Display length and advantage on match view
-- [ ] Store match history (the most precious thing we have) in cloud/safe storage, also so it can be shared with other
+- [x] Store match history (the most precious thing we have) in cloud/safe storage, also so it can be shared with other
       (maybe a git repo with a commit for each new match?)
 - [x] Uniform playerId/discordId
 - [x] Fix proposed duration in finish match modal
