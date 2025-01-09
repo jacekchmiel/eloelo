@@ -15,6 +15,8 @@ use message_bus::{
 use spawelo::ml_elo;
 use ui_state::{State, UiPlayer, UiState};
 
+use crate::print_err;
+
 pub(crate) mod config;
 pub(crate) mod elodisco;
 mod git_mirror;
@@ -268,6 +270,7 @@ impl EloElo {
                 scale,
                 duration,
                 fake,
+                details: None,
             };
             let _ = store::append_history_entry(&self.selected_game, &history_entry)
                 .inspect_err(print_err); // TODO: proper error propagation
@@ -410,10 +413,6 @@ fn remove_player_id(players: &mut Vec<PlayerId>, player_id: &PlayerId) -> Option
         .enumerate()
         .find_map(|(i, p)| if p == player_id { Some(i) } else { None })
         .map(|idx| players.remove(idx))
-}
-
-pub(crate) fn print_err<E: Display>(e: &E) {
-    error!("{}", e);
 }
 
 pub(crate) fn join<T>(collection: T, sep: &str) -> String

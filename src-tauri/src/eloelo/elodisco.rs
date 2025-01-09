@@ -5,7 +5,6 @@ use async_elodisco::AsyncEloDisco;
 use bot_state::BotState;
 use log::{error, info};
 use serenity::all::GatewayIntents;
-use tokio::runtime::Runtime;
 
 mod async_elodisco;
 pub(crate) mod bot_state;
@@ -14,21 +13,20 @@ pub(crate) mod dota_bot;
 pub(crate) mod notification_bot;
 
 pub struct EloDisco {
-    _runtime: Runtime,
+    runtime: tokio::runtime::Handle,
 }
 
 impl EloDisco {
-    pub fn new(config: Config, bot_state: BotState, message_bus: MessageBus) -> Self {
-        let _runtime = tokio::runtime::Builder::new_multi_thread()
-            .enable_all()
-            .max_blocking_threads(8)
-            .build()
-            .unwrap();
-
+    pub fn new(
+        runtime: tokio::runtime::Handle,
+        config: Config,
+        bot_state: BotState,
+        message_bus: MessageBus,
+    ) -> Self {
         let token = config.discord_bot_token.clone();
         let async_elodisco = AsyncEloDisco::new(bot_state, config);
 
-        _runtime.spawn({
+        runtime.spawn({
             let async_elodisco = async_elodisco.clone();
             async move {
                 if let Err(e) = start_serenity(token, async_elodisco).await {
@@ -38,7 +36,7 @@ impl EloDisco {
         });
 
         let mut message_bus_receiver = message_bus.subscribe();
-        _runtime.spawn(async move {
+        runtime.spawn(async move {
             loop {
                 match message_bus_receiver.recv().await {
                     Some(Message::Event(Event::MatchStart(match_start))) => {
@@ -62,7 +60,7 @@ impl EloDisco {
             }
         });
 
-        Self { _runtime }
+        Self { runtime }
     }
 }
 

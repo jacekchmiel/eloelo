@@ -1,17 +1,20 @@
+use std::fmt::Display;
+use std::path::PathBuf;
 use std::thread;
 
-use anyhow::Error;
+use anyhow::{Error, Result};
 use dead_mans_switch::{dead_mans_switch, DeadMansSwitch};
 use eloelo::elodisco::EloDisco;
 use eloelo::message_bus::{FinishMatch, Message, MessageBus, UiCommand, UiUpdate};
 use eloelo::{store, unwrap_or_def_verbose, EloElo};
 use eloelo_model::player::{DiscordUsername, Player};
 use eloelo_model::{GameId, PlayerId, Team, WinScale};
-use log::{debug, info};
+use log::{debug, error, info};
 use tauri::ipc::InvokeError;
 use tauri::{AppHandle, Emitter, Manager, State};
 
 mod dead_mans_switch;
+mod dir_watcher;
 mod eloelo;
 mod logging;
 
@@ -118,7 +121,9 @@ fn refresh_elo(state: TauriState) {
         .send(Message::UiCommand(UiCommand::RefreshElo));
 }
 
-fn error(msg: impl std::fmt::Display + std::fmt::Debug + Send + Sync + 'static) -> InvokeError {
+fn invoke_error(
+    msg: impl std::fmt::Display + std::fmt::Debug + Send + Sync + 'static,
+) -> InvokeError {
     InvokeError::from_anyhow(Error::msg(msg))
 }
 
@@ -134,10 +139,11 @@ fn finish_match(
     let cmd = match winner {
         None => UiCommand::FinishMatch(FinishMatch::Cancelled),
         Some(winner) => {
-            let winner = Team::from_str(&winner).ok_or_else(|| error("Invalid team designator"))?;
-            let scale = WinScale::try_from(scale.ok_or_else(|| error("Missing win scale"))?)
+            let winner =
+                Team::from_str(&winner).ok_or_else(|| invoke_error("Invalid team designator"))?;
+            let scale = WinScale::try_from(scale.ok_or_else(|| invoke_error("Missing win scale"))?)
                 .map_err(InvokeError::from_error)?;
-            let duration = duration.ok_or_else(|| error("Missing match duration"))?;
+            let duration = duration.ok_or_else(|| invoke_error("Missing match duration"))?;
             let fake = fake.unwrap_or(false);
             UiCommand::FinishMatch(FinishMatch::Finished {
                 winner,
@@ -213,15 +219,42 @@ fn start_worker_threads(
     });
 }
 
+async fn watch_screenshot_dir(screenshot_dir: PathBuf) -> Result<()> {
+    dir_watcher::watch(screenshot_dir, |p| {
+        info!("File created: {}", p.to_str().unwrap_or_default())
+    })?
+    .await?;
+    Ok(())
+}
+
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
     logging::init();
+    let runtime = tokio::runtime::Builder::new_multi_thread()
+        .enable_all()
+        .max_blocking_threads(8)
+        .build()
+        .expect("Failed to create runtime!");
     let config = unwrap_or_def_verbose(store::load_config());
     let state = unwrap_or_def_verbose(store::load_state());
     let bot_state = unwrap_or_def_verbose(store::load_bot_state());
     let message_bus = MessageBus::new();
     let (dead_man_switch, dead_man_observer) = dead_mans_switch();
-    let _elodisco = EloDisco::new(config.clone(), bot_state, message_bus.clone());
+    let _elodisco = EloDisco::new(
+        runtime.handle().clone(),
+        config.clone(),
+        bot_state,
+        message_bus.clone(),
+    );
+    if let Some(screenshot_dir) = config.dota_screenshot_dir.clone() {
+        runtime.spawn(async move {
+            let _ = watch_screenshot_dir(screenshot_dir)
+                .await
+                .inspect_err(print_err);
+        });
+    } else {
+        info!("No DotA screenshot dir configured");
+    };
     let eloelo = EloElo::new(state, config, message_bus.clone());
     tauri::Builder::default()
         .setup({
@@ -275,4 +308,12 @@ pub fn run() {
         // )
         .run(tauri::generate_context!())
         .expect("error while running tauri application");
+}
+
+pub(crate) fn warn_err<E: Display>(e: &E) {
+    error!("{}", e);
+}
+
+pub(crate) fn print_err<E: Display>(e: &E) {
+    error!("{}", e);
 }

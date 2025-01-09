@@ -25,6 +25,7 @@ pub struct HistoryEntry {
     #[serde(default)]
     #[serde(skip_serializing_if = "is_default")]
     pub fake: bool,
+    pub details: Option<MatchDetails>,
 }
 
 fn is_default<T: Default + PartialEq<T>>(v: &T) -> bool {
@@ -58,5 +59,32 @@ impl HistoryEntry {
             WinScale::Advantage => 0.85,
             WinScale::Pwnage => 0.95,
         }
+    }
+}
+
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+pub enum MatchDetails {
+    Dota(dota::MatchDetails),
+}
+
+pub mod dota {
+    use std::collections::HashMap;
+
+    use serde::{Deserialize, Serialize};
+
+    use crate::PlayerId;
+
+    #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+    pub struct MatchDetails {
+        pub players: HashMap<PlayerId, PlayerDetails>,
+    }
+
+    #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+    pub struct PlayerDetails {
+        pub hero: String,
+        pub kills: i32,
+        pub deaths: i32,
+        pub assists: i32,
+        pub level: i32,
     }
 }

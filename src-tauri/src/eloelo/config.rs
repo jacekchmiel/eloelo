@@ -29,6 +29,9 @@ pub struct Config {
 
     #[serde(default = "default_history_git_mirror")]
     pub history_git_mirror: PathBuf,
+
+    #[serde(default)]
+    pub dota_screenshot_dir: Option<PathBuf>,
 }
 
 fn default_history_git_mirror() -> PathBuf {
@@ -45,6 +48,7 @@ impl Default for Config {
             discord_channel_name: Default::default(),
             max_elo_history: 0,
             history_git_mirror: default_history_git_mirror(),
+            dota_screenshot_dir: None,
         }
     }
 }
