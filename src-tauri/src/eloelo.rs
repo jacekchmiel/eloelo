@@ -18,6 +18,7 @@ use ui_state::{State, UiPlayer, UiState};
 use crate::print_err;
 
 pub(crate) mod config;
+pub(crate) mod dota_screenshot_scrapping;
 pub(crate) mod elodisco;
 mod git_mirror;
 pub(crate) mod message_bus;

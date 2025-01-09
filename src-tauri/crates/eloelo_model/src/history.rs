@@ -69,7 +69,9 @@ pub enum MatchDetails {
 
 pub mod dota {
     use std::collections::HashMap;
+    use std::time::Duration;
 
+    use chrono::{DateTime, Utc};
     use serde::{Deserialize, Serialize};
 
     use crate::PlayerId;
@@ -77,6 +79,8 @@ pub mod dota {
     #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
     pub struct MatchDetails {
         pub players: HashMap<PlayerId, PlayerDetails>,
+        pub duration: Duration,
+        pub time: DateTime<Utc>,
     }
 
     #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]

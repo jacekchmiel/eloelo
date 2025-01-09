@@ -1,6 +1,7 @@
 use std::collections::HashMap;
 use std::time::Duration;
 
+use eloelo_model::history::MatchDetails;
 use eloelo_model::player::{DiscordUsername, Player, PlayerDb};
 use eloelo_model::{GameId, PlayerId, Team, WinScale};
 use log::error;
@@ -120,6 +121,7 @@ pub struct DiscordPlayerInfo {
 pub enum Event {
     MatchStart(MatchStart),
     RichMatchResult(RichMatchResult),
+    MatchDetails(MatchDetails),
 }
 
 #[derive(Clone, Debug)]

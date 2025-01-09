@@ -4,9 +4,11 @@ use std::thread;
 
 use anyhow::{Error, Result};
 use dead_mans_switch::{dead_mans_switch, DeadMansSwitch};
+use eloelo::dota_screenshot_scrapping::scrap_dota_screenshot_data;
 use eloelo::elodisco::EloDisco;
-use eloelo::message_bus::{FinishMatch, Message, MessageBus, UiCommand, UiUpdate};
+use eloelo::message_bus::{Event, FinishMatch, Message, MessageBus, UiCommand, UiUpdate};
 use eloelo::{store, unwrap_or_def_verbose, EloElo};
+use eloelo_model::history::MatchDetails;
 use eloelo_model::player::{DiscordUsername, Player};
 use eloelo_model::{GameId, PlayerId, Team, WinScale};
 use log::{debug, error, info};
@@ -219,9 +221,17 @@ fn start_worker_threads(
     });
 }
 
-async fn watch_screenshot_dir(screenshot_dir: PathBuf) -> Result<()> {
-    dir_watcher::watch(screenshot_dir, |p| {
-        info!("File created: {}", p.to_str().unwrap_or_default())
+async fn watch_screenshot_dir(screenshot_dir: PathBuf, message_bus: MessageBus) -> Result<()> {
+    dir_watcher::watch(screenshot_dir, move |p| {
+        info!("File created: {}", p.to_str().unwrap_or_default());
+        if p.ends_with(".jpg") {
+            match scrap_dota_screenshot_data(p) {
+                Ok(data) => message_bus.send(Message::Event(Event::MatchDetails(
+                    MatchDetails::Dota(data),
+                ))),
+                Err(e) => print_err(&e),
+            }
+        }
     })?
     .await?;
     Ok(())
@@ -247,8 +257,9 @@ pub fn run() {
         message_bus.clone(),
     );
     if let Some(screenshot_dir) = config.dota_screenshot_dir.clone() {
+        let message_bus = message_bus.clone();
         runtime.spawn(async move {
-            let _ = watch_screenshot_dir(screenshot_dir)
+            let _ = watch_screenshot_dir(screenshot_dir, message_bus)
                 .await
                 .inspect_err(print_err);
         });
