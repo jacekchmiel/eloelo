@@ -1,4 +1,3 @@
-use std::default;
 use std::path::PathBuf;
 
 use eloelo_model::player::{DiscordUsername, Player};

@@ -20,7 +20,6 @@ import {
 	TextField,
 	styled,
 } from "@mui/material";
-import { invoke } from "@tauri-apps/api/core";
 import { useState } from "react";
 import type { Avatars, DiscordPlayerInfo, Player, PlayerAvatar } from "./model";
 
@@ -38,7 +37,10 @@ function DeleteButton({
 		<IconButton
 			{...props}
 			edge="end"
-			onClick={async () => await invoke("remove_player", { id: playerKey })}
+			onClick={async () => {
+				throw new Error("Not Implemented");
+			}}
+			//  await invoke("remove_player", { id: playerKey })}
 		>
 			<DeleteIcon />
 		</IconButton>
@@ -65,9 +67,12 @@ function AddLeftButton({
 			{...props}
 			edge="end"
 			aria-label="add_left"
-			onClick={async () =>
-				await invoke("add_player_to_team", { id: playerKey, team: "left" })
-			}
+			onClick={async () => {
+				throw new Error("Not Implemented");
+			}}
+			// onClick={async () =>
+			//     await invoke("add_player_to_team", { id: playerKey, team: "left" })
+			// }
 		>
 			<PersonAddIcon />
 		</IconButton>
@@ -83,9 +88,12 @@ function AddRightButton({
 			{...props}
 			edge="end"
 			aria-label="add_right"
-			onClick={async () =>
-				await invoke("add_player_to_team", { id: playerKey, team: "right" })
-			}
+			onClick={async () => {
+				throw new Error("Not Implemented");
+			}}
+			// onClick={async () =>
+			//     await invoke("add_player_to_team", { id: playerKey, team: "right" })
+			// }
 		>
 			<PersonAddAlt1Icon />
 		</IconButton>
@@ -142,11 +150,13 @@ function NewPlayerRow({ players }: { players: DiscordPlayerInfo[] }) {
 					);
 					const discordUsername =
 						discordInfo === undefined ? undefined : discordInfo.username;
-					await invoke("add_new_player", {
-						id: newPlayerId,
-						discordUsername,
-					});
-					setNewPlayerId("");
+
+					throw new Error("Not Implemented");
+					// await invoke("add_new_player", {
+					//     id: newPlayerId,
+					//     discordUsername,
+					// });
+					// setNewPlayerId("");
 				}}
 			/>
 		</ListItem>

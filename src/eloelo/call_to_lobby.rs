@@ -2,7 +2,6 @@ use anyhow::Result;
 use eloelo_model::player::Player;
 use log::debug;
 use reqwest::blocking::Client;
-use serde::Serialize;
 
 pub fn call_to_lobby<'a>(
     fosiaudio_host: &str,

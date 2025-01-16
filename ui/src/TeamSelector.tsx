@@ -14,16 +14,15 @@ import {
 	Stack,
 	styled,
 } from "@mui/material";
-import { invoke } from "@tauri-apps/api/core";
+import { PresentInLobbyButton } from "./components/PresentInLobbyButton";
 import type {
-	Side,
 	Avatars,
 	Game,
 	GameState,
 	Player,
 	PlayerAvatar,
+	Side,
 } from "./model";
-import { PresentInLobbyButton } from "./components/PresentInLobbyButton";
 
 const Header = styled(Box)(({ theme }) => ({
 	...theme.typography.h6,
@@ -47,9 +46,10 @@ function MoveButton({
 			{...props}
 			edge={side === "left" ? "end" : "start"}
 			aria-label="delete"
-			onClick={async () =>
-				await invoke("move_player_to_other_team", { id: playerKey })
-			}
+			onClick={async () => {
+				// await invoke("move_player_to_other_team", { id: playerKey })
+				throw new Error("Not Implemented");
+			}}
 		>
 			{side === "left" ? <ChevronRightIcon /> : <ChevronLeftIcon />}
 		</IconButton>
@@ -66,9 +66,10 @@ function DeleteButton({
 			{...props}
 			edge={side === "left" ? "start" : "end"}
 			aria-label="delete"
-			onClick={async () =>
-				await invoke("remove_player_from_team", { id: playerKey })
-			}
+			onClick={async () => {
+				// await invoke("remove_player_from_team", { id: playerKey })
+				throw new Error("Not Implemented");
+			}}
 		>
 			<DeleteIcon />
 		</IconButton>

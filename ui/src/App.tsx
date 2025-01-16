@@ -23,8 +23,6 @@ import {
 } from "@mui/material";
 import { grey } from "@mui/material/colors";
 import { ThemeProvider, createTheme, styled } from "@mui/material/styles";
-import { type InvokeArgs, invoke as tauriInvoke } from "@tauri-apps/api/core";
-import { listen } from "@tauri-apps/api/event";
 import React from "react";
 import {
 	elapsedString,
@@ -45,10 +43,14 @@ import {
 import { type EloEloStateTransport, parseEloEloState } from "./parse";
 import { useColorMode } from "./useColorMode";
 
+// mock
+type InvokeArgs = object;
+
 const invoke = async (event: string, args: InvokeArgs) => {
 	console.info({ event, args });
 	try {
-		await tauriInvoke(event, args);
+		throw new Error("Not Implemented");
+		// await tauriInvoke(event, args);
 	} catch (err) {
 		console.error(err);
 	}
@@ -126,14 +128,15 @@ function EloElo(state: EloEloState) {
 	}, []);
 
 	async function listenToAvatarsEvent() {
-		const unlisten = await listen(
-			"discord_info",
-			(event: { payload: DiscordPlayerInfo[] }) => {
-				console.info({ discord_info: event.payload });
-				setDiscordInfoState(event.payload);
-			},
-		);
+		// const unlisten = await listen(
+		// 	"discord_info",
+		// 	(event: { payload: DiscordPlayerInfo[] }) => {
+		// 		console.info({ discord_info: event.payload });
+		// 		setDiscordInfoState(event.payload);
+		// 	},
+		// );
 
+		const unlisten = () => {};
 		return unlisten;
 	}
 
@@ -463,14 +466,15 @@ export default function App() {
 	}, []);
 
 	async function listenToUiUpdateEvent() {
-		const unlisten = await listen(
-			"update_ui",
-			(event: { payload: EloEloStateTransport }) => {
-				console.info({ state: event.payload });
-				const parsed = parseEloEloState(event.payload);
-				setEloEloState(parsed);
-			},
-		);
+		// const unlisten = await listen(
+		// 	"update_ui",
+		// 	(event: { payload: EloEloStateTransport }) => {
+		// 		console.info({ state: event.payload });
+		// 		const parsed = parseEloEloState(event.payload);
+		// 		setEloEloState(parsed);
+		// 	},
+		// );
+		const unlisten = () => {};
 		return unlisten;
 	}
 
