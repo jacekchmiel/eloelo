@@ -1,7 +1,9 @@
+use std::collections::HashSet;
 use std::fmt::Display;
 use std::time::Duration;
 
 use anyhow::Result;
+use call_to_lobby::call_to_lobby;
 use chrono::Local;
 use config::Config;
 use eloelo_model::history::{History, HistoryEntry};
@@ -15,6 +17,9 @@ use message_bus::{
 use spawelo::ml_elo;
 use ui_state::{State, UiPlayer, UiState};
 
+use crate::print_err;
+
+mod call_to_lobby;
 pub(crate) mod config;
 pub(crate) mod elodisco;
 mod git_mirror;
@@ -28,6 +33,7 @@ pub struct EloElo {
     players: PlayerDb,
     left_players: Vec<PlayerId>,
     right_players: Vec<PlayerId>,
+    lobby: HashSet<PlayerId>,
     game_state: GameState,
     history: History,
     config: Config,
@@ -50,6 +56,7 @@ impl EloElo {
             players: PlayerDb::new(config.players.clone().into_iter().map(Player::from)),
             left_players: state.left_players,
             right_players: state.right_players,
+            lobby: state.lobby,
             game_state: state.game_state,
             history,
             config,
@@ -70,8 +77,11 @@ impl EloElo {
             }
             UiCommand::RemovePlayerFromTeam(player_id) => self.remove_player_from_team(&player_id),
             UiCommand::AddPlayerToTeam(player_id, team) => self.add_player_to_team(player_id, team),
+            UiCommand::AddPlayerToLobby(player_id) => self.add_player_to_lobby(player_id),
+            UiCommand::RemovePlayerFromLobby(player_id) => self.remove_player_from_lobby(player_id),
             UiCommand::ChangeGame(game_id) => self.change_game(game_id),
             UiCommand::StartMatch => self.start_match(),
+            UiCommand::CallToLobby => self.call_to_lobby(),
             UiCommand::ShuffleTeams => self.shuffle_teams(),
             UiCommand::RefreshElo => self.recalculate_elo_from_history(),
             UiCommand::FinishMatch(finish_match) => self.finish_match(finish_match),
@@ -80,7 +90,7 @@ impl EloElo {
                     error!("store_state failed: {}", e);
                 } else {
                     info!("State stored.");
-                };
+                }
                 if let Err(e) = self.store_config() {
                     error!("store_config failed: {}", e);
                 } else {
@@ -96,6 +106,7 @@ impl EloElo {
             left_players: self.left_players.clone(),
             right_players: self.right_players.clone(),
             game_state: self.game_state,
+            lobby: self.lobby.clone(),
         };
         store::store_state(&state)
     }
@@ -165,11 +176,13 @@ impl EloElo {
                     .players
                     .get(&player_id)
                     .and_then(|p| p.discord_username.as_ref().map(|n| n.to_string()));
+                let present_in_lobby = self.lobby.contains(&player_id);
                 UiPlayer {
                     id: player_id,
                     name,
                     discord_username,
                     elo,
+                    present_in_lobby,
                 }
             })
             // .map(UiPlayer::build_for(&self.selected_game, self.players.all()))
@@ -402,6 +415,30 @@ impl EloElo {
             }
         }
     }
+
+    fn add_player_to_lobby(&mut self, player_id: PlayerId) {
+        self.lobby.insert(player_id);
+    }
+
+    fn remove_player_from_lobby(&mut self, player_id: PlayerId) {
+        self.lobby.remove(&player_id);
+    }
+
+    fn call_to_lobby(&self) {
+        let _ = call_to_lobby(
+            &self.config.fosiaudio_host,
+            self.players_missing_from_lobby(),
+        )
+        .inspect_err(print_err);
+    }
+
+    fn players_missing_from_lobby(&self) -> impl Iterator<Item = &Player> {
+        self.left_players
+            .iter()
+            .chain(&self.right_players)
+            .filter(|p| !self.lobby.contains(p))
+            .flat_map(|p| self.players.get(p))
+    }
 }
 
 fn remove_player_id(players: &mut Vec<PlayerId>, player_id: &PlayerId) -> Option<PlayerId> {
@@ -410,10 +447,6 @@ fn remove_player_id(players: &mut Vec<PlayerId>, player_id: &PlayerId) -> Option
         .enumerate()
         .find_map(|(i, p)| if p == player_id { Some(i) } else { None })
         .map(|idx| players.remove(idx))
-}
-
-pub(crate) fn print_err<E: Display>(e: &E) {
-    error!("{}", e);
 }
 
 pub(crate) fn join<T>(collection: T, sep: &str) -> String
