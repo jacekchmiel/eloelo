@@ -121,6 +121,17 @@ fn refresh_elo(state: TauriState) {
         .send(Message::UiCommand(UiCommand::RefreshElo));
 }
 
+#[tauri::command]
+fn present_in_lobby_change(state: TauriState, id: PlayerId, present: bool) {
+    debug!("present_in_lobby_change({id}, {present})");
+    let message = if present {
+        Message::UiCommand(UiCommand::AddPlayerToLobby(id))
+    } else {
+        Message::UiCommand(UiCommand::RemovePlayerFromLobby(id))
+    };
+    let _ = state.message_bus.send(message);
+}
+
 fn invoke_error(
     msg: impl std::fmt::Display + std::fmt::Debug + Send + Sync + 'static,
 ) -> InvokeError {
@@ -290,6 +301,7 @@ pub fn run() {
             shuffle_teams,
             finish_match,
             refresh_elo,
+            present_in_lobby_change,
         ])
         // .plugin(
         //     tauri_plugin_log::Builder::default()

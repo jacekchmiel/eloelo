@@ -130,6 +130,8 @@ pub enum UiCommand {
     MovePlayerToOtherTeam(PlayerId),
     RemovePlayerFromTeam(PlayerId),
     AddPlayerToTeam(PlayerId, Team),
+    AddPlayerToLobby(PlayerId),
+    RemovePlayerFromLobby(PlayerId),
     ChangeGame(GameId),
     StartMatch,
     ShuffleTeams,

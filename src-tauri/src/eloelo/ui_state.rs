@@ -1,3 +1,5 @@
+use std::collections::HashSet;
+
 use serde::{Deserialize, Serialize};
 
 use super::config::Game;
@@ -16,6 +18,9 @@ pub struct State {
 
     #[serde(default)]
     pub game_state: GameState,
+
+    #[serde(default)]
+    pub lobby: HashSet<PlayerId>,
 }
 
 impl State {
@@ -25,6 +30,7 @@ impl State {
             left_players: Default::default(),
             right_players: Default::default(),
             game_state: Default::default(),
+            lobby: Default::default(),
         }
     }
 }
@@ -36,6 +42,7 @@ pub struct UiPlayer {
     pub name: String,
     pub discord_username: Option<String>,
     pub elo: i32,
+    pub present_in_lobby: bool,
 }
 
 #[derive(Clone, Debug, Serialize, Deserialize)]

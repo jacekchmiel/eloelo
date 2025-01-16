@@ -1,3 +1,4 @@
+use std::collections::HashSet;
 use std::fmt::Display;
 use std::time::Duration;
 
@@ -30,6 +31,7 @@ pub struct EloElo {
     players: PlayerDb,
     left_players: Vec<PlayerId>,
     right_players: Vec<PlayerId>,
+    lobby: HashSet<PlayerId>,
     game_state: GameState,
     history: History,
     config: Config,
@@ -52,6 +54,7 @@ impl EloElo {
             players: PlayerDb::new(config.players.clone().into_iter().map(Player::from)),
             left_players: state.left_players,
             right_players: state.right_players,
+            lobby: state.lobby,
             game_state: state.game_state,
             history,
             config,
@@ -72,6 +75,8 @@ impl EloElo {
             }
             UiCommand::RemovePlayerFromTeam(player_id) => self.remove_player_from_team(&player_id),
             UiCommand::AddPlayerToTeam(player_id, team) => self.add_player_to_team(player_id, team),
+            UiCommand::AddPlayerToLobby(player_id) => self.add_player_to_lobby(player_id),
+            UiCommand::RemovePlayerFromLobby(player_id) => self.remove_player_from_lobby(player_id),
             UiCommand::ChangeGame(game_id) => self.change_game(game_id),
             UiCommand::StartMatch => self.start_match(),
             UiCommand::ShuffleTeams => self.shuffle_teams(),
@@ -82,7 +87,7 @@ impl EloElo {
                     error!("store_state failed: {}", e);
                 } else {
                     info!("State stored.");
-                };
+                }
                 if let Err(e) = self.store_config() {
                     error!("store_config failed: {}", e);
                 } else {
@@ -98,6 +103,7 @@ impl EloElo {
             left_players: self.left_players.clone(),
             right_players: self.right_players.clone(),
             game_state: self.game_state,
+            lobby: self.lobby.clone(),
         };
         store::store_state(&state)
     }
@@ -167,11 +173,13 @@ impl EloElo {
                     .players
                     .get(&player_id)
                     .and_then(|p| p.discord_username.as_ref().map(|n| n.to_string()));
+                let present_in_lobby = self.lobby.contains(&player_id);
                 UiPlayer {
                     id: player_id,
                     name,
                     discord_username,
                     elo,
+                    present_in_lobby,
                 }
             })
             // .map(UiPlayer::build_for(&self.selected_game, self.players.all()))
@@ -404,6 +412,14 @@ impl EloElo {
                     .set_rank(player, &self.selected_game, *new_elo as i32);
             }
         }
+    }
+
+    fn add_player_to_lobby(&mut self, player_id: PlayerId) {
+        self.lobby.insert(player_id);
+    }
+
+    fn remove_player_from_lobby(&mut self, player_id: PlayerId) {
+        self.lobby.remove(&player_id);
     }
 }
 
