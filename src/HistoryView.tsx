@@ -31,7 +31,13 @@ export function HistoryView({
 			const player = players.find((p) => p.id === id);
 			return player !== undefined
 				? player
-				: { id, name: id, elo: 0, discordUsername: undefined };
+				: {
+						id,
+						name: id,
+						elo: 0,
+						discordUsername: undefined,
+						presentInLobby: false,
+					};
 		});
 	};
 

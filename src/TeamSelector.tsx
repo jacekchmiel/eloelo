@@ -15,15 +15,15 @@ import {
 	styled,
 } from "@mui/material";
 import { invoke } from "@tauri-apps/api/core";
+import { PresentInLobbyButton } from "./components/PresentInLobbyButton";
 import type {
-	Side,
 	Avatars,
 	Game,
 	GameState,
 	Player,
 	PlayerAvatar,
+	Side,
 } from "./model";
-import { PresentInLobbyButton } from "./components/PresentInLobbyButton";
 
 const Header = styled(Box)(({ theme }) => ({
 	...theme.typography.h6,
