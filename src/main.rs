@@ -1,4 +1,4 @@
-use anyhow::Result;
+use anyhow::{format_err, Context, Result};
 use axum::extract::ws::{self, WebSocket};
 use axum::extract::{Json, State, WebSocketUpgrade};
 use axum::response::{ErrorResponse, Response};
@@ -14,10 +14,12 @@ use futures_util::stream::{StreamExt as _, TryStreamExt as _};
 use http::StatusCode;
 use log::{debug, error, info};
 use serde::{Deserialize, Serialize};
-use serenity::futures::SinkExt;
+use serenity::futures::{self, SinkExt};
 use std::fmt::Display;
+use std::future::Future;
+use std::pin::Pin;
 use std::sync::Arc;
-use std::thread;
+use std::{pin::pin, thread};
 use tokio::signal;
 use tower_http::services::ServeDir;
 mod dead_mans_switch;
@@ -305,6 +307,26 @@ async fn ui_event_stream(socket: WebSocket, message_bus: MessageBus) {
     let _ = stream.forward(socket).await.inspect_err(print_err);
 }
 
+async fn terminate_on_signal() -> Result<()> {
+    let interrupt_signal: Pin<Box<dyn Future<Output = _>>> = Box::pin(async {
+        signal::unix::signal(signal::unix::SignalKind::interrupt())
+            .context("Failed to register terminate signal handlers!")?
+            .recv()
+            .await;
+        Ok(())
+    });
+    let terminate_signal = Box::pin(async {
+        signal::unix::signal(signal::unix::SignalKind::terminate())
+            .context("Failed to register terminate signal handlers!")?
+            .recv()
+            .await;
+        Ok(())
+    });
+    futures::future::select_all([interrupt_signal, terminate_signal])
+        .await
+        .0
+}
+
 #[tokio::main]
 async fn main() {
     logging::init();
@@ -368,8 +390,8 @@ async fn main() {
     });
 
     info!("Running");
-    signal::ctrl_c().await.unwrap();
-    info!("ctrl-c received");
+    let _ = terminate_on_signal().await.inspect_err(print_err);
+    info!("Terminating.");
     message_bus.send(Message::UiCommand(UiCommand::CloseApplication));
 
     debug!("Waiting for workers to stop...");
