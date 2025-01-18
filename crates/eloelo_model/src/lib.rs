@@ -14,7 +14,7 @@ pub enum GameState {
     MatchInProgress,
 }
 
-#[derive(Copy, Clone, Debug)]
+#[derive(Copy, Clone, Debug, Serialize, Deserialize)]
 pub enum Team {
     Left,
     Right,

@@ -1,12 +1,14 @@
-use std::collections::HashMap;
-use std::time::Duration;
-
+use anyhow::Result;
 use eloelo_model::player::{DiscordUsername, Player, PlayerDb};
 use eloelo_model::{GameId, PlayerId, Team, WinScale};
+use futures_util::{Stream, StreamExt};
 use log::error;
 use serde::Serialize;
+use std::collections::HashMap;
+use std::time::Duration;
 use tokio::sync::broadcast::error::RecvError;
 use tokio::sync::broadcast::{Receiver, Sender};
+use tokio_stream::wrappers::BroadcastStream;
 
 use super::ui_state::UiState;
 
@@ -41,6 +43,26 @@ impl MessageBusSubscription {
         Self::translate_recv(self.0.blocking_recv())
     }
 
+    pub fn ui_update_stream(self) -> impl Stream<Item = Result<UiUpdate>> {
+        BroadcastStream::new(self.0).filter_map(|r| async move {
+            match r {
+                Ok(Message::UiUpdate(ui_update)) => Some(Ok(ui_update)),
+                Err(broadcast_err) => Some(Err(broadcast_err.into())),
+                _ => None,
+            }
+        })
+    }
+
+    pub fn ui_command_stream(self) -> impl Stream<Item = Result<UiCommand>> {
+        BroadcastStream::new(self.0).filter_map(|r| async move {
+            match r {
+                Ok(Message::UiCommand(ui_command)) => Some(Ok(ui_command)),
+                Err(broadcast_err) => Some(Err(broadcast_err.into())),
+                _ => None,
+            }
+        })
+    }
+
     fn translate_recv(r: Result<Message, RecvError>) -> Option<Message> {
         match r {
             Ok(message) => Some(message),
@@ -59,7 +81,23 @@ pub(crate) enum Message {
     Event(Event),
 }
 
-#[derive(Debug, Clone)]
+impl Message {
+    pub fn try_into_ui_update(self) -> Option<UiUpdate> {
+        match self {
+            Message::UiUpdate(ui_update) => Some(ui_update),
+            _ => None,
+        }
+    }
+
+    pub fn try_into_ui_command(self) -> Option<UiCommand> {
+        match self {
+            Message::UiCommand(ui_command) => Some(ui_command),
+            _ => None,
+        }
+    }
+}
+
+#[derive(Debug, Clone, Serialize)]
 pub enum UiUpdate {
     State(UiState),
     DiscordInfo(Vec<DiscordPlayerInfo>),

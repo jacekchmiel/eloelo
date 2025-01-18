@@ -12,9 +12,9 @@ pub fn dead_mans_switch() -> (DeadMansSwitch, DeadMansSwitchObserver) {
 pub struct DeadMansSwitchObserver(Mutex<tokio::sync::mpsc::Receiver<()>>);
 
 impl DeadMansSwitchObserver {
-    pub fn wait_all_dead(&self) {
+    pub async fn wait_all_dead(&self) {
         // Will unblock when all senders are dropped. We keep one sender copy in each thread to join.
-        while let Some(_) = self.0.blocking_lock().blocking_recv() {}
+        while let Some(_) = self.0.lock().await.recv().await {}
     }
 }
 
