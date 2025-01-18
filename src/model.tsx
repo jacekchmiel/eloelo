@@ -3,6 +3,7 @@ export type Player = {
 	name: string;
 	discordUsername: string | undefined;
 	elo: number;
+	presentInLobby: boolean;
 };
 
 export type GameState = "assemblingTeams" | "matchInProgress";
@@ -51,3 +52,5 @@ export function extractAvatars(
 		return { username: e.username, avatarUrl: e.avatarUrl };
 	});
 }
+
+export type Side = "left" | "right";

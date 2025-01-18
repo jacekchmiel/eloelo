@@ -12,6 +12,7 @@ pub struct Player {
     pub discord_username: Option<DiscordUsername>,
     #[serde(default)]
     pub elo: HashMap<GameId, i32>,
+    pub fosiaudio_name: Option<String>,
 }
 
 impl Player {
@@ -35,6 +36,12 @@ impl Player {
 
     pub fn get_display_name(&self) -> &str {
         if let Some(n) = self.display_name.as_ref() {
+            return n;
+        }
+        self.id.as_str()
+    }
+    pub fn get_fosiaudio_name(&self) -> &str {
+        if let Some(n) = self.fosiaudio_name.as_ref() {
             return n;
         }
         self.id.as_str()

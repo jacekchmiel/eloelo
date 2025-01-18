@@ -15,9 +15,15 @@ import {
 	styled,
 } from "@mui/material";
 import { invoke } from "@tauri-apps/api/core";
-import type { Avatars, Game, GameState, Player, PlayerAvatar } from "./model";
-
-type Side = "left" | "right";
+import { PresentInLobbyButton } from "./components/PresentInLobbyButton";
+import type {
+	Avatars,
+	Game,
+	GameState,
+	Player,
+	PlayerAvatar,
+	Side,
+} from "./model";
 
 const Header = styled(Box)(({ theme }) => ({
 	...theme.typography.h6,
@@ -104,6 +110,12 @@ function RosterRow({
 			<DeleteButton
 				side={side}
 				playerKey={player.id}
+				disabled={!assemblingTeams}
+			/>
+			<PresentInLobbyButton
+				side={side}
+				playerKey={player.id}
+				present={player.presentInLobby}
 				disabled={!assemblingTeams}
 			/>
 			<PlayerProfile {...{ player }} avatarUrl={avatarUrl} />

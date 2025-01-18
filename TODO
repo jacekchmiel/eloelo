@@ -9,7 +9,11 @@
 - [ ] Store heroes in history
   - [ ] Allow picking heroes from GUI
   - [ ] Add buttons to Discord message for hero pick
-- [ ] Add hero
+  - [ ] OCR heroes from game screenshot?
+- [ ] Missing players in lobby
+  - [ ] OCR screenshot
+  - [ ] Send message
+- [x] Add hero
 - [x] Additional match info: length, advantage
 - [ ] Display length and advantage on match view
 - [x] Store match history (the most precious thing we have) in cloud/safe storage, also so it can be shared with other

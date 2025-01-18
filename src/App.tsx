@@ -222,7 +222,14 @@ function MainView({
 				{state.gameState === "assemblingTeams" && (
 					<>
 						<Grid item xs={6}>
-							<Stack direction="row" justifyContent="right">
+							<Stack direction="row" justifyContent="space-between">
+								<Button
+									onClick={async () => {
+										await invoke("call_to_lobby", {});
+									}}
+								>
+									Call to Lobby
+								</Button>
 								<Button
 									onClick={async () => {
 										await invoke("start_match", {});

@@ -1,3 +1,4 @@
+use std::default;
 use std::path::PathBuf;
 
 use eloelo_model::player::{DiscordUsername, Player};
@@ -29,12 +30,21 @@ pub struct Config {
 
     #[serde(default = "default_history_git_mirror")]
     pub history_git_mirror: PathBuf,
+
+    #[serde(default)]
+    pub dota_screenshot_dir: Option<PathBuf>,
+
+    #[serde(default = "default_fosiaudio_host")]
+    pub fosiaudio_host: String,
 }
 
 fn default_history_git_mirror() -> PathBuf {
     store::data_dir().join("history_git")
 }
 
+fn default_fosiaudio_host() -> String {
+    "127.0.0.1:1234".into()
+}
 impl Default for Config {
     fn default() -> Self {
         Self {
@@ -45,6 +55,8 @@ impl Default for Config {
             discord_channel_name: Default::default(),
             max_elo_history: 0,
             history_git_mirror: default_history_git_mirror(),
+            dota_screenshot_dir: None,
+            fosiaudio_host: default_fosiaudio_host(),
         }
     }
 }
@@ -97,6 +109,7 @@ pub struct PlayerConfig {
     pub id: PlayerId,
     pub display_name: Option<String>,
     pub discord_username: Option<DiscordUsername>,
+    pub fosiaudio_name: Option<String>,
 }
 
 impl From<PlayerConfig> for Player {
@@ -106,6 +119,7 @@ impl From<PlayerConfig> for Player {
             display_name: value.display_name,
             discord_username: value.discord_username,
             elo: Default::default(),
+            fosiaudio_name: value.fosiaudio_name,
         }
     }
 }
@@ -116,6 +130,7 @@ impl From<Player> for PlayerConfig {
             id: value.id,
             display_name: value.display_name,
             discord_username: value.discord_username,
+            fosiaudio_name: value.fosiaudio_name,
         }
     }
 }

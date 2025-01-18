@@ -1,3 +1,4 @@
+use std::fmt::Display;
 use std::thread;
 
 use anyhow::Error;
@@ -7,13 +8,17 @@ use eloelo::message_bus::{FinishMatch, Message, MessageBus, UiCommand, UiUpdate}
 use eloelo::{store, unwrap_or_def_verbose, EloElo};
 use eloelo_model::player::{DiscordUsername, Player};
 use eloelo_model::{GameId, PlayerId, Team, WinScale};
-use log::{debug, info};
+use log::{debug, error, info};
 use tauri::ipc::InvokeError;
 use tauri::{AppHandle, Emitter, Manager, State};
 
 mod dead_mans_switch;
 mod eloelo;
 mod logging;
+
+pub fn print_err(e: &impl Display) {
+    error!("{e}")
+}
 
 struct TauriStateInner {
     message_bus: MessageBus,
@@ -38,6 +43,7 @@ fn add_new_player(name: String, discord_username: Option<String>, state: TauriSt
             id: PlayerId::from(name),
             display_name: None,
             discord_username: discord_username.map(DiscordUsername::from),
+            fosiaudio_name: None,
             elo: Default::default(),
         })));
 }
@@ -118,7 +124,20 @@ fn refresh_elo(state: TauriState) {
         .send(Message::UiCommand(UiCommand::RefreshElo));
 }
 
-fn error(msg: impl std::fmt::Display + std::fmt::Debug + Send + Sync + 'static) -> InvokeError {
+#[tauri::command]
+fn present_in_lobby_change(state: TauriState, id: PlayerId, present: bool) {
+    debug!("present_in_lobby_change({id}, {present})");
+    let message = if present {
+        Message::UiCommand(UiCommand::AddPlayerToLobby(id))
+    } else {
+        Message::UiCommand(UiCommand::RemovePlayerFromLobby(id))
+    };
+    let _ = state.message_bus.send(message);
+}
+
+fn invoke_error(
+    msg: impl std::fmt::Display + std::fmt::Debug + Send + Sync + 'static,
+) -> InvokeError {
     InvokeError::from_anyhow(Error::msg(msg))
 }
 
@@ -134,10 +153,11 @@ fn finish_match(
     let cmd = match winner {
         None => UiCommand::FinishMatch(FinishMatch::Cancelled),
         Some(winner) => {
-            let winner = Team::from_str(&winner).ok_or_else(|| error("Invalid team designator"))?;
-            let scale = WinScale::try_from(scale.ok_or_else(|| error("Missing win scale"))?)
+            let winner =
+                Team::from_str(&winner).ok_or_else(|| invoke_error("Invalid team designator"))?;
+            let scale = WinScale::try_from(scale.ok_or_else(|| invoke_error("Missing win scale"))?)
                 .map_err(InvokeError::from_error)?;
-            let duration = duration.ok_or_else(|| error("Missing match duration"))?;
+            let duration = duration.ok_or_else(|| invoke_error("Missing match duration"))?;
             let fake = fake.unwrap_or(false);
             UiCommand::FinishMatch(FinishMatch::Finished {
                 winner,
@@ -148,6 +168,14 @@ fn finish_match(
         }
     };
     state.message_bus.send(Message::UiCommand(cmd));
+    Ok(())
+}
+
+#[tauri::command]
+fn call_to_lobby(state: TauriState) -> Result<(), InvokeError> {
+    state
+        .message_bus
+        .send(Message::UiCommand(UiCommand::CallToLobby));
     Ok(())
 }
 
@@ -253,10 +281,12 @@ pub fn run() {
             move_player_to_other_team,
             add_player_to_team,
             change_game,
+            call_to_lobby,
             start_match,
             shuffle_teams,
             finish_match,
             refresh_elo,
+            present_in_lobby_change,
         ])
         // .plugin(
         //     tauri_plugin_log::Builder::default()
