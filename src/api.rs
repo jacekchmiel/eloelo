@@ -4,8 +4,8 @@ use std::sync::Arc;
 use anyhow::Context as _;
 use axum::extract::ws::{self, WebSocket};
 use axum::extract::{State, WebSocketUpgrade};
-use axum::response::{ErrorResponse, IntoResponse, Response};
-use axum::routing::{any, post};
+use axum::response::{ErrorResponse, IntoResponse, Redirect, Response};
+use axum::routing::{any, get, post};
 use axum::{Json, Router};
 use eloelo_model::player::{DiscordUsername, Player};
 use eloelo_model::{GameId, PlayerId, Team, WinScale};
@@ -260,9 +260,14 @@ async fn ui_event_stream(socket: WebSocket, message_bus: MessageBus) {
         .print_err();
 }
 
+async fn redirect_to_ui() -> impl IntoResponse {
+    Redirect::permanent("/ui")
+}
+
 pub async fn serve(message_bus: MessageBus) {
     let shared_state = Arc::new(AppState { message_bus });
     let app = Router::new()
+        .route("/", get(redirect_to_ui))
         .nest(
             "/ui/api/v1",
             Router::new()
