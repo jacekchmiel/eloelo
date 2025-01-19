@@ -15,6 +15,7 @@ pub enum GameState {
 }
 
 #[derive(Copy, Clone, Debug, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
 pub enum Team {
     Left,
     Right,
@@ -101,8 +102,11 @@ impl From<&str> for GameId {
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize, Deserialize)]
 pub enum WinScale {
+    #[serde(alias = "even")]
     Even,
+    #[serde(alias = "advantage")]
     Advantage,
+    #[serde(alias = "pwnage")]
     Pwnage,
 }
 
