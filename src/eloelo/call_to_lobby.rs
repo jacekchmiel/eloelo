@@ -1,9 +1,9 @@
 use anyhow::Result;
 use eloelo_model::player::Player;
 use log::debug;
-use reqwest::blocking::Client;
+use reqwest::Client;
 
-pub fn call_to_lobby<'a>(
+pub async fn call_to_lobby<'a>(
     fosiaudio_host: &str,
     players_missing_from_lobby: impl Iterator<Item = &'a Player>,
 ) -> Result<()> {
@@ -16,7 +16,8 @@ pub fn call_to_lobby<'a>(
     let _ = Client::new()
         .post(url)
         .body(serde_urlencoded::to_string(fields)?)
-        .send()?;
+        .send()
+        .await?;
     debug!("Call to lobby sent successfully");
     Ok(())
 }

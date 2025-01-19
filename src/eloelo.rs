@@ -9,6 +9,7 @@ use config::Config;
 use eloelo_model::history::{History, HistoryEntry};
 use eloelo_model::player::{Player, PlayerDb};
 use eloelo_model::{GameId, GameState, PlayerId, Team, WinScale};
+use futures_util::stream::{StreamExt as _, TryStreamExt as _};
 use git_mirror::GitMirror;
 use log::{debug, error, info, warn};
 use message_bus::{
@@ -67,7 +68,7 @@ impl EloElo {
         elo
     }
 
-    pub fn dispatch_ui_command(&mut self, ui_command: UiCommand) {
+    pub async fn dispatch_ui_command(&mut self, ui_command: UiCommand) {
         match ui_command {
             UiCommand::InitializeUi => {}
             UiCommand::AddNewPlayer(player) => self.add_new_player(player),
@@ -81,7 +82,7 @@ impl EloElo {
             UiCommand::RemovePlayerFromLobby(player_id) => self.remove_player_from_lobby(player_id),
             UiCommand::ChangeGame(game_id) => self.change_game(game_id),
             UiCommand::StartMatch => self.start_match(),
-            UiCommand::CallToLobby => self.call_to_lobby(),
+            UiCommand::CallToLobby => self.call_to_lobby().await,
             UiCommand::ShuffleTeams => self.shuffle_teams(),
             UiCommand::RefreshElo => self.recalculate_elo_from_history(),
             UiCommand::FinishMatch(finish_match) => self.finish_match(finish_match),
@@ -97,6 +98,29 @@ impl EloElo {
                     info!("Config stored.");
                 };
             }
+        }
+    }
+
+    pub async fn dispatch_ui_commands(mut self, message_bus: MessageBus) {
+        let mut ui_command_stream = message_bus.subscribe().ui_command_stream().boxed();
+        loop {
+            match ui_command_stream.try_next().await {
+                Ok(Some(command @ UiCommand::CloseApplication)) => {
+                    self.dispatch_ui_command(command).await;
+                    break;
+                }
+                Ok(Some(command)) => {
+                    self.dispatch_ui_command(command).await;
+                }
+                Ok(None) => {
+                    break;
+                }
+                Err(e) => {
+                    print_err(&e);
+                    break;
+                }
+            }
+            message_bus.send(self.ui_state().into())
         }
     }
 
@@ -424,11 +448,12 @@ impl EloElo {
         self.lobby.remove(&player_id);
     }
 
-    fn call_to_lobby(&self) {
+    async fn call_to_lobby(&self) {
         let _ = call_to_lobby(
             &self.config.fosiaudio_host,
             self.players_missing_from_lobby(),
         )
+        .await
         .inspect_err(print_err);
     }
 

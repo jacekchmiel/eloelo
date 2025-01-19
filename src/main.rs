@@ -296,31 +296,7 @@ async fn main() {
     let message_bus = MessageBus::new();
     // let _elodisco = EloDisco::new(config.clone(), bot_state, message_bus.clone());
     let mut eloelo = EloElo::new(state, config, message_bus.clone());
-    let eloelo_task = tokio::spawn({
-        let message_bus = message_bus.clone();
-        async move {
-            let mut ui_command_stream = message_bus.subscribe().ui_command_stream().boxed();
-            loop {
-                match ui_command_stream.try_next().await {
-                    Ok(Some(command @ UiCommand::CloseApplication)) => {
-                        eloelo.dispatch_ui_command(command);
-                        break;
-                    }
-                    Ok(Some(command)) => {
-                        eloelo.dispatch_ui_command(command);
-                    }
-                    Ok(None) => {
-                        break;
-                    }
-                    Err(e) => {
-                        print_err(&e);
-                        break;
-                    }
-                }
-                message_bus.send(eloelo.ui_state().into())
-            }
-        }
-    });
+    let eloelo_task = tokio::spawn(eloelo.dispatch_ui_commands(message_bus.clone()));
 
     let shared_state = Arc::new(AppState {
         message_bus: message_bus.clone(),
