@@ -2,7 +2,7 @@ use std::collections::HashSet;
 use std::fmt::Display;
 use std::time::Duration;
 
-use anyhow::Result;
+use anyhow::{Context, Result};
 use call_to_lobby::call_to_lobby;
 use chrono::Local;
 use config::Config;
@@ -18,7 +18,7 @@ use message_bus::{
 use spawelo::ml_elo;
 use ui_state::{State, UiPlayer, UiState};
 
-use crate::print_err;
+use crate::utils::{print_err, ResultExt as _};
 
 mod call_to_lobby;
 pub(crate) mod config;
@@ -49,7 +49,10 @@ impl EloElo {
         let _ = std::fs::create_dir_all(&config.history_git_mirror)
             .inspect_err(|e| error!("Cannot create git mirror directory - {e}"));
         let git_mirror = GitMirror::new(config.history_git_mirror.clone());
-        let _ = git_mirror.sync(None).inspect_err(print_err);
+        let _ = git_mirror
+            .sync(None)
+            .context("Initial git mirror sync failed")
+            .print_err();
         let history = unwrap_or_def_verbose(store::load_history());
 
         let mut elo = EloElo {
@@ -307,11 +310,13 @@ impl EloElo {
                 fake,
             };
             let _ = store::append_history_entry(&self.selected_game, &history_entry)
-                .inspect_err(print_err); // TODO: proper error propagation
+                .context("Failed to append history entry")
+                .print_err(); // TODO: proper error propagation
             let _ = self
                 .git_mirror
                 .sync(Some(&commit_message))
-                .inspect_err(print_err); // TODO: proper error propagation
+                .context("Failed to sync history git mirror")
+                .print_err(); // TODO: proper error propagation
 
             // Send rich event
             if !fake {
@@ -454,7 +459,8 @@ impl EloElo {
             self.players_missing_from_lobby(),
         )
         .await
-        .inspect_err(print_err);
+        .context("Call to lobby failed")
+        .print_err();
     }
 
     fn players_missing_from_lobby(&self) -> impl Iterator<Item = &Player> {
