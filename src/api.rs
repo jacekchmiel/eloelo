@@ -11,7 +11,7 @@ use eloelo_model::player::{DiscordUsername, Player};
 use eloelo_model::{GameId, PlayerId, Team, WinScale};
 use futures_util::StreamExt as _;
 use http::StatusCode;
-use log::debug;
+use log::{debug, info};
 use serde::{Deserialize, Serialize};
 use tower_http::services::ServeDir;
 
@@ -251,13 +251,16 @@ fn wrap_result<T: Serialize, E: Display>(
 }
 
 async fn ui_event_stream(socket: WebSocket, message_bus: MessageBus) {
-    debug!("ui_event_stream");
+    info!("New UI event stream started.");
     let stream = message_bus.subscribe().ui_update_stream().map(wrap_result);
-    stream
-        .forward(socket)
-        .await
-        .context("UI event stream failed")
-        .print_err();
+    match stream.forward(socket).await {
+        Ok(()) => {
+            info!("UI event stream closed.");
+        }
+        Err(e) => {
+            info!("UI event stream closed with: {e}.");
+        }
+    }
 }
 
 async fn redirect_to_ui() -> impl IntoResponse {

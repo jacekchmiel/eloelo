@@ -14,7 +14,7 @@ pub(crate) mod command_handler;
 pub(crate) mod dota_bot;
 pub(crate) mod notification_bot;
 
-async fn start_serenity(token: String, elodisco: EloDisco) -> Result<()> {
+async fn run_serenity_client(token: String, elodisco: EloDisco) -> Result<()> {
     let intents = GatewayIntents::GUILD_MESSAGES
         | GatewayIntents::DIRECT_MESSAGES
         | GatewayIntents::MESSAGE_CONTENT;
@@ -22,18 +22,23 @@ async fn start_serenity(token: String, elodisco: EloDisco) -> Result<()> {
         .event_handler(elodisco)
         .await?;
 
-    info!("Discord: Starting Discord client");
-    Ok(client.start().await?)
+    info!("Starting Serenity client");
+    client.start().await.context("Serenity client failed")
 }
 
-pub async fn start_elodisco(config: Config, bot_state: BotState, message_bus: MessageBus) {
+fn start_serenity_in_background(token: String, elodisco: EloDisco) {
+    tokio::spawn(async move {
+        run_serenity_client(token, elodisco).await.print_err();
+    });
+}
+
+pub async fn run(config: Config, bot_state: BotState, message_bus: MessageBus) {
     let token = config.discord_bot_token.clone();
     let async_elodisco = EloDisco::new(bot_state, config);
-    start_serenity(token, async_elodisco.clone())
-        .await
-        .context("Failed to start serenity")
-        .print_err();
+    start_serenity_in_background(token, async_elodisco.clone());
+
     let mut message_bus_receiver = message_bus.subscribe();
+    info!("Elodisco subscribed to message bus.");
     loop {
         match message_bus_receiver.recv().await {
             Some(Message::Event(Event::MatchStart(match_start))) => {

@@ -7,7 +7,7 @@ use eloelo_model::player::{DiscordUsername, PlayerDb};
 use log::{debug, error, info, trace, warn};
 use serenity::all::{
     CacheHttp, Channel, ChannelId, Colour, Context, CreateEmbed, CreateEmbedFooter, CreateMessage,
-    EventHandler, GuildChannel, GuildId, GuildInfo, Message, PrivateChannel, Ready, User,
+    EventHandler, GuildChannel, GuildId, GuildInfo, Member, Message, PrivateChannel, Ready, User,
 };
 use tokio::sync::{Mutex, MutexGuard};
 
@@ -236,7 +236,7 @@ impl EloDisco {
         info!("Discord: Initializing Guild data");
         gather_guild_data(serenity.ctx, serenity.guild_id)
             .await
-            .context("fetch_avatars")
+            .context("gather_guild_data")
             .inspect_err(print_err)
             .unwrap_or_default()
     }
@@ -305,9 +305,12 @@ impl EloDisco {
             .context("get_guild_members")
             .inspect_err(print_err)
             .inspect(|members| {
-                members
+                let members = members
                     .iter()
-                    .for_each(|m| debug!("Fetched member: {}", m.display_name()));
+                    .map(Member::display_name)
+                    .collect::<Vec<_>>()
+                    .join(", ");
+                debug!("Fetched members: {members}");
             })
             .ok()
             .into_iter()
