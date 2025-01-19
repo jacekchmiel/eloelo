@@ -48,11 +48,15 @@ type InvokeArgs = object;
 
 const invoke = async (event: string, args: InvokeArgs) => {
 	console.info({ event, args });
-	try {
-		throw new Error("Not Implemented");
-		// await tauriInvoke(event, args);
-	} catch (err) {
-		console.error(err);
+	const url = `${location.href}v1/${event}`;
+	const response = await fetch(url, {
+		method: "POST",
+		body: JSON.stringify(args),
+	});
+	const body = await response.json();
+	if (!response.ok) {
+		const status = response.status;
+		console.error({ status, body });
 	}
 };
 

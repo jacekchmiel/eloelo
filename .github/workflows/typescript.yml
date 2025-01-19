@@ -3,12 +3,18 @@ name: Typescript
 on:
   push:
     branches: ["main"]
+    paths:
+        - ui/**
   pull_request:
     branches: ["main"]
-
+    paths:
+        - ui/**
 jobs:
   build:
     runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: ./ui
     steps:
     - name: checkout
       uses: actions/checkout@v4
@@ -17,7 +23,7 @@ jobs:
       with:
         node-version: lts/*
     - name: install frontend dependencies
-      run: npm install # change this to npm, pnpm or bun depending on which one you use.
+      run: npm install
     - name: check
       run: npm run check
     - name: test

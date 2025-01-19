@@ -1,0 +1,4 @@
+#!/bin/bash
+cargo fmt --check
+cd ui || exit 1
+npm run check
