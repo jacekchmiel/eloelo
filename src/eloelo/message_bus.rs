@@ -97,7 +97,14 @@ impl Message {
     }
 }
 
+impl From<UiState> for Message {
+    fn from(value: UiState) -> Self {
+        Message::UiUpdate(UiUpdate::State(value))
+    }
+}
+
 #[derive(Debug, Clone, Serialize)]
+#[serde(rename_all = "camelCase")]
 pub enum UiUpdate {
     State(UiState),
     DiscordInfo(Vec<DiscordPlayerInfo>),

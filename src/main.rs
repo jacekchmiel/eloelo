@@ -1,7 +1,7 @@
 use anyhow::{format_err, Context, Result};
 use axum::extract::ws::{self, WebSocket};
 use axum::extract::{Json, State, WebSocketUpgrade};
-use axum::response::{ErrorResponse, Response};
+use axum::response::{ErrorResponse, IntoResponse, Response};
 use axum::routing::{any, get, post};
 use axum::Router;
 use dead_mans_switch::{dead_mans_switch, DeadMansSwitch};
@@ -14,12 +14,11 @@ use futures_util::stream::{StreamExt as _, TryStreamExt as _};
 use http::StatusCode;
 use log::{debug, error, info};
 use serde::{Deserialize, Serialize};
-use serenity::futures::{self, SinkExt};
+use serenity::futures;
 use std::fmt::Display;
 use std::future::Future;
 use std::pin::Pin;
 use std::sync::Arc;
-use std::{pin::pin, thread};
 use tokio::signal;
 use tower_http::services::ServeDir;
 mod dead_mans_switch;
@@ -36,11 +35,23 @@ struct AppState {
 
 type AppStateArg = State<Arc<AppState>>;
 
-async fn initialize_ui(State(state): AppStateArg) {
+#[derive(Serialize)]
+struct EmptyResponse;
+
+impl IntoResponse for EmptyResponse {
+    fn into_response(self) -> Response {
+        serde_json::to_string(&EmptyResponse)
+            .unwrap()
+            .into_response()
+    }
+}
+
+async fn initialize_ui(State(state): AppStateArg) -> impl IntoResponse {
     debug!("initialize_ui");
     let _ = state
         .message_bus
         .send(Message::UiCommand(UiCommand::InitializeUi));
+    EmptyResponse
 }
 
 #[derive(Debug, Deserialize)]
@@ -48,7 +59,10 @@ struct AddNewPlayer {
     name: String,
     discord_username: Option<DiscordUsername>,
 }
-async fn add_new_player(State(state): AppStateArg, Json(body): Json<AddNewPlayer>) {
+async fn add_new_player(
+    State(state): AppStateArg,
+    Json(body): Json<AddNewPlayer>,
+) -> impl IntoResponse {
     debug!("add_new_player({:?}", body);
     let _ = state
         .message_bus
@@ -287,15 +301,14 @@ fn wrap_result<T: Serialize, E: Display>(
     r: std::result::Result<T, E>,
 ) -> std::result::Result<ws::Message, axum::Error> {
     #[derive(Serialize)]
+    #[serde(rename_all = "camelCase")]
     enum WrappedResult<T> {
-        Success { data: T },
-        Error { message: String },
+        Success(T),
+        Error(String),
     }
     let wrapped_result = match r {
-        Ok(data) => WrappedResult::Success { data },
-        Err(e) => WrappedResult::Error {
-            message: e.to_string(),
-        },
+        Ok(data) => WrappedResult::Success(data),
+        Err(e) => WrappedResult::Error(e.to_string()),
     };
     let json_text = serde_json::to_string_pretty(&wrapped_result)
         .unwrap_or_else(|e| format!("{{ \"error\": \"JSON serialization failed: {e}\" }}"));
@@ -303,6 +316,7 @@ fn wrap_result<T: Serialize, E: Display>(
 }
 
 async fn ui_event_stream(socket: WebSocket, message_bus: MessageBus) {
+    debug!("ui_event_stream");
     let stream = message_bus.subscribe().ui_update_stream().map(wrap_result);
     let _ = stream.forward(socket).await.inspect_err(print_err);
 }
@@ -357,6 +371,7 @@ async fn main() {
                         break;
                     }
                 }
+                message_bus.send(eloelo.ui_state().into())
             }
         }
     });
@@ -365,29 +380,31 @@ async fn main() {
         message_bus: message_bus.clone(),
     });
     let app = Router::new()
-        .route("/v1/ui_stream", any(create_ui_event_stream))
-        .route("/v1/initialize_ui", get(initialize_ui))
-        .route("/v1/add_new_player", post(add_new_player))
-        .route("/v1/remove_player", post(remove_player))
-        .route(
-            "/v1/move_player_to_other_team",
-            post(move_player_to_other_team),
+        .nest(
+            "/api/v1",
+            Router::new()
+                .route("/ui_stream", any(create_ui_event_stream))
+                .route("/initialize_ui", post(initialize_ui))
+                .route("/remove_player", post(remove_player))
+                .route("/add_new_player", post(add_new_player))
+                .route(
+                    "/move_player_to_other_team",
+                    post(move_player_to_other_team),
+                )
+                .route("/remove_player_from_team", post(remove_player_from_team))
+                .route("/add_player_to_team", post(add_player_to_team))
+                .route("/change_game", post(change_game))
+                .route("/start_match", post(start_match))
+                .route("/finish_match", post(finish_match))
+                .route("/shuffle_teams", post(shuffle_teams))
+                .route("/refresh_elo", post(refresh_elo))
+                .route("/call_to_lobby", post(call_to_lobby))
+                .route("/present_in_lobby_change", post(present_in_lobby_change))
+                .with_state(shared_state),
         )
-        .route("/v1/remove_player_from_team", post(remove_player_from_team))
-        .route("/v1/add_player_to_team", post(add_player_to_team))
-        .route("/v1/change_game", post(change_game))
-        .route("/v1/start_match", post(start_match))
-        .route("/v1/finish_match", post(finish_match))
-        .route("/v1/shuffle_teams", post(shuffle_teams))
-        .route("/v1/refresh_elo", post(refresh_elo))
-        .route("/v1/call_to_lobby", post(call_to_lobby))
-        .route("/v1/present_in_lobby_change", post(present_in_lobby_change))
-        .fallback_service(ServeDir::new("ui/dist")) // FIXME: configurable assets directory?
-        .with_state(shared_state);
+        .fallback_service(ServeDir::new("ui/dist")); // FIXME: configurable assets directory?
     let listener = tokio::net::TcpListener::bind("0.0.0.0:3000").await.unwrap();
-    tokio::spawn(async {
-        axum::serve(listener, app).await // .expect("axum::serve exited with error"),
-    });
+    tokio::spawn(async { axum::serve(listener, app).await });
 
     info!("Running");
     let _ = terminate_on_signal().await.inspect_err(print_err);

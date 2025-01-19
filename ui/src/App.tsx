@@ -1,5 +1,6 @@
 import EventNoteIcon from "@mui/icons-material/EventNote";
 
+import { PlaylistAddOutlined } from "@mui/icons-material";
 import RefreshIcon from "@mui/icons-material/Refresh";
 import {
 	Box,
@@ -43,12 +44,9 @@ import {
 import { type EloEloStateTransport, parseEloEloState } from "./parse";
 import { useColorMode } from "./useColorMode";
 
-// mock
-type InvokeArgs = object;
-
-const invoke = async (event: string, args: InvokeArgs) => {
-	console.info({ event, args });
-	const url = `${location.href}v1/${event}`;
+const invoke = async (command: string, args: object) => {
+	console.info({ command, args });
+	const url = `${location.href}api/v1/${event}`;
 	const response = await fetch(url, {
 		method: "POST",
 		body: JSON.stringify(args),
@@ -117,33 +115,7 @@ const FightText = styled(Typography)({
 	},
 });
 
-function EloElo(state: EloEloState) {
-	const [discordInfoState, setDiscordInfoState] = React.useState<
-		DiscordPlayerInfo[]
-	>([]);
-	React.useEffect(() => {
-		const unlisten = listenToAvatarsEvent();
-
-		return () => {
-			unlisten.then((unlisten) => {
-				unlisten();
-			});
-		};
-	}, []);
-
-	async function listenToAvatarsEvent() {
-		// const unlisten = await listen(
-		// 	"discord_info",
-		// 	(event: { payload: DiscordPlayerInfo[] }) => {
-		// 		console.info({ discord_info: event.payload });
-		// 		setDiscordInfoState(event.payload);
-		// 	},
-		// );
-
-		const unlisten = () => {};
-		return unlisten;
-	}
-
+function EloElo(state: EloEloState, discordInfoState: DiscordPlayerInfo[]) {
 	const [showHistoryState, setShowHistoryState] = React.useState(false);
 
 	return (
@@ -185,7 +157,7 @@ function EloElo(state: EloEloState) {
 					)}
 				/>
 			) : (
-				<MainView state={state} discord_info={discordInfoState} />
+				<MainView state={state} discordInfo={discordInfoState} />
 			)}
 		</Stack>
 	);
@@ -200,22 +172,22 @@ type FinishMatchModalState = {
 
 function MainView({
 	state,
-	discord_info,
+	discordInfo,
 }: {
 	state: EloEloState;
-	discord_info: DiscordPlayerInfo[];
+	discordInfo: DiscordPlayerInfo[];
 }) {
 	const activePlayers = state.leftPlayers
 		.concat(state.rightPlayers)
 		.concat(state.reservePlayers);
-	const playersToAdd = discord_info
+	const playersToAdd = discordInfo
 		.filter(
 			(p) =>
 				activePlayers.find((e) => e.discordUsername === p.username) ===
 				undefined,
 		)
 		.sort();
-	const avatars = extractAvatars(discord_info);
+	const avatars = extractAvatars(discordInfo);
 
 	const [finishMatchModalState, setFinishMatchModalState] =
 		React.useState<FinishMatchModalState>({ show: false });
@@ -457,10 +429,13 @@ const initialEloEloState: EloEloState = {
 
 export default function App() {
 	const [eloEloState, setEloEloState] = React.useState(initialEloEloState);
+	const [discordInfoState, setDiscordInfoState] = React.useState<
+		DiscordPlayerInfo[]
+	>([]);
 	const { mode, colorMode } = useColorMode();
 
 	React.useEffect(() => {
-		const unlisten = listenToUiUpdateEvent();
+		const unlisten = listenToUiStream();
 
 		return () => {
 			unlisten.then((unlisten) => {
@@ -469,17 +444,32 @@ export default function App() {
 		};
 	}, []);
 
-	async function listenToUiUpdateEvent() {
-		// const unlisten = await listen(
-		// 	"update_ui",
-		// 	(event: { payload: EloEloStateTransport }) => {
-		// 		console.info({ state: event.payload });
-		// 		const parsed = parseEloEloState(event.payload);
-		// 		setEloEloState(parsed);
-		// 	},
-		// );
-		const unlisten = () => {};
-		return unlisten;
+	async function listenToUiStream() {
+		const ws = new WebSocket(`${location.href}api/v1/ui_stream`);
+
+		ws.onmessage = (event) => {
+			const payload = JSON.parse(event.data);
+			if (payload.error) {
+				console.error({ error: payload.error });
+				// TODO: represent the error in UI
+			}
+			if (payload.state) {
+				const parsed = parseEloEloState(payload.state);
+				setEloEloState(parsed);
+			}
+			if (payload.discordInfo) {
+				setDiscordInfoState(payload.discordInfo);
+			}
+		};
+
+		ws.onerror = (error) => {
+			console.error("WebSocket error:", error);
+			// TODO: represent the error in UI
+		};
+
+		return () => {
+			ws.close();
+		};
 	}
 
 	React.useEffect(() => {
