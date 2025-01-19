@@ -25,6 +25,7 @@ import {
 import { grey } from "@mui/material/colors";
 import { ThemeProvider, createTheme, styled } from "@mui/material/styles";
 import React from "react";
+import { connectToUiStream, invoke } from "./Api";
 import {
 	elapsedString,
 	isValidDurationString,
@@ -44,19 +45,19 @@ import {
 import { type EloEloStateTransport, parseEloEloState } from "./parse";
 import { useColorMode } from "./useColorMode";
 
-const invoke = async (command: string, args: object) => {
-	console.info({ command, args });
-	const url = `${location.href}api/v1/${event}`;
-	const response = await fetch(url, {
-		method: "POST",
-		body: JSON.stringify(args),
-	});
-	const body = await response.json();
-	if (!response.ok) {
-		const status = response.status;
-		console.error({ status, body });
-	}
-};
+// const invoke = async (command: string, args: object) => {
+// 	console.info({ command, args });
+// 	const url = `${location.href}api/v1/${command}`;
+// 	const response = await fetch(url, {
+// 		method: "POST",
+// 		body: JSON.stringify(args),
+// 	});
+// 	const body = await response.json();
+// 	if (!response.ok) {
+// 		const status = response.status;
+// 		console.error({ status, body });
+// 	}
+// };
 
 function GameSelector({
 	selectedGame,
@@ -115,7 +116,10 @@ const FightText = styled(Typography)({
 	},
 });
 
-function EloElo(state: EloEloState, discordInfoState: DiscordPlayerInfo[]) {
+function EloElo({
+	state,
+	discordInfo,
+}: { state: EloEloState; discordInfo: DiscordPlayerInfo[] }) {
 	const [showHistoryState, setShowHistoryState] = React.useState(false);
 
 	return (
@@ -150,14 +154,14 @@ function EloElo(state: EloEloState, discordInfoState: DiscordPlayerInfo[]) {
 			{showHistoryState ? (
 				<HistoryView
 					history={getHistoryForCurrentGame(state)}
-					avatars={extractAvatars(discordInfoState)}
+					avatars={extractAvatars(discordInfo)}
 					players={state.reservePlayers.concat(
 						state.rightPlayers,
 						state.leftPlayers,
 					)}
 				/>
 			) : (
-				<MainView state={state} discordInfo={discordInfoState} />
+				<MainView state={state} discordInfo={discordInfo} />
 			)}
 		</Stack>
 	);
@@ -435,42 +439,20 @@ export default function App() {
 	const { mode, colorMode } = useColorMode();
 
 	React.useEffect(() => {
-		const unlisten = listenToUiStream();
+		const closeConnection = connectToUiStream({
+			onError: (error: string) => {
+				console.error({ error });
+			},
+			onUiState: setEloEloState,
+			onDiscordInfo: setDiscordInfoState,
+		});
 
 		return () => {
-			unlisten.then((unlisten) => {
-				unlisten();
+			closeConnection.then((close) => {
+				close();
 			});
 		};
 	}, []);
-
-	async function listenToUiStream() {
-		const ws = new WebSocket(`${location.href}api/v1/ui_stream`);
-
-		ws.onmessage = (event) => {
-			const payload = JSON.parse(event.data);
-			if (payload.error) {
-				console.error({ error: payload.error });
-				// TODO: represent the error in UI
-			}
-			if (payload.state) {
-				const parsed = parseEloEloState(payload.state);
-				setEloEloState(parsed);
-			}
-			if (payload.discordInfo) {
-				setDiscordInfoState(payload.discordInfo);
-			}
-		};
-
-		ws.onerror = (error) => {
-			console.error("WebSocket error:", error);
-			// TODO: represent the error in UI
-		};
-
-		return () => {
-			ws.close();
-		};
-	}
 
 	React.useEffect(() => {
 		initializeUi();
@@ -498,7 +480,7 @@ export default function App() {
 			<ColorModeContext.Provider value={colorMode}>
 				<ThemeProvider theme={theme}>
 					<CssBaseline />
-					<EloElo {...eloEloState} />
+					<EloElo state={eloEloState} discordInfo={discordInfoState} />
 				</ThemeProvider>
 			</ColorModeContext.Provider>
 		</Box>

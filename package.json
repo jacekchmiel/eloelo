@@ -10,7 +10,7 @@
         "test": "vitest",
         "check": "biome check",
         "check:fix": "biome check --fix",
-        "watch": "vite build --watch"
+        "watch": "vite build --mode development --watch"
     },
     "dependencies": {
         "@emotion/react": "^11.13.0",

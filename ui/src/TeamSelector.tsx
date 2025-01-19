@@ -14,6 +14,7 @@ import {
 	Stack,
 	styled,
 } from "@mui/material";
+import { invoke } from "./Api";
 import { PresentInLobbyButton } from "./components/PresentInLobbyButton";
 import type {
 	Avatars,
@@ -47,8 +48,7 @@ function MoveButton({
 			edge={side === "left" ? "end" : "start"}
 			aria-label="delete"
 			onClick={async () => {
-				// await invoke("move_player_to_other_team", { id: playerKey })
-				throw new Error("Not Implemented");
+				await invoke("move_player_to_other_team", { id: playerKey });
 			}}
 		>
 			{side === "left" ? <ChevronRightIcon /> : <ChevronLeftIcon />}
@@ -67,8 +67,7 @@ function DeleteButton({
 			edge={side === "left" ? "start" : "end"}
 			aria-label="delete"
 			onClick={async () => {
-				// await invoke("remove_player_from_team", { id: playerKey })
-				throw new Error("Not Implemented");
+				await invoke("remove_player_from_team", { id: playerKey });
 			}}
 		>
 			<DeleteIcon />

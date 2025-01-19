@@ -21,6 +21,7 @@ import {
 	styled,
 } from "@mui/material";
 import { useState } from "react";
+import { invoke } from "./Api";
 import type { Avatars, DiscordPlayerInfo, Player, PlayerAvatar } from "./model";
 
 const Header = styled(Box)(({ theme }) => ({
@@ -38,9 +39,8 @@ function DeleteButton({
 			{...props}
 			edge="end"
 			onClick={async () => {
-				throw new Error("Not Implemented");
+				await invoke("remove_player", { id: playerKey });
 			}}
-			//  await invoke("remove_player", { id: playerKey })}
 		>
 			<DeleteIcon />
 		</IconButton>
@@ -68,11 +68,8 @@ function AddLeftButton({
 			edge="end"
 			aria-label="add_left"
 			onClick={async () => {
-				throw new Error("Not Implemented");
+				await invoke("add_player_to_team", { id: playerKey, team: "left" });
 			}}
-			// onClick={async () =>
-			//     await invoke("add_player_to_team", { id: playerKey, team: "left" })
-			// }
 		>
 			<PersonAddIcon />
 		</IconButton>
@@ -89,11 +86,8 @@ function AddRightButton({
 			edge="end"
 			aria-label="add_right"
 			onClick={async () => {
-				throw new Error("Not Implemented");
+				await invoke("add_player_to_team", { id: playerKey, team: "right" });
 			}}
-			// onClick={async () =>
-			//     await invoke("add_player_to_team", { id: playerKey, team: "right" })
-			// }
 		>
 			<PersonAddAlt1Icon />
 		</IconButton>
@@ -151,12 +145,11 @@ function NewPlayerRow({ players }: { players: DiscordPlayerInfo[] }) {
 					const discordUsername =
 						discordInfo === undefined ? undefined : discordInfo.username;
 
-					throw new Error("Not Implemented");
-					// await invoke("add_new_player", {
-					//     id: newPlayerId,
-					//     discordUsername,
-					// });
-					// setNewPlayerId("");
+					await invoke("add_new_player", {
+						id: newPlayerId,
+						discordUsername,
+					});
+					setNewPlayerId("");
 				}}
 			/>
 		</ListItem>

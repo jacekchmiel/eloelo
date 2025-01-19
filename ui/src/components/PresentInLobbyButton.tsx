@@ -1,6 +1,7 @@
 import PersonIcon from "@mui/icons-material/Person";
 import PersonOffIcon from "@mui/icons-material/PersonOff";
 import { IconButton, type IconButtonProps } from "@mui/material";
+import { invoke } from "../Api";
 import type { Side } from "../model";
 
 export function PresentInLobbyButton({
@@ -14,15 +15,12 @@ export function PresentInLobbyButton({
 			{...props}
 			edge={side === "left" ? "start" : "end"}
 			aria-label="delete"
-			onClick={
-				async () => {
-					throw new Error("Not Implemented");
-				}
-				// await invoke("present_in_lobby_change", {
-				// 	id: playerKey,
-				// 	present: !present,
-				// })
-			}
+			onClick={async () => {
+				await invoke("present_in_lobby_change", {
+					id: playerKey,
+					present: !present,
+				});
+			}}
 		>
 			{present ? (
 				<PersonIcon color="success" />

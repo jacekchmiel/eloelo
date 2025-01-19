@@ -73,17 +73,22 @@ async fn add_new_player(
             fosiaudio_name: None,
             elo: Default::default(),
         })));
+    EmptyResponse
 }
 
 #[derive(Debug, Deserialize)]
 struct RemovePlayer {
     id: PlayerId,
 }
-async fn remove_player(State(state): AppStateArg, Json(body): Json<RemovePlayer>) {
+async fn remove_player(
+    State(state): AppStateArg,
+    Json(body): Json<RemovePlayer>,
+) -> impl IntoResponse {
     debug!("remove_player({:?})", body);
     let _ = state
         .message_bus
         .send(Message::UiCommand(UiCommand::RemovePlayer(body.id)));
+    EmptyResponse
 }
 
 #[derive(Debug, Deserialize)]
@@ -93,13 +98,14 @@ struct AddPlayerToOtherTeam {
 async fn move_player_to_other_team(
     State(state): AppStateArg,
     Json(body): Json<AddPlayerToOtherTeam>,
-) {
+) -> impl IntoResponse {
     debug!("move_player_to_other_team({:?})", body);
     let _ = state
         .message_bus
         .send(Message::UiCommand(UiCommand::MovePlayerToOtherTeam(
             body.id,
         )));
+    EmptyResponse
 }
 
 #[derive(Debug, Deserialize)]
@@ -109,11 +115,12 @@ struct RemovePlayerFromTeam {
 async fn remove_player_from_team(
     State(state): AppStateArg,
     Json(body): Json<RemovePlayerFromTeam>,
-) {
+) -> impl IntoResponse {
     debug!("remove_player_from_team({:?})", body);
     let _ = state
         .message_bus
         .send(Message::UiCommand(UiCommand::RemovePlayerFromTeam(body.id)));
+    EmptyResponse
 }
 
 #[derive(Debug, Deserialize)]
@@ -121,45 +128,53 @@ struct AddPlayerToTeam {
     id: PlayerId,
     team: Team,
 }
-async fn add_player_to_team(State(state): AppStateArg, Json(body): Json<AddPlayerToTeam>) {
+async fn add_player_to_team(
+    State(state): AppStateArg,
+    Json(body): Json<AddPlayerToTeam>,
+) -> impl IntoResponse {
     debug!("add_player_to_team({:?})", body);
     let _ = state
         .message_bus
         .send(Message::UiCommand(UiCommand::AddPlayerToTeam(
             body.id, body.team,
         )));
+    EmptyResponse
 }
 
 #[derive(Debug, Deserialize)]
 struct ChangeGame {
     id: GameId,
 }
-async fn change_game(State(state): AppStateArg, Json(body): Json<ChangeGame>) {
+async fn change_game(State(state): AppStateArg, Json(body): Json<ChangeGame>) -> impl IntoResponse {
     debug!("change_game({:?})", body);
     let _ = state
         .message_bus
         .send(Message::UiCommand(UiCommand::ChangeGame(body.id)));
+    EmptyResponse
 }
 
-async fn start_match(State(state): AppStateArg) {
+async fn start_match(State(state): AppStateArg) -> impl IntoResponse {
     debug!("start_match()");
     let _ = state
         .message_bus
         .send(Message::UiCommand(UiCommand::StartMatch));
+    EmptyResponse
 }
 
-async fn shuffle_teams(State(state): AppStateArg) {
+async fn shuffle_teams(State(state): AppStateArg) -> impl IntoResponse {
     debug!("shuffle_teams()");
     let _ = state
         .message_bus
         .send(Message::UiCommand(UiCommand::ShuffleTeams));
+    EmptyResponse
 }
 
-async fn refresh_elo(State(state): AppStateArg) {
+async fn refresh_elo(State(state): AppStateArg) -> impl IntoResponse {
     debug!("refresh_elo()");
     let _ = state
         .message_bus
         .send(Message::UiCommand(UiCommand::RefreshElo));
+    EmptyResponse
 }
 
 #[derive(Debug, Deserialize)]
@@ -170,7 +185,7 @@ struct PresentInLobbyChange {
 async fn present_in_lobby_change(
     State(state): AppStateArg,
     Json(body): Json<PresentInLobbyChange>,
-) {
+) -> impl IntoResponse {
     debug!("present_in_lobby_change({body:?}");
     let message = if body.present {
         Message::UiCommand(UiCommand::AddPlayerToLobby(body.id))
@@ -178,6 +193,7 @@ async fn present_in_lobby_change(
         Message::UiCommand(UiCommand::RemovePlayerFromLobby(body.id))
     };
     let _ = state.message_bus.send(message);
+    EmptyResponse
 }
 
 fn bad_request(msg: impl Display) -> ErrorResponse {
@@ -194,7 +210,7 @@ struct FinishMatchBody {
 async fn finish_match(
     State(state): AppStateArg,
     Json(body): Json<FinishMatchBody>,
-) -> axum::response::Result<()> {
+) -> axum::response::Result<impl IntoResponse> {
     debug!("finish_match({body:?})");
     let cmd = match body.winner {
         None => UiCommand::FinishMatch(FinishMatch::Cancelled),
@@ -213,85 +229,15 @@ async fn finish_match(
         }
     };
     state.message_bus.send(Message::UiCommand(cmd));
-    Ok(())
+    Ok(EmptyResponse)
 }
 
-async fn call_to_lobby(State(state): AppStateArg) {
+async fn call_to_lobby(State(state): AppStateArg) -> impl IntoResponse {
     state
         .message_bus
         .send(Message::UiCommand(UiCommand::CallToLobby));
+    EmptyResponse
 }
-
-// fn start_worker_threads(
-//     message_bus: MessageBus,
-//     app_handle: AppHandle,
-//     mut eloelo: EloElo,
-//     dead_man_switch: DeadMansSwitch,
-// ) {
-//     MessageBus -> UI proxy
-//     let mut message_bus_receiver = message_bus.subscribe();
-//     thread::spawn({
-//         let dead_man_switch = dead_man_switch.clone();
-//         move || {
-//             let _h = dead_man_switch;
-//             info!("Message UI proxy started.");
-//             loop {
-//                 match message_bus_receiver.blocking_recv() {
-//                     Some(Message::UiUpdate(UiUpdate::State(ui_state))) => {
-//                         debug!("< update_ui");
-//                         app_handle.emit("update_ui", ui_state).unwrap()
-//                     }
-//                     Some(Message::UiUpdate(UiUpdate::DiscordInfo(discord_info))) => {
-//                         debug!("< avatars");
-//                         app_handle.emit("discord_info", discord_info).unwrap()
-//                     }
-//                     Some(Message::UiCommand(UiCommand::CloseApplication)) | None => {
-//                         info!("Closing MessageBus UI proxy");
-//                         break;
-//                     }
-//                     Some(_) => {}
-//                 }
-//             }
-//             info!("MessageBus UI proxy stopped.");
-//         }
-//     });
-
-//     UI command dispatcher
-//     let mut message_bus_receiver = message_bus.subscribe();
-//     thread::spawn({
-//         move || {
-//             let _h = dead_man_switch;
-//             info!("EloElo worker started.");
-//             loop {
-//                 match message_bus_receiver.blocking_recv() {
-//                     Some(Message::UiCommand(UiCommand::CloseApplication)) => {
-//                         eloelo.dispatch_ui_command(UiCommand::CloseApplication);
-//                         break;
-//                     }
-//                     Some(Message::UiCommand(ui_command)) => {
-//                         eloelo.dispatch_ui_command(ui_command);
-//                         let _ =
-//                             message_bus.send(Message::UiUpdate(UiUpdate::State(eloelo.ui_state())));
-//                     }
-//                     Some(_) => {}
-//                     None => {
-//                         break;
-//                     }
-//                 }
-//             }
-//             info!("EloElo worker stopped.");
-//         }
-//     });
-// }
-
-/// Stub mimicking tauri infrastructure
-// struct AppHandle;
-
-// impl AppHandle {
-//     pub fn emit(&self, _message: &str, _payload: impl Serialize) -> Result<()> {
-//         Ok(())
-//     }
-// }
 
 async fn create_ui_event_stream(ws: WebSocketUpgrade, State(state): AppStateArg) -> Response {
     ws.on_upgrade(move |socket| ui_event_stream(socket, state.message_bus.clone()))
@@ -381,7 +327,7 @@ async fn main() {
     });
     let app = Router::new()
         .nest(
-            "/api/v1",
+            "/ui/api/v1",
             Router::new()
                 .route("/ui_stream", any(create_ui_event_stream))
                 .route("/initialize_ui", post(initialize_ui))
@@ -402,7 +348,7 @@ async fn main() {
                 .route("/present_in_lobby_change", post(present_in_lobby_change))
                 .with_state(shared_state),
         )
-        .fallback_service(ServeDir::new("ui/dist")); // FIXME: configurable assets directory?
+        .fallback_service(ServeDir::new("ui/dist"));
     let listener = tokio::net::TcpListener::bind("0.0.0.0:3000").await.unwrap();
     tokio::spawn(async { axum::serve(listener, app).await });
 

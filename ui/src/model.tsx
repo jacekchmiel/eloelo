@@ -46,9 +46,9 @@ export type DiscordPlayerInfo = {
 export type WinScale = "pwnage" | "advantage" | "even";
 
 export function extractAvatars(
-	discord_info: DiscordPlayerInfo[],
+	discordInfo: DiscordPlayerInfo[],
 ): PlayerAvatar[] {
-	return discord_info.map((e) => {
+	return discordInfo.map((e) => {
 		return { username: e.username, avatarUrl: e.avatarUrl };
 	});
 }
