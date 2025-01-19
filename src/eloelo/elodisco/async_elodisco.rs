@@ -92,7 +92,7 @@ impl SerenityContextCell {
 }
 
 #[derive(Clone)]
-pub struct AsyncEloDisco(Arc<AsyncEloDiscoInner>);
+pub struct EloDisco(Arc<AsyncEloDiscoInner>);
 
 struct AsyncEloDiscoInner {
     silly_responder: SillyResponder,
@@ -103,7 +103,7 @@ struct AsyncEloDiscoInner {
     stored_bot_state: Mutex<BotState>,
 }
 
-impl AsyncEloDisco {
+impl EloDisco {
     pub fn new(bot_state: BotState, config: Config) -> Self {
         let dota_bot = DotaBot::with_state(
             bot_state
@@ -112,7 +112,7 @@ impl AsyncEloDisco {
                 .map(|(p, s)| (p.clone(), s.dota.clone()))
                 .collect(),
         );
-        AsyncEloDisco(Arc::new(AsyncEloDiscoInner {
+        EloDisco(Arc::new(AsyncEloDiscoInner {
             silly_responder: SillyResponder::new(),
             dota_bot: Mutex::new(dota_bot),
             notification_bot: Mutex::new(NotificationBot::new(
@@ -338,7 +338,7 @@ impl AsyncEloDisco {
 }
 
 #[serenity::async_trait]
-impl EventHandler for AsyncEloDisco {
+impl EventHandler for EloDisco {
     async fn message(&self, context: Context, msg: Message) {
         // Don't answer own messages
         if msg.author.bot {

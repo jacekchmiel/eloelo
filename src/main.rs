@@ -1,4 +1,5 @@
 use anyhow::{Context, Result};
+use eloelo::elodisco::start_elodisco;
 use eloelo::message_bus::{Message, MessageBus, UiCommand};
 use eloelo::{store, unwrap_or_def_verbose, EloElo};
 use log::{debug, info};
@@ -40,7 +41,11 @@ async fn main() {
     let state = unwrap_or_def_verbose(store::load_state());
     let bot_state = unwrap_or_def_verbose(store::load_bot_state());
     let message_bus = MessageBus::new();
-    // let _elodisco = EloDisco::new(config.clone(), bot_state, message_bus.clone());
+    tokio::spawn(start_elodisco(
+        config.clone(),
+        bot_state,
+        message_bus.clone(),
+    ));
     let eloelo = EloElo::new(state, config, message_bus.clone());
     let eloelo_task = tokio::spawn(eloelo.dispatch_ui_commands(message_bus.clone()));
     tokio::spawn(api::serve(message_bus.clone()));
