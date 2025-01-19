@@ -4,7 +4,6 @@ use axum::extract::{Json, State, WebSocketUpgrade};
 use axum::response::{ErrorResponse, IntoResponse, Response};
 use axum::routing::{any, get, post};
 use axum::Router;
-use dead_mans_switch::{dead_mans_switch, DeadMansSwitch};
 use eloelo::elodisco::EloDisco;
 use eloelo::message_bus::{FinishMatch, Message, MessageBus, UiCommand, UiUpdate};
 use eloelo::{store, unwrap_or_def_verbose, EloElo};
@@ -21,7 +20,7 @@ use std::pin::Pin;
 use std::sync::Arc;
 use tokio::signal;
 use tower_http::services::ServeDir;
-mod dead_mans_switch;
+
 mod eloelo;
 mod logging;
 
