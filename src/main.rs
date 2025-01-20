@@ -13,6 +13,7 @@ mod eloelo;
 mod logging;
 pub(crate) mod utils;
 
+#[cfg(unix)]
 async fn terminate_on_signal() -> Result<()> {
     let interrupt_signal: Pin<Box<dyn Future<Output = _>>> = Box::pin(async {
         signal::unix::signal(signal::unix::SignalKind::interrupt())
@@ -31,6 +32,13 @@ async fn terminate_on_signal() -> Result<()> {
     futures::future::select_all([interrupt_signal, terminate_signal])
         .await
         .0
+}
+
+#[cfg(windows)]
+async fn terminate_on_signal() -> Result<()> {
+    signal::ctrl_c()
+        .await
+        .context("Failed to register ctrl_c signal.")
 }
 
 #[tokio::main]
