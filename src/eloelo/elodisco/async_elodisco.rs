@@ -192,6 +192,12 @@ impl EloDisco {
             warn!("Match start not sent: Discord integration not available");
             return;
         };
+        self.0
+            .notification_bot
+            .lock()
+            .await
+            .match_start(&match_start, &ctx, &members)
+            .await;
         // TODO: make dota a hardcoded game
         if match_start.game == GameId::from("DotA 2") {
             let dota_bot = self.0.dota_bot.lock().await;
@@ -202,12 +208,6 @@ impl EloDisco {
             let heroes: HashMap<_, _> = Default::default();
             send_start_match_message(&ctx, &channel_id, match_start.clone(), &heroes).await;
         }
-        self.0
-            .notification_bot
-            .lock()
-            .await
-            .match_start(&match_start, &ctx, &members)
-            .await;
     }
 
     pub async fn send_match_result(&self, match_result: RichMatchResult) {

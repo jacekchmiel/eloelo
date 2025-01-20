@@ -2,6 +2,7 @@ use std::borrow::Borrow;
 use std::collections::{HashMap, HashSet};
 use std::fmt::Display;
 
+use crate::eloelo::elodisco::utils::send_direct_message;
 use crate::eloelo::message_bus::MatchStart;
 use crate::eloelo::{join, print_err};
 use eloelo_model::player::DiscordUsername;
@@ -12,7 +13,7 @@ use anyhow::{format_err, Context as _, Error, Result};
 use log::{error, info};
 use rand::seq::SliceRandom;
 use serde::{Deserialize, Serialize};
-use serenity::all::{Context, CreateMessage, User};
+use serenity::all::{CacheHttp, Context, CreateMessage, User};
 
 #[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Hash, Serialize, Deserialize)]
 pub struct Hero(String);
@@ -197,11 +198,8 @@ impl DotaBot {
             // TODO: parallelize sending messages
             match members.get(&username) {
                 Some(user) => {
-                    let _ = user
-                        .dm(&ctx, CreateMessage::new().content(heroes_message))
-                        .await
-                        .context("dota heroes notification")
-                        .inspect_err(print_err);
+                    let message = CreateMessage::new().content(heroes_message);
+                    tokio::spawn(send_direct_message(ctx.clone(), user.clone(), message));
                 }
                 None => error!(
                     "{} not found in guild members. This should not happen.",

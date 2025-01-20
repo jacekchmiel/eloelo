@@ -13,6 +13,7 @@ pub(crate) mod bot_state;
 pub(crate) mod command_handler;
 pub(crate) mod dota_bot;
 pub(crate) mod notification_bot;
+mod utils;
 
 async fn run_serenity_client(token: String, elodisco: EloDisco) -> Result<()> {
     let intents = GatewayIntents::GUILD_MESSAGES

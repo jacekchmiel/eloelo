@@ -10,6 +10,7 @@ use crate::eloelo::print_err;
 use eloelo_model::PlayerId;
 
 use super::command_handler::{CommandDescription, CommandHandler};
+use super::utils::send_direct_message;
 
 pub struct NotificationBot {
     notifications: HashMap<DiscordUsername, bool>,
@@ -43,16 +44,9 @@ impl NotificationBot {
             if notifications_enabled {
                 match members.get(username) {
                     Some(user) => {
-                        let _ = user
-                            .dm(
-                                &ctx,
-                                CreateMessage::new().content(create_personal_match_start_message(
-                                    player_id, &message,
-                                )),
-                            )
-                            .await
-                            .context("individual match_start notification")
-                            .inspect_err(print_err);
+                        let message = CreateMessage::new()
+                            .content(create_personal_match_start_message(player_id, &message));
+                        tokio::spawn(send_direct_message(ctx.clone(), user.clone(), message));
                     }
                     None => error!("{} not found in guild members", username),
                 }
