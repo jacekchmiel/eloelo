@@ -8,11 +8,13 @@ use crate::{GameId, PlayerId};
 #[serde(rename_all = "camelCase")]
 pub struct Player {
     pub id: PlayerId,
-    pub display_name: Option<String>,
-    pub discord_username: Option<DiscordUsername>,
     #[serde(default)]
     pub elo: HashMap<GameId, i32>,
+    // TODO: remove configuration from this struct (data duplication)
+    pub display_name: Option<String>,
+    pub discord_username: Option<DiscordUsername>,
     pub fosiaudio_name: Option<String>,
+    pub dota_name: Option<String>,
 }
 
 impl Player {
@@ -144,6 +146,12 @@ pub type PlayerWithElo = (PlayerId, i32);
 
 #[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Serialize, Deserialize, Hash)]
 pub struct DiscordUsername(String);
+
+impl DiscordUsername {
+    pub fn as_str(&self) -> &str {
+        &self.0
+    }
+}
 
 impl From<String> for DiscordUsername {
     fn from(value: String) -> Self {

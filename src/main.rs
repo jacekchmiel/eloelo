@@ -1,12 +1,12 @@
 use anyhow::{Context, Result};
 use eloelo::message_bus::{Message, MessageBus, UiCommand};
-use eloelo::{elodisco, store, unwrap_or_def_verbose, EloElo};
+use eloelo::{elodisco, store, EloElo};
 use log::{debug, info};
 use serenity::futures;
 use std::future::Future;
 use std::pin::Pin;
 use tokio::signal;
-use utils::ResultExt as _;
+use utils::{unwrap_or_def_verbose, ResultExt as _};
 
 mod api;
 mod eloelo;

@@ -64,6 +64,7 @@ async fn add_new_player(
             display_name: None,
             discord_username: body.discord_username,
             fosiaudio_name: None,
+            dota_name: None,
             elo: Default::default(),
         })));
     EmptyResponse
@@ -228,6 +229,23 @@ async fn call_to_lobby(State(state): AppStateArg) -> impl IntoResponse {
     EmptyResponse
 }
 
+#[derive(Debug, Deserialize)]
+#[serde(rename_all = "camelCase")]
+struct LobbyScreenshotData {
+    players_in_lobby: Vec<String>,
+}
+async fn add_lobby_screenshot_data(
+    State(state): AppStateArg,
+    Json(payload): Json<LobbyScreenshotData>,
+) -> impl IntoResponse {
+    state
+        .message_bus
+        .send(Message::UiCommand(UiCommand::AddLobbyScreenshotData(
+            payload.players_in_lobby,
+        )));
+    EmptyResponse
+}
+
 async fn create_ui_event_stream(ws: WebSocketUpgrade, State(state): AppStateArg) -> Response {
     ws.on_upgrade(move |socket| ui_event_stream(socket, state.message_bus.clone()))
 }
@@ -291,6 +309,7 @@ pub async fn serve(message_bus: MessageBus) {
                 .route("/refresh_elo", post(refresh_elo))
                 .route("/call_to_lobby", post(call_to_lobby))
                 .route("/present_in_lobby_change", post(present_in_lobby_change))
+                .route("/lobby_screenshot", post(add_lobby_screenshot_data))
                 .with_state(shared_state),
         )
         .fallback_service(ServeDir::new("ui/dist"));

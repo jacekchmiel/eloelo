@@ -4,16 +4,16 @@ use std::fmt::Display;
 
 use crate::eloelo::elodisco::utils::send_direct_message;
 use crate::eloelo::message_bus::MatchStart;
-use crate::eloelo::{join, print_err};
+use crate::utils;
 use eloelo_model::player::DiscordUsername;
 
 use super::bot_state::DotaBotState;
 use super::command_handler::{CommandDescription, CommandHandler};
-use anyhow::{format_err, Context as _, Error, Result};
+use anyhow::{format_err, Error, Result};
 use log::{error, info};
 use rand::seq::SliceRandom;
 use serde::{Deserialize, Serialize};
-use serenity::all::{CacheHttp, Context, CreateMessage, User};
+use serenity::all::{Context, CreateMessage, User};
 
 #[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Hash, Serialize, Deserialize)]
 pub struct Hero(String);
@@ -190,7 +190,7 @@ impl DotaBot {
         hero_assignments.sort_by_key(|u| u.0);
 
         for (username, heroes) in &hero_assignments {
-            info!("Hero assignment {username}: {}", join(heroes, ", "));
+            info!("Hero assignment {username}: {}", utils::join(heroes, ", "));
             let heroes_message = format!(
                 "**Your random heroes for this match are**\n{}",
                 self.random_heroes_str(heroes)

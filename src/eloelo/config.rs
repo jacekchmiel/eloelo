@@ -109,6 +109,7 @@ pub struct PlayerConfig {
     pub display_name: Option<String>,
     pub discord_username: Option<DiscordUsername>,
     pub fosiaudio_name: Option<String>,
+    pub dota_name: Option<String>,
 }
 
 impl From<PlayerConfig> for Player {
@@ -119,6 +120,7 @@ impl From<PlayerConfig> for Player {
             discord_username: value.discord_username,
             elo: Default::default(),
             fosiaudio_name: value.fosiaudio_name,
+            dota_name: value.dota_name,
         }
     }
 }
@@ -130,6 +132,7 @@ impl From<Player> for PlayerConfig {
             display_name: value.display_name,
             discord_username: value.discord_username,
             fosiaudio_name: value.fosiaudio_name,
+            dota_name: value.dota_name,
         }
     }
 }

@@ -183,6 +183,7 @@ pub enum UiCommand {
     ShuffleTeams,
     RefreshElo,
     FinishMatch(FinishMatch),
+    AddLobbyScreenshotData(Vec<String>),
     CloseApplication,
 }
 

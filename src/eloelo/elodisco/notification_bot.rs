@@ -1,12 +1,11 @@
 use std::collections::HashMap;
 
-use anyhow::{format_err, Context as _, Result};
+use anyhow::{format_err, Result};
 use eloelo_model::player::DiscordUsername;
 use log::{error, info};
 use serenity::all::{Context, CreateMessage, User};
 
 use crate::eloelo::message_bus::MatchStart;
-use crate::eloelo::print_err;
 use eloelo_model::PlayerId;
 
 use super::command_handler::{CommandDescription, CommandHandler};

@@ -16,8 +16,9 @@ use crate::eloelo::elodisco::command_handler::{parse_command, CommandHandler};
 use crate::eloelo::message_bus::{
     AvatarUrl, DiscordPlayerInfo, MatchStart, MatchStartTeam, RichMatchResult,
 };
+use crate::eloelo::print_err;
 use crate::eloelo::silly_responder::SillyResponder;
-use crate::eloelo::{join, print_err};
+use crate::utils::join;
 use eloelo_model::{GameId, PlayerId, WinScale};
 use tokio::sync::watch;
 

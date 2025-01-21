@@ -1,5 +1,4 @@
-use std::collections::HashSet;
-use std::fmt::Display;
+use std::collections::{HashMap, HashSet};
 use std::time::Duration;
 
 use anyhow::{Context, Result};
@@ -18,7 +17,7 @@ use message_bus::{
 use spawelo::ml_elo;
 use ui_state::{State, UiPlayer, UiState};
 
-use crate::utils::{print_err, ResultExt as _};
+use crate::utils::{duration_minutes, print_err, unwrap_or_def_verbose, ResultExt as _};
 
 mod call_to_lobby;
 pub(crate) mod config;
@@ -83,6 +82,9 @@ impl EloElo {
             UiCommand::AddPlayerToTeam(player_id, team) => self.add_player_to_team(player_id, team),
             UiCommand::AddPlayerToLobby(player_id) => self.add_player_to_lobby(player_id),
             UiCommand::RemovePlayerFromLobby(player_id) => self.remove_player_from_lobby(player_id),
+            UiCommand::AddLobbyScreenshotData(player_names) => {
+                self.update_lobby_from_screenshot(player_names)
+            }
             UiCommand::ChangeGame(game_id) => self.change_game(game_id),
             UiCommand::StartMatch => self.start_match(),
             UiCommand::CallToLobby => self.call_to_lobby().await,
@@ -154,6 +156,16 @@ impl EloElo {
             game_state: self.game_state,
             history: self.history.clone(),
         }
+    }
+
+    fn players_in_team(&self) -> impl Iterator<Item = &PlayerId> {
+        self.players.all().filter_map(|p| {
+            if !self.is_in_a_team(&p.id) {
+                None
+            } else {
+                Some(&p.id)
+            }
+        })
     }
 
     fn reserve_players(&self) -> impl Iterator<Item = &PlayerId> + '_ {
@@ -470,6 +482,34 @@ impl EloElo {
             .filter(|p| !self.lobby.contains(p))
             .flat_map(|p| self.players.get(p))
     }
+
+    fn update_lobby_from_screenshot(&mut self, player_names: Vec<String>) {
+        let mut player_ids = HashMap::new();
+        for player_id in self.players_in_team() {
+            let p = self.players.get(player_id).unwrap();
+            let mut possible_names = Vec::new();
+            possible_names.extend(
+                p.discord_username
+                    .as_ref()
+                    .map(|n| n.as_str().to_lowercase()),
+            );
+            possible_names.extend(p.display_name.as_ref().map(|n| n.to_lowercase()));
+            possible_names.extend(p.dota_name.as_ref().map(|n| n.to_lowercase()));
+            possible_names.extend(p.fosiaudio_name.as_ref().map(|n| n.to_lowercase()));
+            player_ids.extend(possible_names.into_iter().map(|n| (n, &p.id)));
+        }
+        let player_ids = player_ids;
+
+        for name in player_names {
+            match player_ids.get(&name.to_lowercase()) {
+                Some(&player_id) => {
+                    info!("Found {player_id} in screenshot data (as {name}). Adding to lobby.");
+                    self.lobby.insert(player_id.clone());
+                }
+                None => todo!(),
+            }
+        }
+    }
 }
 
 fn remove_player_id(players: &mut Vec<PlayerId>, player_id: &PlayerId) -> Option<PlayerId> {
@@ -478,32 +518,4 @@ fn remove_player_id(players: &mut Vec<PlayerId>, player_id: &PlayerId) -> Option
         .enumerate()
         .find_map(|(i, p)| if p == player_id { Some(i) } else { None })
         .map(|idx| players.remove(idx))
-}
-
-pub(crate) fn join<T>(collection: T, sep: &str) -> String
-where
-    T: IntoIterator,
-    T::Item: Display,
-{
-    collection
-        .into_iter()
-        .map(|v| v.to_string())
-        .collect::<Vec<_>>()
-        .join(sep)
-}
-
-pub(crate) fn unwrap_or_def_verbose<T, E>(result: Result<T, E>) -> T
-where
-    T: Default,
-    E: std::fmt::Display,
-{
-    result
-        .inspect_err(|e| {
-            error!("ERROR: {e}");
-        })
-        .unwrap_or_default()
-}
-
-fn duration_minutes(d: Duration) -> String {
-    format!("{}m", d.as_secs() / 60)
 }
