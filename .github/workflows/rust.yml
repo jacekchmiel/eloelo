@@ -4,14 +4,16 @@ on:
   push:
     branches: ["main"]
     paths:
-      - src-tauri/**
-      - package.json
+      - crates/**
+      - src/**
+      - Cargo.toml
       - .github/workflows/rust.yml
   pull_request:
     branches: ["main"]
     paths:
-      - src-tauri/**
-      - package.json
+      - crates/**
+      - src/**
+      - Cargo.toml
       - .github/workflows/rust.yml
 
 env:
@@ -29,11 +31,8 @@ jobs:
           version: 1.0
       - uses: Swatinem/rust-cache@v2
       - name: Check
-        working-directory: ./src-tauri
         run: cargo check --verbose
       - name: Build tests
-        working-directory: ./src-tauri
         run: cargo build --workspace --tests
       - name: Run tests
-        working-directory: ./src-tauri
         run: cargo test --workspace --verbose

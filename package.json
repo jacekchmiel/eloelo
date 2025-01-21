@@ -1,37 +1,33 @@
 {
-  "name": "eloelo",
-  "private": true,
-  "version": "0.0.0",
-  "type": "module",
-  "scripts": {
-    "dev": "vite",
-    "build": "tsc && vite build",
-    "preview": "vite preview",
-    "tauri": "tauri",
-    "test": "vitest",
-    "check": "biome check",
-    "check:fix": "biome check --fix"
-  },
-  "dependencies": {
-    "@emotion/react": "^11.13.0",
-    "@emotion/styled": "^11.13.0",
-    "@mui/icons-material": "^5.16.6",
-    "@mui/material": "^5.16.6",
-    "@tauri-apps/api": "^2.0.0-rc.6",
-    "@tauri-apps/plugin-log": "github:tauri-apps/tauri-plugin-log#v2",
-    "@tauri-apps/plugin-shell": ">=2.0.0-rc.0",
-    "react": "^18.2.0",
-    "react-dom": "^18.2.0"
-  },
-  "devDependencies": {
-    "@biomejs/biome": "1.9.4",
-    "@tauri-apps/cli": "^2.0.3",
-    "@types/react": "^18.2.15",
-    "@types/react-dom": "^18.2.7",
-    "@vitejs/plugin-react": "^4.2.1",
-    "typescript": "^5.2.2",
-    "vite": "^5.3.1",
-    "vite-plugin-inline-source": "^2.5.2",
-    "vitest": "^2.1.3"
-  }
+    "name": "eloelo",
+    "private": true,
+    "version": "0.0.0",
+    "type": "module",
+    "scripts": {
+        "dev": "vite",
+        "build": "tsc && vite build",
+        "preview": "vite preview",
+        "test": "vitest",
+        "check": "biome check",
+        "check:fix": "biome check --fix",
+        "watch": "vite build --mode development --watch"
+    },
+    "dependencies": {
+        "@emotion/react": "^11.13.0",
+        "@emotion/styled": "^11.13.0",
+        "@mui/icons-material": "^5.16.6",
+        "@mui/material": "^5.16.6",
+        "react": "^18.2.0",
+        "react-dom": "^18.2.0"
+    },
+    "devDependencies": {
+        "@biomejs/biome": "1.9.4",
+        "@types/react": "^18.2.15",
+        "@types/react-dom": "^18.2.7",
+        "@vitejs/plugin-react": "^4.2.1",
+        "typescript": "^5.2.2",
+        "vite": "^5.3.1",
+        "vite-plugin-inline-source": "^2.5.2",
+        "vitest": "^2.1.3"
+    }
 }
