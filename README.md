@@ -16,3 +16,7 @@ cd ui && npm install && npm run build
 # Run server
 cd .. && cargo run
 ```
+
+## DotA agent
+
+Supplements main EloElo app with automated screenshot analysis to determine who's in lobby.

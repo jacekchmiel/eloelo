@@ -12,6 +12,8 @@
   - [ ] OCR heroes from game screenshot?
 - [ ] Missing players in lobby
   - [ ] OCR screenshot
+  - [ ] Add fallback player aliases, make sure requests are logged for debug
+  - [x] Call autogrzybke
   - [ ] Send message
 - [x] Add hero
 - [x] Additional match info: length, advantage
