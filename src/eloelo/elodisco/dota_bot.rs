@@ -177,7 +177,7 @@ impl DotaBot {
             .chain(match_start.right_team.players.keys());
         let discord_users = players
             .flat_map(|p| match_start.player_db.get(p))
-            .flat_map(|p| &p.discord_username);
+            .flat_map(|p| p.discord_username());
         let users_with_randomizer: Vec<DiscordUsername> = discord_users
             .filter(|u| self.state.get(u).map(|s| s.randomizer).unwrap_or(false))
             .cloned()

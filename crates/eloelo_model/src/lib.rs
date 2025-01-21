@@ -40,7 +40,7 @@ impl Display for Team {
     }
 }
 
-#[derive(Debug, Clone, Serialize, Deserialize, Eq, PartialEq, PartialOrd, Ord, Hash)]
+#[derive(Debug, Clone, Serialize, Deserialize, Eq, PartialEq, PartialOrd, Ord, Hash, Default)]
 pub struct PlayerId(String);
 
 impl PlayerId {

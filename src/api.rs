@@ -59,14 +59,9 @@ async fn add_new_player(
     debug!("add_new_player({:?}", body);
     let _ = state
         .message_bus
-        .send(Message::UiCommand(UiCommand::AddNewPlayer(Player {
-            id: PlayerId::from(body.name),
-            display_name: None,
-            discord_username: body.discord_username,
-            fosiaudio_name: None,
-            dota_name: None,
-            elo: Default::default(),
-        })));
+        .send(Message::UiCommand(UiCommand::AddNewPlayer(
+            Player::with_opt_discord_username(PlayerId::from(body.name), body.discord_username),
+        )));
     EmptyResponse
 }
 

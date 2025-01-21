@@ -502,7 +502,7 @@ impl TeamEmbedData {
         for (player_id, elo) in team.players.iter() {
             let discord_username = playerdb
                 .get(player_id)
-                .and_then(|p| p.discord_username.clone())
+                .and_then(|p| p.discord_username().cloned())
                 .unwrap_or("INVALID".into());
             players.push(PlayerEmbedData {
                 name: playerdb

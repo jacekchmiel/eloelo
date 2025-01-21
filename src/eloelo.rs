@@ -209,12 +209,12 @@ impl EloElo {
                 let name = self
                     .players
                     .get(&player_id)
-                    .and_then(|p| p.display_name.clone())
+                    .map(|p| p.get_display_name().to_string())
                     .unwrap_or_else(|| player_id.to_string());
                 let discord_username = self
                     .players
                     .get(&player_id)
-                    .and_then(|p| p.discord_username.as_ref().map(|n| n.to_string()));
+                    .and_then(|p| p.discord_username().map(|n| n.to_string()));
                 let present_in_lobby = self.lobby.contains(&player_id);
                 UiPlayer {
                     id: player_id,
@@ -486,7 +486,7 @@ impl EloElo {
     fn update_lobby_from_screenshot(&mut self, player_names: Vec<String>) {
         let mut player_ids = HashMap::new();
         for player_id in self.players_in_team() {
-            let p = self.players.get(player_id).unwrap();
+            let p = self.config.get_player(player_id).unwrap();
             let mut possible_names = Vec::new();
             possible_names.extend(
                 p.discord_username

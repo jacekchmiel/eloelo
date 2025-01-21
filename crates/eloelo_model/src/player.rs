@@ -10,7 +10,14 @@ pub struct Player {
     pub id: PlayerId,
     #[serde(default)]
     pub elo: HashMap<GameId, i32>,
-    // TODO: remove configuration from this struct (data duplication)
+
+    config: PlayerConfig,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Default)]
+#[serde(rename_all = "camelCase")]
+pub struct PlayerConfig {
+    pub id: PlayerId,
     pub display_name: Option<String>,
     pub discord_username: Option<DiscordUsername>,
     pub fosiaudio_name: Option<String>,
@@ -18,6 +25,32 @@ pub struct Player {
 }
 
 impl Player {
+    pub fn new(id: PlayerId) -> Self {
+        let config = PlayerConfig {
+            id: id.clone(),
+            ..Default::default()
+        };
+        Self {
+            id: id.clone(),
+            elo: Default::default(),
+            config,
+        }
+    }
+
+    pub fn with_opt_discord_username(
+        id: PlayerId,
+        discord_username: Option<DiscordUsername>,
+    ) -> Self {
+        Self {
+            config: PlayerConfig {
+                id: id.clone(),
+                discord_username,
+                ..Default::default()
+            },
+            ..Self::new(id)
+        }
+    }
+
     pub fn default_elo() -> i32 {
         1000
     }
@@ -37,16 +70,36 @@ impl Player {
     }
 
     pub fn get_display_name(&self) -> &str {
-        if let Some(n) = self.display_name.as_ref() {
+        if let Some(n) = self.config.display_name.as_ref() {
             return n;
         }
         self.id.as_str()
     }
     pub fn get_fosiaudio_name(&self) -> &str {
-        if let Some(n) = self.fosiaudio_name.as_ref() {
+        if let Some(n) = self.config.fosiaudio_name.as_ref() {
             return n;
         }
         self.id.as_str()
+    }
+
+    pub fn discord_username(&self) -> Option<&DiscordUsername> {
+        self.config.discord_username.as_ref()
+    }
+}
+
+impl From<PlayerConfig> for Player {
+    fn from(value: PlayerConfig) -> Self {
+        Player {
+            id: value.id.clone(),
+            elo: Default::default(),
+            config: value,
+        }
+    }
+}
+
+impl From<Player> for PlayerConfig {
+    fn from(value: Player) -> Self {
+        value.config
     }
 }
 

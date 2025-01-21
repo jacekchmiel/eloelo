@@ -1,6 +1,6 @@
 use std::path::PathBuf;
 
-use eloelo_model::player::{DiscordUsername, Player};
+use eloelo_model::player::PlayerConfig;
 use eloelo_model::{GameId, PlayerId, Team};
 use serde::{Deserialize, Serialize};
 
@@ -61,6 +61,10 @@ impl Default for Config {
 }
 
 impl Config {
+    pub fn get_player(&self, p: &PlayerId) -> Option<&PlayerConfig> {
+        self.players.iter().find(|v| v.id == *p)
+    }
+
     pub fn default_game(&self) -> &GameId {
         self.games.first().map(|g| &g.name).unwrap()
     }
@@ -99,40 +103,4 @@ fn left_team_default() -> String {
 
 fn right_team_default() -> String {
     "Right Team".into()
-}
-
-#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
-#[serde(rename_all = "camelCase")]
-pub struct PlayerConfig {
-    #[serde(alias = "name")] // TODO(j): Legacy field name, remove in 2025
-    pub id: PlayerId,
-    pub display_name: Option<String>,
-    pub discord_username: Option<DiscordUsername>,
-    pub fosiaudio_name: Option<String>,
-    pub dota_name: Option<String>,
-}
-
-impl From<PlayerConfig> for Player {
-    fn from(value: PlayerConfig) -> Self {
-        Player {
-            id: value.id,
-            display_name: value.display_name,
-            discord_username: value.discord_username,
-            elo: Default::default(),
-            fosiaudio_name: value.fosiaudio_name,
-            dota_name: value.dota_name,
-        }
-    }
-}
-
-impl From<Player> for PlayerConfig {
-    fn from(value: Player) -> Self {
-        PlayerConfig {
-            id: value.id,
-            display_name: value.display_name,
-            discord_username: value.discord_username,
-            fosiaudio_name: value.fosiaudio_name,
-            dota_name: value.dota_name,
-        }
-    }
 }

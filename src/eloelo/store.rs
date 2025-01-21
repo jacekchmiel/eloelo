@@ -7,11 +7,11 @@ use log::{debug, info};
 use serde::de::DeserializeOwned;
 use serde::{Deserialize, Serialize};
 
-use super::config::{Config, PlayerConfig};
+use super::config::Config;
 use super::elodisco::bot_state::BotState;
 use super::ui_state::State;
 use eloelo_model::history::{History, HistoryEntry};
-use eloelo_model::player::PlayerDb;
+use eloelo_model::player::{PlayerConfig, PlayerDb};
 use eloelo_model::GameId;
 
 const HISTORY_SUFFIX: &str = ".history.json";
@@ -90,11 +90,7 @@ pub fn store_config(players: &PlayerDb) -> Result<()> {
     ensure_dir_created(&config_file_path())?;
     let stored_config = load_config()?;
     let config_to_store = Config {
-        players: players
-            .all()
-            .cloned()
-            .map(|p| PlayerConfig::from(p))
-            .collect(),
+        players: players.all().map(|p| p.clone().into()).collect(),
         ..stored_config
     };
     store_file_with_backup(&config_file_path(), &config_to_store)?;

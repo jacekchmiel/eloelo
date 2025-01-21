@@ -37,7 +37,7 @@ impl NotificationBot {
             .chain(message.right_team.players.keys());
         let discord_users = players
             .flat_map(|p| message.player_db.get(p))
-            .flat_map(|p| p.discord_username.as_ref().map(|d| (&p.id, d)));
+            .flat_map(|p| p.discord_username().map(|d| (&p.id, d)));
         for (player_id, username) in discord_users {
             let notifications_enabled = self.notifications.get(username).copied().unwrap_or(false);
             if notifications_enabled {
