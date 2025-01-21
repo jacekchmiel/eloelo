@@ -11,6 +11,8 @@ Prerequisites:
 
 ```shell
 git clone git@github.com:jacekchmiel/eloelo.git
-npm install
-npm run tauri dev
+# Build UI
+cd ui && npm install && npm run build
+# Run server
+cd .. && cargo run
 ```
