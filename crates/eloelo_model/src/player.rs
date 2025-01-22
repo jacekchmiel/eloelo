@@ -21,7 +21,8 @@ pub struct PlayerConfig {
     pub display_name: Option<String>,
     pub discord_username: Option<DiscordUsername>,
     pub fosiaudio_name: Option<String>,
-    pub dota_name: Option<String>,
+    #[serde(default)]
+    pub ocr_names: Vec<String>,
 }
 
 impl Player {

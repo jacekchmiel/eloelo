@@ -499,7 +499,7 @@ impl EloElo {
                     .map(|n| n.as_str().to_lowercase()),
             );
             possible_names.extend(p.display_name.as_ref().map(|n| n.to_lowercase()));
-            possible_names.extend(p.dota_name.as_ref().map(|n| n.to_lowercase()));
+            possible_names.extend(p.ocr_names.iter().by_ref().map(|n| n.to_lowercase()));
             possible_names.extend(p.fosiaudio_name.as_ref().map(|n| n.to_lowercase()));
             debug!(
                 "{player_id} aliases: {}",
@@ -516,7 +516,7 @@ impl EloElo {
         for name in player_names {
             match player_ids.get(&name.to_lowercase()) {
                 Some(&player_id) => {
-                    info!("Found {player_id} in screenshot data (as {name}). Adding to lobby.");
+                    info!("Found {player_id} in screenshot data (as {name})");
                     self.lobby.insert(player_id.clone());
                 }
                 None => {
