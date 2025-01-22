@@ -488,6 +488,7 @@ impl EloElo {
         for player_id in self.players_in_team() {
             let p = self.config.get_player(player_id).unwrap();
             let mut possible_names = Vec::new();
+            possible_names.push(player_id.as_str().to_lowercase().to_string());
             possible_names.extend(
                 p.discord_username
                     .as_ref()
@@ -496,9 +497,26 @@ impl EloElo {
             possible_names.extend(p.display_name.as_ref().map(|n| n.to_lowercase()));
             possible_names.extend(p.dota_name.as_ref().map(|n| n.to_lowercase()));
             possible_names.extend(p.fosiaudio_name.as_ref().map(|n| n.to_lowercase()));
+            debug!(
+                "{player_id} aliases: {}",
+                possible_names
+                    .iter()
+                    .map(String::as_str)
+                    .collect::<Vec<_>>()
+                    .join(", ")
+            );
             player_ids.extend(possible_names.into_iter().map(|n| (n, &p.id)));
         }
         let player_ids = player_ids;
+
+        debug!(
+            "Matching names against: {}",
+            player_ids
+                .keys()
+                .map(String::as_str)
+                .collect::<Vec<_>>()
+                .join(", ")
+        );
 
         for name in player_names {
             match player_ids.get(&name.to_lowercase()) {
@@ -506,7 +524,9 @@ impl EloElo {
                     info!("Found {player_id} in screenshot data (as {name}). Adding to lobby.");
                     self.lobby.insert(player_id.clone());
                 }
-                None => todo!(),
+                None => {
+                    debug!("Player name `{name}` not found among known player aliases");
+                }
             }
         }
     }

@@ -6,9 +6,17 @@ import argparse
 from pathlib import Path
 import sys
 import re
+from datetime import datetime
+import time
+from collections import Counter
+import requests
+import coloredlogs
 
 DEFAULT_TESSERACT_CONFIG = "--oem 3 --psm 6"
-DEFAULT_ELOELO_ADDR = "localhost:3001"
+DEFAULT_ELOELO_ADDR = "localhost:3000"
+DEFAULT_SCREENSHOT_DIR = (
+    "/mnt/c/Program Files (x86)/Steam/userdata/96608807/760/remote/570/screenshots"
+)
 
 
 class ProgramArgumentError(Exception):
@@ -17,30 +25,65 @@ class ProgramArgumentError(Exception):
 
 def parse_program_arguments():
     parser = argparse.ArgumentParser()
-    parser.add_argument(
+    subparsers = parser.add_subparsers(help="command")
+    ocr_parser = subparsers.add_parser("ocr", help="run ocr on sigle file")
+    ocr_parser.set_defaults(command="ocr")
+    ocr_parser.add_argument(
         "target",
         type=Path,
-        help="file to process or directory to watch",
+        help="file to process",
         metavar="TARGET",
     )
-    parser.add_argument(
-        "--watch",
-        action="store_true",
-        help="process screenshots as they appear in TARGET dir",
+    ocr_parser.add_argument(
+        "--send-results", "-s", action="store_true", help="send results to eloelo"
     )
-    parser.add_argument(
+    ocr_parser.add_argument(
         "--eloelo_addr",
         type=str,
         help=f"eloelo server address. Default: {DEFAULT_ELOELO_ADDR}",
         default=DEFAULT_ELOELO_ADDR,
     )
+    watch_parser = subparsers.add_parser(
+        "watch", help="run ocr on every new file in dir"
+    )
+    watch_parser.set_defaults(command="watch")
+    watch_parser.add_argument(
+        "target",
+        type=Path,
+        help="directory to watch, can be specified as `default`",
+        metavar="TARGET",
+    )
+    watch_parser.add_argument(
+        "--retries",
+        type=int,
+        help="number of retries when processing image fails in watch mode (default: 1)",
+        default=1,
+    )
+    watch_parser.add_argument(
+        "--poll-period",
+        type=float,
+        help="directory watch poll period in seconds (default: 0.2)",
+        default=0.2,
+    )
+    watch_parser.add_argument(
+        "--eloelo_addr",
+        type=str,
+        help=f"eloelo server address. (default: {DEFAULT_ELOELO_ADDR})",
+        default=DEFAULT_ELOELO_ADDR,
+    )
     args = parser.parse_args()
 
-    if args.watch and not Path(args.target).resolve().is_dir():
-        raise ProgramArgumentError("Watch target is not a dir")
+    pprint.pprint(args)
+    if args.command == "watch":
+        if args.command == "watch" and str(args.target) == "default":
+            args.target = Path(DEFAULT_SCREENSHOT_DIR)
+            LOG.info("Using default dir to watch: %s", args.target)
+        if not Path(args.target).resolve().is_dir():
+            raise ProgramArgumentError("Watch target is not a dir")
 
-    if not Path(args.target).resolve().is_file():
-        raise ProgramArgumentError("Target is not a file")
+    if args.command == "ocr":
+        if not Path(args.target).resolve().is_file():
+            raise ProgramArgumentError("Target is not a file")
 
     return args
 
@@ -175,25 +218,89 @@ def read_any_screenshot_4k(filename) -> str:
 
 
 LOG = logging.getLogger()
+coloredlogs.install(
+    level="DEBUG", logger=LOG, fmt="%(asctime)s %(levelname)s %(message)s"
+)
+
+
+class PatheticDirectoryWatcher:
+    def __init__(
+        self, directory: Path, *, poll_period, retries
+    ) -> "PatheticDirectoryWatcher":
+        self._dir = directory
+        self._seen_files = set()
+        self._poll_period = poll_period
+        self._failed_attempts = Counter()
+        self._retries = retries
+
+    def run(self, callback):
+        self._seen = {f for f in self._dir.glob("*") if f.is_file()}
+        LOG.info(f"Watching directory {self._dir}")
+
+        while True:
+            start = datetime.now()
+            for f in self._dir.glob("*"):
+                if not f.is_file() or not self._should_process(f):
+                    continue
+                self._run_callback(callback, f)
+                self._seen.add(f)
+            rest = self._poll_period - (datetime.now() - start).total_seconds()
+            if rest > 0:
+                time.sleep(rest)
+
+    def _should_process(self, file: Path) -> bool:
+        return file not in self._seen and self._failed_attempts[file] <= self._retries
+
+    def _run_callback(self, callback, file: Path):
+        try:
+            callback(file)
+        except KeyboardInterrupt:
+            raise
+        except Exception as e:
+            if isinstance(e, requests.exceptions.ConnectTimeout):
+                LOG.error(e)
+            else:
+                LOG.exception("Failed to process %s", file)
+            self._failed_attempts[file] += 1
+
+
+def send_results(addr, players):
+    url = f"http://{addr}/api/v1/lobby_screenshot"
+    response = requests.post(url, json={"playersInLobby": players}, timeout=3)
+    if not response.ok:
+        LOG.error("Server response: %s", response.content.decode("utf8"))
+    response.raise_for_status()
 
 
 def main():
     args = parse_program_arguments()
     logging.basicConfig(level=logging.DEBUG)
 
-    if args.watch:
-        LOG.info(f"Watching directory {args.target}")
-        LOG.error("NOT IMPLEMENTED YET")
-        sys.exit(1)
+    if args.command == "watch":
 
-    result = read_any_screenshot_4k(args.target)
+        def handle_file(file: Path):
+            result = read_any_screenshot_4k(file)
+            LOG.info(pprint.pformat(result))
+            if "lobby" not in result["type"]:
+                return
+            send_results(args.eloelo_addr, result["players"])
 
-    pprint.pprint(result)
+        watcher = PatheticDirectoryWatcher(
+            args.target, poll_period=args.poll_period, retries=args.retries
+        )
+        watcher.run(handle_file)
+    elif args.command == "ocr":
+        result = read_any_screenshot_4k(args.target)
+        LOG.info(pprint.pformat(result))
+        if args.send:
+            send_results(args.eloelo_addr, result["players"])
 
 
 if __name__ == "__main__":
     try:
         main()
+    except KeyboardInterrupt:
+        pass
     except ProgramArgumentError as e:
         print(e, file=sys.stderr)
         sys.exit(1)
