@@ -199,6 +199,7 @@ impl EloDisco {
             .await
             .match_start(&match_start, &ctx, &members)
             .await;
+        info!("DISCORD: Sending match start message to common channel");
         // TODO: make dota a hardcoded game
         if match_start.game == GameId::from("DotA 2") {
             let dota_bot = self.0.dota_bot.lock().await;

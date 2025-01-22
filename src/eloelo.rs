@@ -81,7 +81,9 @@ impl EloElo {
             UiCommand::RemovePlayerFromTeam(player_id) => self.remove_player_from_team(&player_id),
             UiCommand::AddPlayerToTeam(player_id, team) => self.add_player_to_team(player_id, team),
             UiCommand::AddPlayerToLobby(player_id) => self.add_player_to_lobby(player_id),
-            UiCommand::RemovePlayerFromLobby(player_id) => self.remove_player_from_lobby(player_id),
+            UiCommand::RemovePlayerFromLobby(player_id) => {
+                self.remove_player_from_lobby(&player_id)
+            }
             UiCommand::AddLobbyScreenshotData(player_names) => {
                 self.update_lobby_from_screenshot(player_names)
             }
@@ -249,6 +251,7 @@ impl EloElo {
     fn remove_player_from_team(&mut self, player_id: &PlayerId) {
         remove_player_id(&mut self.left_players, player_id)
             .or_else(|| remove_player_id(&mut self.right_players, player_id));
+        self.remove_player_from_lobby(player_id)
     }
 
     fn add_player_to_team(&mut self, player_id: PlayerId, team: Team) {
@@ -347,6 +350,7 @@ impl EloElo {
 
             self.history_for_current_game_mut().push(history_entry);
             self.update_elo();
+            self.lobby = HashSet::new();
         }
 
         self.game_state = GameState::AssemblingTeams;
@@ -461,8 +465,8 @@ impl EloElo {
         self.lobby.insert(player_id);
     }
 
-    fn remove_player_from_lobby(&mut self, player_id: PlayerId) {
-        self.lobby.remove(&player_id);
+    fn remove_player_from_lobby(&mut self, player_id: &PlayerId) {
+        self.lobby.remove(player_id);
     }
 
     async fn call_to_lobby(&self) {
@@ -508,15 +512,6 @@ impl EloElo {
             player_ids.extend(possible_names.into_iter().map(|n| (n, &p.id)));
         }
         let player_ids = player_ids;
-
-        debug!(
-            "Matching names against: {}",
-            player_ids
-                .keys()
-                .map(String::as_str)
-                .collect::<Vec<_>>()
-                .join(", ")
-        );
 
         for name in player_names {
             match player_ids.get(&name.to_lowercase()) {
