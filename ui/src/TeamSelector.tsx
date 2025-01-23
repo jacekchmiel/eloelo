@@ -15,6 +15,7 @@ import {
 	styled,
 } from "@mui/material";
 import { invoke } from "./Api";
+import { CallPlayerButton } from "./components/CallPlayerButton";
 import { PresentInLobbyButton } from "./components/PresentInLobbyButton";
 import type {
 	Avatars,
@@ -46,7 +47,6 @@ function MoveButton({
 		<IconButton
 			{...props}
 			edge={side === "left" ? "end" : "start"}
-			aria-label="delete"
 			onClick={async () => {
 				await invoke("move_player_to_other_team", { id: playerKey });
 			}}
@@ -65,7 +65,6 @@ function DeleteButton({
 		<IconButton
 			{...props}
 			edge={side === "left" ? "start" : "end"}
-			aria-label="delete"
 			onClick={async () => {
 				await invoke("remove_player_from_team", { id: playerKey });
 			}}
@@ -118,6 +117,7 @@ function RosterRow({
 				present={player.presentInLobby}
 				disabled={!assemblingTeams}
 			/>
+			<CallPlayerButton side={side} playerKey={player.id} />
 			<PlayerProfile {...{ player }} avatarUrl={avatarUrl} />
 			<MoveButton
 				side={side}
