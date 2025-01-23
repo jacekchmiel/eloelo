@@ -473,6 +473,7 @@ impl EloElo {
         let _ = call_to_lobby(
             &self.config.fosiaudio_host,
             self.players_missing_from_lobby(),
+            Duration::from_millis(self.config.fosiaudio_timeout_ms),
         )
         .await
         .context("Call to lobby failed")

@@ -35,6 +35,13 @@ pub struct Config {
 
     #[serde(default = "default_fosiaudio_host")]
     pub fosiaudio_host: String,
+
+    #[serde(default = "default_fosiaudio_timeout_ms")]
+    pub fosiaudio_timeout_ms: u64,
+}
+
+fn default_fosiaudio_timeout_ms() -> u64 {
+    3 * 1000
 }
 
 fn default_history_git_mirror() -> PathBuf {
@@ -56,6 +63,7 @@ impl Default for Config {
             history_git_mirror: default_history_git_mirror(),
             dota_screenshot_dir: None,
             fosiaudio_host: default_fosiaudio_host(),
+            fosiaudio_timeout_ms: default_fosiaudio_timeout_ms(),
         }
     }
 }

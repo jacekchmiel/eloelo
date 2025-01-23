@@ -1,3 +1,5 @@
+use std::time::Duration;
+
 use anyhow::Result;
 use eloelo_model::player::Player;
 use log::debug;
@@ -6,6 +8,7 @@ use reqwest::Client;
 pub async fn call_to_lobby<'a>(
     fosiaudio_host: &str,
     players_missing_from_lobby: impl Iterator<Item = &'a Player>,
+    timeout: Duration,
 ) -> Result<()> {
     let url = format!("http://{fosiaudio_host}/autogrzybke");
     let player_names: Vec<_> = players_missing_from_lobby
@@ -16,6 +19,7 @@ pub async fn call_to_lobby<'a>(
     let _ = Client::new()
         .post(url)
         .body(serde_urlencoded::to_string(fields)?)
+        .timeout(timeout)
         .send()
         .await?;
     debug!("Call to lobby sent successfully");
