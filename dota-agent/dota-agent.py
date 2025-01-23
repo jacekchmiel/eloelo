@@ -73,7 +73,9 @@ def parse_program_arguments():
     )
     args = parser.parse_args()
 
-    pprint.pprint(args)
+    if not hasattr(args, "command"):
+        LOG.error("Missing command argument")
+        parser.parse_args(["--help"])
     if args.command == "watch":
         if args.command == "watch" and str(args.target) == "default":
             args.target = Path(DEFAULT_SCREENSHOT_DIR)
