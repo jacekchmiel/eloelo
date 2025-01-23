@@ -303,10 +303,10 @@ pub async fn serve(message_bus: MessageBus) {
                 .route("/shuffle_teams", post(shuffle_teams))
                 .route("/refresh_elo", post(refresh_elo))
                 .route("/call_to_lobby", post(call_to_lobby))
-                .route("/present_in_lobby_change", post(present_in_lobby_change))
-                .route("/lobby_screenshot", post(add_lobby_screenshot_data))
-                .with_state(shared_state),
+                .route("/present_in_lobby_change", post(present_in_lobby_change)),
         )
+        .route("/api/v1/lobby_screenshot", post(add_lobby_screenshot_data))
+        .with_state(shared_state)
         .fallback_service(ServeDir::new("ui/dist"));
     let listener = tokio::net::TcpListener::bind("0.0.0.0:3000").await.unwrap();
     axum::serve(listener, app)

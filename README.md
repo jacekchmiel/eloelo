@@ -11,6 +11,12 @@ Prerequisites:
 
 ```shell
 git clone git@github.com:jacekchmiel/eloelo.git
-npm install
-npm run tauri dev
+# Build UI
+cd ui && npm install && npm run build
+# Run server
+cd .. && cargo run
 ```
+
+## DotA agent
+
+Supplements main EloElo app with automated screenshot analysis to determine who's in lobby.

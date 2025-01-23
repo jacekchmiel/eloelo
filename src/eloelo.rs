@@ -81,7 +81,9 @@ impl EloElo {
             UiCommand::RemovePlayerFromTeam(player_id) => self.remove_player_from_team(&player_id),
             UiCommand::AddPlayerToTeam(player_id, team) => self.add_player_to_team(player_id, team),
             UiCommand::AddPlayerToLobby(player_id) => self.add_player_to_lobby(player_id),
-            UiCommand::RemovePlayerFromLobby(player_id) => self.remove_player_from_lobby(player_id),
+            UiCommand::RemovePlayerFromLobby(player_id) => {
+                self.remove_player_from_lobby(&player_id)
+            }
             UiCommand::AddLobbyScreenshotData(player_names) => {
                 self.update_lobby_from_screenshot(player_names)
             }
@@ -249,6 +251,7 @@ impl EloElo {
     fn remove_player_from_team(&mut self, player_id: &PlayerId) {
         remove_player_id(&mut self.left_players, player_id)
             .or_else(|| remove_player_id(&mut self.right_players, player_id));
+        self.remove_player_from_lobby(player_id)
     }
 
     fn add_player_to_team(&mut self, player_id: PlayerId, team: Team) {
@@ -347,6 +350,7 @@ impl EloElo {
 
             self.history_for_current_game_mut().push(history_entry);
             self.update_elo();
+            self.lobby = HashSet::new();
         }
 
         self.game_state = GameState::AssemblingTeams;
@@ -461,8 +465,8 @@ impl EloElo {
         self.lobby.insert(player_id);
     }
 
-    fn remove_player_from_lobby(&mut self, player_id: PlayerId) {
-        self.lobby.remove(&player_id);
+    fn remove_player_from_lobby(&mut self, player_id: &PlayerId) {
+        self.lobby.remove(player_id);
     }
 
     async fn call_to_lobby(&self) {
@@ -488,14 +492,23 @@ impl EloElo {
         for player_id in self.players_in_team() {
             let p = self.config.get_player(player_id).unwrap();
             let mut possible_names = Vec::new();
+            possible_names.push(player_id.as_str().to_lowercase().to_string());
             possible_names.extend(
                 p.discord_username
                     .as_ref()
                     .map(|n| n.as_str().to_lowercase()),
             );
             possible_names.extend(p.display_name.as_ref().map(|n| n.to_lowercase()));
-            possible_names.extend(p.dota_name.as_ref().map(|n| n.to_lowercase()));
+            possible_names.extend(p.ocr_names.iter().by_ref().map(|n| n.to_lowercase()));
             possible_names.extend(p.fosiaudio_name.as_ref().map(|n| n.to_lowercase()));
+            debug!(
+                "{player_id} aliases: {}",
+                possible_names
+                    .iter()
+                    .map(String::as_str)
+                    .collect::<Vec<_>>()
+                    .join(", ")
+            );
             player_ids.extend(possible_names.into_iter().map(|n| (n, &p.id)));
         }
         let player_ids = player_ids;
@@ -503,10 +516,12 @@ impl EloElo {
         for name in player_names {
             match player_ids.get(&name.to_lowercase()) {
                 Some(&player_id) => {
-                    info!("Found {player_id} in screenshot data (as {name}). Adding to lobby.");
+                    info!("Found {player_id} in screenshot data (as {name})");
                     self.lobby.insert(player_id.clone());
                 }
-                None => todo!(),
+                None => {
+                    debug!("Player name `{name}` not found among known player aliases");
+                }
             }
         }
     }
