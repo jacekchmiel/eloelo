@@ -102,6 +102,8 @@ impl EloElo {
                 } else {
                     info!("State stored.");
                 }
+                // TODO: figure out how to not store config on exit.
+                // Its bad UX to have custom config overriden by this save.
                 if let Err(e) = self.store_config() {
                     error!("store_config failed: {}", e);
                 } else {
