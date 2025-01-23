@@ -197,6 +197,19 @@ function MainView({
 		React.useState<FinishMatchModalState>({ show: false });
 	const [startTimestamp, setStartTimestamp] = React.useState<Date>(new Date(0));
 
+	const onToggleLobby = async () => {
+		const anyoneInLobby =
+			state.leftPlayers
+				.map((player) => player.presentInLobby)
+				.concat(state.rightPlayers.map((p) => p.presentInLobby))
+				.filter((p) => p).length > 0;
+		if (anyoneInLobby) {
+			await invoke("clear_lobby", {});
+		} else {
+			await invoke("fill_lobby", {});
+		}
+	};
+
 	return (
 		<>
 			<TeamSelector {...state} avatars={avatars} />
@@ -205,22 +218,27 @@ function MainView({
 				{state.gameState === "assemblingTeams" && (
 					<>
 						<Grid item xs={6}>
-							<Stack direction="row" justifyContent="space-between">
-								<Button
-									onClick={async () => {
-										await invoke("call_to_lobby", {});
-									}}
-								>
-									Call to Lobby
-								</Button>
-								<Button
-									onClick={async () => {
-										await invoke("start_match", {});
-										setStartTimestamp(new Date());
-									}}
-								>
-									Start Match
-								</Button>
+							<Stack direction="column">
+								<Stack direction="row" justifyContent="space-between">
+									<Button
+										onClick={async () => {
+											await invoke("call_to_lobby", {});
+										}}
+									>
+										Call to Lobby
+									</Button>
+									<Button
+										onClick={async () => {
+											await invoke("start_match", {});
+											setStartTimestamp(new Date());
+										}}
+									>
+										Start Match
+									</Button>
+								</Stack>
+								<Stack direction="row" justifyContent="space-between">
+									<Button onClick={onToggleLobby}>Toggle lobby</Button>
+								</Stack>
 							</Stack>
 						</Grid>
 						<Grid item xs={6}>
