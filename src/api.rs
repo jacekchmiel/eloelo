@@ -224,6 +224,34 @@ async fn call_to_lobby(State(state): AppStateArg) -> impl IntoResponse {
     EmptyResponse
 }
 
+async fn clear_lobby(State(state): AppStateArg) -> impl IntoResponse {
+    state
+        .message_bus
+        .send(Message::UiCommand(UiCommand::ClearLobby));
+    EmptyResponse
+}
+
+async fn fill_lobby(State(state): AppStateArg) -> impl IntoResponse {
+    state
+        .message_bus
+        .send(Message::UiCommand(UiCommand::FillLobby));
+    EmptyResponse
+}
+
+#[derive(Debug, Deserialize)]
+struct CallPlayerBody {
+    id: PlayerId,
+}
+async fn call_player(
+    State(state): AppStateArg,
+    Json(body): Json<CallPlayerBody>,
+) -> impl IntoResponse {
+    state
+        .message_bus
+        .send(Message::UiCommand(UiCommand::CallPlayer(body.id)));
+    EmptyResponse
+}
+
 #[derive(Debug, Deserialize)]
 #[serde(rename_all = "camelCase")]
 struct LobbyScreenshotData {
@@ -303,7 +331,10 @@ pub async fn serve(message_bus: MessageBus) {
                 .route("/shuffle_teams", post(shuffle_teams))
                 .route("/refresh_elo", post(refresh_elo))
                 .route("/call_to_lobby", post(call_to_lobby))
-                .route("/present_in_lobby_change", post(present_in_lobby_change)),
+                .route("/present_in_lobby_change", post(present_in_lobby_change))
+                .route("/clear_lobby", post(clear_lobby))
+                .route("/fill_lobby", post(fill_lobby))
+                .route("/call_player", post(call_player)),
         )
         .route("/api/v1/lobby_screenshot", post(add_lobby_screenshot_data))
         .with_state(shared_state)

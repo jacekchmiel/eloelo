@@ -90,6 +90,9 @@ impl EloElo {
             UiCommand::ChangeGame(game_id) => self.change_game(game_id),
             UiCommand::StartMatch => self.start_match(),
             UiCommand::CallToLobby => self.call_to_lobby().await,
+            UiCommand::FillLobby => self.fill_lobby(),
+            UiCommand::ClearLobby => self.clear_lobby(),
+            UiCommand::CallPlayer(player_id) => self.call_player(&player_id).await,
             UiCommand::ShuffleTeams => self.shuffle_teams(),
             UiCommand::RefreshElo => self.recalculate_elo_from_history(),
             UiCommand::FinishMatch(finish_match) => self.finish_match(finish_match),
@@ -525,6 +528,31 @@ impl EloElo {
                 }
             }
         }
+    }
+
+    fn fill_lobby(&mut self) {
+        let full_lobby: HashSet<_> = self.players_in_team().cloned().collect();
+        self.lobby = full_lobby;
+    }
+
+    fn clear_lobby(&mut self) {
+        self.lobby.clear();
+    }
+
+    async fn call_player(&self, player_id: &PlayerId) {
+        let player = self.players.get(player_id);
+        if player.is_none() {
+            return;
+        }
+        //TODO: move to background
+        let _ = call_to_lobby(
+            &self.config.fosiaudio_host,
+            player.into_iter(),
+            Duration::from_millis(self.config.fosiaudio_timeout_ms),
+        )
+        .await
+        .context("Call to lobby failed")
+        .print_err();
     }
 }
 
