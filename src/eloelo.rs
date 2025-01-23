@@ -80,7 +80,7 @@ impl EloElo {
             }
             UiCommand::RemovePlayerFromTeam(player_id) => self.remove_player_from_team(&player_id),
             UiCommand::AddPlayerToTeam(player_id, team) => self.add_player_to_team(player_id, team),
-            UiCommand::AddPlayerToLobby(player_id) => self.add_player_to_lobby(player_id),
+            UiCommand::AddPlayerToLobby(player_id) => self.add_player_to_lobby(player_id).await,
             UiCommand::RemovePlayerFromLobby(player_id) => {
                 self.remove_player_from_lobby(&player_id)
             }
@@ -90,7 +90,7 @@ impl EloElo {
             UiCommand::ChangeGame(game_id) => self.change_game(game_id),
             UiCommand::StartMatch => self.start_match(),
             UiCommand::CallToLobby => self.call_to_lobby().await,
-            UiCommand::FillLobby => self.fill_lobby(),
+            UiCommand::FillLobby => self.fill_lobby().await,
             UiCommand::ClearLobby => self.clear_lobby(),
             UiCommand::CallPlayer(player_id) => self.call_player(&player_id).await,
             UiCommand::ShuffleTeams => self.shuffle_teams(),
@@ -466,8 +466,12 @@ impl EloElo {
         }
     }
 
-    fn add_player_to_lobby(&mut self, player_id: PlayerId) {
+    async fn add_player_to_lobby(&mut self, player_id: PlayerId) {
         self.lobby.insert(player_id);
+        if self.everybody_in_lobby() {
+            // Empty call to lobby will trigger match starting audio track
+            self.call_to_lobby().await
+        }
     }
 
     fn remove_player_from_lobby(&mut self, player_id: &PlayerId) {
@@ -532,9 +536,11 @@ impl EloElo {
         }
     }
 
-    fn fill_lobby(&mut self) {
+    async fn fill_lobby(&mut self) {
         let full_lobby: HashSet<_> = self.players_in_team().cloned().collect();
         self.lobby = full_lobby;
+        // Empty call to lobby will trigger match starting audio track
+        self.call_to_lobby().await
     }
 
     fn clear_lobby(&mut self) {
@@ -555,6 +561,11 @@ impl EloElo {
         .await
         .context("Call to lobby failed")
         .print_err();
+    }
+
+    fn everybody_in_lobby(&self) -> bool {
+        let expected: HashSet<_> = self.players_in_team().cloned().collect();
+        expected == self.lobby
     }
 }
 
