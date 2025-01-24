@@ -58,7 +58,10 @@ async fn main() {
     let _ = ocr::spawn_dota_screenshot_parser(config.clone(), message_bus.clone())
         .context("spawn_dota_screenshot_parser failed")
         .inspect_err(|e| error!("{e:#}"));
-    tokio::spawn(api::serve(message_bus.clone()));
+    tokio::spawn(api::serve(
+        message_bus.clone(),
+        config.static_serving_dir.clone(),
+    ));
 
     info!("Running");
     terminate_on_signal().await.print_err();

@@ -86,6 +86,7 @@ pub fn store_default_config() -> Result<()> {
     Ok(serde_yaml::to_writer(config_file, &Config::default())?)
 }
 
+#[allow(dead_code)]
 pub fn store_config(players: &PlayerDb) -> Result<()> {
     ensure_dir_created(&config_file_path())?;
     let stored_config = load_config()?;

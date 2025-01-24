@@ -44,6 +44,13 @@ pub struct Config {
 
     #[serde(default = "default_dota_ocr_engine_pwd")]
     pub dota_ocr_engine_pwd: Option<PathBuf>,
+
+    #[serde(default = "default_static_serving_dir")]
+    pub static_serving_dir: PathBuf,
+}
+
+fn default_static_serving_dir() -> PathBuf {
+    "ui/dist".into()
 }
 
 fn default_dota_ocr_engine_pwd() -> Option<PathBuf> {
@@ -80,6 +87,7 @@ impl Default for Config {
             fosiaudio_timeout_ms: default_fosiaudio_timeout_ms(),
             dota_ocr_engine_command: default_dota_ocr_engine_command(),
             dota_ocr_engine_pwd: default_dota_ocr_engine_pwd(),
+            static_serving_dir: default_static_serving_dir(),
         }
     }
 }

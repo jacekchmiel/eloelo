@@ -141,10 +141,6 @@ impl EloElo {
         store::store_state(&state)
     }
 
-    fn store_config(&self) -> Result<()> {
-        store::store_config(&self.players)
-    }
-
     pub fn ui_state(&self) -> UiState {
         let reserve_players: Vec<_> = self.reserve_players().cloned().collect();
         let default_elo = self.default_elo_for_current_game();

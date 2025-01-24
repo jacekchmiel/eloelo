@@ -1,4 +1,5 @@
 use std::fmt::Display;
+use std::path::PathBuf;
 use std::sync::Arc;
 
 use anyhow::Context as _;
@@ -329,7 +330,7 @@ async fn redirect_to_ui() -> impl IntoResponse {
     Redirect::permanent("/ui")
 }
 
-pub async fn serve(message_bus: MessageBus) {
+pub async fn serve(message_bus: MessageBus, static_serving_dir: PathBuf) {
     let shared_state = Arc::new(AppState { message_bus });
     let app = Router::new()
         .route("/", get(redirect_to_ui))
@@ -359,7 +360,7 @@ pub async fn serve(message_bus: MessageBus) {
         )
         .route("/api/v1/dota_screenshot", post(process_dota_screenshot))
         .with_state(shared_state)
-        .fallback_service(ServeDir::new("ui/dist"));
+        .fallback_service(ServeDir::new(static_serving_dir));
     let listener = tokio::net::TcpListener::bind("0.0.0.0:3000").await.unwrap();
     axum::serve(listener, app)
         .await
