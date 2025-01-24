@@ -314,6 +314,7 @@ fn wrap_result<T: Serialize, E: Display>(
 async fn ui_event_stream(socket: WebSocket, message_bus: MessageBus) {
     info!("New UI event stream started.");
     let stream = message_bus.subscribe().ui_update_stream().map(wrap_result);
+    message_bus.send(Message::UiCommand(UiCommand::InitializeUi));
     match stream.forward(socket).await {
         Ok(()) => {
             info!("UI event stream closed.");

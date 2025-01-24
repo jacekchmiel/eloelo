@@ -486,14 +486,6 @@ export default function App() {
 		};
 	}, []);
 
-	React.useEffect(() => {
-		initializeUi();
-	}, []);
-
-	async function initializeUi() {
-		await invoke("initialize_ui", {});
-	}
-
 	const theme = React.useMemo(
 		() =>
 			createTheme({
