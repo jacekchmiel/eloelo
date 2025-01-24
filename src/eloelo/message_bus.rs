@@ -39,10 +39,6 @@ impl MessageBusSubscription {
         Self::translate_recv(self.0.recv().await)
     }
 
-    pub fn blocking_recv(&mut self) -> Option<Message> {
-        Self::translate_recv(self.0.blocking_recv())
-    }
-
     pub fn ui_update_stream(self) -> impl Stream<Item = Result<UiUpdate>> {
         BroadcastStream::new(self.0).filter_map(|r| async move {
             match r {
@@ -81,22 +77,6 @@ pub(crate) enum Message {
     Event(Event),
 }
 
-impl Message {
-    pub fn try_into_ui_update(self) -> Option<UiUpdate> {
-        match self {
-            Message::UiUpdate(ui_update) => Some(ui_update),
-            _ => None,
-        }
-    }
-
-    pub fn try_into_ui_command(self) -> Option<UiCommand> {
-        match self {
-            Message::UiCommand(ui_command) => Some(ui_command),
-            _ => None,
-        }
-    }
-}
-
 impl From<UiState> for Message {
     fn from(value: UiState) -> Self {
         Message::UiUpdate(UiUpdate::State(value))
@@ -108,7 +88,6 @@ impl From<UiState> for Message {
 pub enum UiUpdate {
     State(UiState),
     DiscordInfo(Vec<DiscordPlayerInfo>),
-    RoleRecommendation(Vec<RoleRecommendation>),
 }
 
 #[derive(Debug, Clone)]
