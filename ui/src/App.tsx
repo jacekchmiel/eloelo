@@ -218,27 +218,15 @@ function MainView({
 				{state.gameState === "assemblingTeams" && (
 					<>
 						<Grid item xs={6}>
-							<Stack direction="column">
-								<Stack direction="row" justifyContent="space-between">
-									<Button
-										onClick={async () => {
-											await invoke("call_to_lobby", {});
-										}}
-									>
-										Call to Lobby
-									</Button>
-									<Button
-										onClick={async () => {
-											await invoke("start_match", {});
-											setStartTimestamp(new Date());
-										}}
-									>
-										Start Match
-									</Button>
-								</Stack>
-								<Stack direction="row" justifyContent="space-between">
-									<Button onClick={onToggleLobby}>Toggle lobby</Button>
-								</Stack>
+							<Stack direction="row" justifyContent="right">
+								<Button
+									onClick={async () => {
+										await invoke("start_match", {});
+										setStartTimestamp(new Date());
+									}}
+								>
+									Start Match
+								</Button>
 							</Stack>
 						</Grid>
 						<Grid item xs={6}>
@@ -306,6 +294,32 @@ function MainView({
 						</Grid>
 					</>
 				)}
+			</Grid>
+			<Grid item xs={12}>
+				<Stack direction="row" justifyContent="center">
+					<h3>Lobby</h3>
+					<Button
+						onClick={async () => {
+							await invoke("call_to_lobby", {});
+						}}
+					>
+						Call
+					</Button>
+					<Button
+						onClick={async () => {
+							await invoke("clear_lobby", {});
+						}}
+					>
+						Clear
+					</Button>
+					<Button
+						onClick={async () => {
+							await invoke("fill_lobby", {});
+						}}
+					>
+						Fill
+					</Button>
+				</Stack>
 			</Grid>
 			<ReserveList
 				players={state.reservePlayers}

@@ -115,7 +115,6 @@ function RosterRow({
 				side={side}
 				playerKey={player.id}
 				present={player.presentInLobby}
-				disabled={!assemblingTeams}
 			/>
 			<CallPlayerButton side={side} playerKey={player.id} />
 			<PlayerProfile {...{ player }} avatarUrl={avatarUrl} />
