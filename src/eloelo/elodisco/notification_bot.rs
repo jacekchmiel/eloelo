@@ -45,12 +45,8 @@ impl NotificationBot {
                     Some(user) => {
                         let message = CreateMessage::new()
                             .content(create_personal_match_start_message(player_id, &message));
-                        tokio::spawn(send_direct_message(
-                            ctx.clone(),
-                            user.clone(),
-                            message,
-                            "match_start",
-                        ));
+                        send_direct_message(ctx.clone(), user.clone(), message, "match_start")
+                            .await;
                     }
                     None => error!("{} not found in guild members", username),
                 }

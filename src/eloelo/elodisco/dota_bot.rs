@@ -199,13 +199,7 @@ impl DotaBot {
             match members.get(&username) {
                 Some(user) => {
                     let message = CreateMessage::new().content(heroes_message);
-
-                    tokio::spawn(send_direct_message(
-                        ctx.clone(),
-                        user.clone(),
-                        message,
-                        "heroes",
-                    ));
+                    send_direct_message(ctx.clone(), user.clone(), message, "heroes").await;
                 }
                 None => error!(
                     "{} not found in guild members. This should not happen.",
