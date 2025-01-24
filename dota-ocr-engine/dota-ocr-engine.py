@@ -14,7 +14,6 @@ import coloredlogs
 import json
 
 DEFAULT_TESSERACT_CONFIG = "--oem 3 --psm 6"
-DEFAULT_ELOELO_ADDR = "localhost:3000"
 DEFAULT_SCREENSHOT_DIR = (
     "/mnt/c/Program Files (x86)/Steam/userdata/96608807/760/remote/570/screenshots"
 )
@@ -26,69 +25,20 @@ class ProgramArgumentError(Exception):
 
 def parse_program_arguments():
     parser = argparse.ArgumentParser()
-    parser.set_defaults(quiet=False)
-    subparsers = parser.add_subparsers(help="command")
-    ocr_parser = subparsers.add_parser("ocr", help="run ocr on sigle file")
-    ocr_parser.set_defaults(command="ocr")
-    ocr_parser.add_argument(
+    parser.add_argument(
         "target",
         type=Path,
         help="file to process",
         metavar="TARGET",
     )
-    ocr_parser.add_argument(
-        "--eloelo_addr",
-        type=str,
-        help=f"eloelo server address. Default: {DEFAULT_ELOELO_ADDR}",
-        default=DEFAULT_ELOELO_ADDR,
-    )
-    ocr_parser.add_argument(
+    parser.add_argument(
         "--quiet", "-q", help="do not print unnecessary stuff", action="store_true"
-    )
-    watch_parser = subparsers.add_parser(
-        "watch", help="run ocr on every new file in dir"
-    )
-    watch_parser.set_defaults(command="watch")
-    watch_parser.add_argument(
-        "target",
-        type=Path,
-        help="directory to watch, can be specified as `default`",
-        metavar="TARGET",
-    )
-    watch_parser.add_argument(
-        "--retries",
-        type=int,
-        help="number of retries when processing image fails in watch mode (default: 1)",
-        default=1,
-    )
-    watch_parser.add_argument(
-        "--poll-period",
-        type=float,
-        help="directory watch poll period in seconds (default: 0.2)",
-        default=0.2,
-    )
-    watch_parser.add_argument(
-        "--eloelo_addr",
-        type=str,
-        help=f"eloelo server address. (default: {DEFAULT_ELOELO_ADDR})",
-        default=DEFAULT_ELOELO_ADDR,
     )
 
     args = parser.parse_args()
 
-    if not hasattr(args, "command"):
-        LOG.error("Missing command argument")
-        parser.parse_args(["--help"])
-    if args.command == "watch" or args.command == "relay":
-        if args.command == "watch" and str(args.target) == "default":
-            args.target = Path(DEFAULT_SCREENSHOT_DIR)
-            LOG.info("Using default dir to watch: %s", args.target)
-        if not Path(args.target).resolve().is_dir():
-            raise ProgramArgumentError("Watch target is not a dir")
-
-    if args.command == "ocr":
-        if not Path(args.target).resolve().is_file():
-            raise ProgramArgumentError("Target is not a file")
+    if not Path(args.target).resolve().is_file():
+        raise ProgramArgumentError("Target is not a file")
 
     return args
 

@@ -47,11 +47,11 @@ pub struct Config {
 }
 
 fn default_dota_ocr_engine_pwd() -> Option<PathBuf> {
-    Some(PathBuf::from("dota-agent"))
+    Some(PathBuf::from("dota-ocr-engine"))
 }
 
 fn default_dota_ocr_engine_command() -> String {
-    "uv run dota-ocr-engine.py ocr %".into()
+    "uv run dota-ocr-engine.py %".into()
 }
 
 fn default_fosiaudio_timeout_ms() -> u64 {

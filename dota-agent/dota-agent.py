@@ -48,7 +48,9 @@ def parse_program_arguments():
         metavar="TARGET",
     )
     parser.add_argument("--request-timeout", type=float, metavar="SECONDS", default=3.0)
-
+    parser.add_argument(
+        "--quiet", "-q", help="do not print unnecessary stuff", action="store_true"
+    )
     args = parser.parse_args()
 
     args.target = Path(DEFAULT_SCREENSHOT_DIR)
@@ -60,9 +62,13 @@ def parse_program_arguments():
 
 
 LOG = logging.getLogger()
-coloredlogs.install(
-    level="DEBUG", logger=LOG, fmt="%(asctime)s %(levelname)s %(message)s"
-)
+
+
+def configure_logging(args):
+    level = logging.DEBUG if not args.quiet else logging.WARNING
+    coloredlogs.install(
+        level=level, logger=LOG, fmt="%(asctime)s %(levelname)s %(message)s"
+    )
 
 
 class PatheticDirectoryWatcher:
@@ -129,7 +135,7 @@ def send_raw_file(addr, path, *, timeout):
 
 def main():
     args = parse_program_arguments()
-    logging.basicConfig(level=logging.DEBUG)
+    configure_logging(args)
 
     LOG.info("EloElo address: %s", args.eloelo_addr)
     LOG.info("Request timeout: %s", args.request_timeout)
