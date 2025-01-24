@@ -9,7 +9,6 @@ import re
 from datetime import datetime
 import time
 from collections import Counter
-import requests
 import coloredlogs
 import json
 
@@ -113,68 +112,105 @@ def read_match_results_screenshot_4k(image):
     }
 
 
-def read_arcade_lobby_4k(filename):
-    image = read(filename)
-    # cv2_imshow(image)
+class Reader:
+    def __init__(self, coords):
+        self.coords = coords
 
-    control_image = preprocess(crop(image, (3080, 130), (3250, 200)))
-    # cv2_imshow(control_image)
+    def read_arcade_lobby(self, image):
+        control_image = preprocess(crop(image, *self.coords.arcade_lobby_control_rect))
+        control = image_to_string(control_image).strip().lower()
 
-    control = image_to_string(control_image).strip().lower()
+        players_image = preprocess(crop(image, *self.coords.arcade_lobby_players_rect))
+        players = image_to_string(players_image)
+        players = re.split("\s", players)
+        players = [
+            p.lower() for p in players if len(p) > 0 and f"{p[0]}{p[-1]}" != "[]"
+        ]
+        return {
+            "type": "arcade_lobby" if "lobby" in control else "unknown",
+            "control_arcade_lobby": control,
+            "players": players,
+        }
 
-    players_image = preprocess(crop(image, (3270, 500), (3800, 1500)))
-    # cv2_imshow(players_image)
+    def read_regular_lobby(self, image):
+        control_image = preprocess(crop(image, *self.coords.regular_lobby_control_rect))
+        control = image_to_string(control_image).strip().lower()
 
-    players = image_to_string(players_image)
-    players = re.split("\s", players)
-    players = [p.lower() for p in players if len(p) > 0 and f"{p[0]}{p[-1]}" != "[]"]
-    return {
-        "type": "arcade_lobby" if "lobby" in control else "unknown",
-        "control_arcade_lobby": control,
-        "players": players,
-    }
+        radiant_image = preprocess(crop(image, *self.coords.regular_lobby_radiant_rect))
+        dire_image = preprocess(crop(image, *self.coords.regular_lobby_dire_rect))
+        players = image_to_string(radiant_image) + image_to_string(dire_image)
+        players = [
+            p.lower()
+            for p in re.split("\s", players)
+            if len(p) > 0 and f"{p[0]}{p[-1]}" != "[]"
+        ]
 
-
-def read_regular_lobby_4k(filename):
-    image = read(filename)
-    # cv2_imshow(image)
-
-    control_image = preprocess(crop(image, (3069, 1918), (3718, 1980)))
-    # cv2_imshow(control_image)
-
-    control = image_to_string(control_image).strip().lower()
-
-    radiant_image = preprocess(crop(image, (2544, 335), (2994, 830)))
-    # cv2_imshow(radiant_image)
-
-    # image = read('lobby3.jpg')
-    dire_image = preprocess(crop(image, (3215, 335), (3750, 830)))
-    # cv2_imshow(dire_image)
-
-    players = image_to_string(radiant_image) + image_to_string(dire_image)
-    players = [
-        p.lower()
-        for p in re.split("\s", players)
-        if len(p) > 0 and f"{p[0]}{p[-1]}" != "[]"
-    ]
-
-    return {
-        "type": "regular_lobby" if "lobby" in control else "unknown",
-        "control_regular_lobby": control,
-        "players": players,
-    }
+        return {
+            "type": "regular_lobby" if "lobby" in control else "unknown",
+            "control_regular_lobby": control,
+            "players": players,
+        }
 
 
-def read_any_screenshot_4k(filename) -> str:
+class Coords4k:
+    def __init__(self):
+        self.arcade_lobby_control_rect = ((3080, 130), (3250, 200))
+        self.arcade_lobby_players_rect = ((3270, 500), (3800, 1500))
+
+        self.regular_lobby_control_rect = ((3069, 1918), (3718, 1980))
+        self.regular_lobby_radiant_rect = ((2544, 335), (2994, 830))
+        self.regular_lobby_dire_rect = ((3215, 335), (3750, 830))
+
+
+def scale(rect, factor):
+    result = (
+        (int(rect[0][0] * factor), int(rect[0][1] * factor)),
+        (int(rect[1][0] * factor), int(rect[1][1] * factor)),
+    )
+    LOG.debug("Scaling %s by %s = %s", rect, factor, result)
+    return result
+
+
+class ScaledCoords:
+    def __init__(self, coords, factor):
+        self.arcade_lobby_control_rect = scale(coords.arcade_lobby_control_rect, factor)
+        self.arcade_lobby_players_rect = scale(coords.arcade_lobby_players_rect, factor)
+
+        self.regular_lobby_control_rect = scale(
+            coords.regular_lobby_control_rect, factor
+        )
+        self.regular_lobby_radiant_rect = scale(
+            coords.regular_lobby_radiant_rect, factor
+        )
+        self.regular_lobby_dire_rect = scale(coords.regular_lobby_dire_rect, factor)
+
+
+def read_any_screenshot(filename) -> str:
     result = {}
+
+    image = read(filename)
+    res = image.shape[:2]
+    LOG.info("image size: %s", res)
+
+    if res == (2160, 3840):
+        coords = Coords4k()
+    elif res == (1440, 2560):
+        coords = ScaledCoords(Coords4k(), 1440 / 2160)
+    elif res == (1080, 1920):
+        coords = ScaledCoords(Coords4k(), 0.5)
+    else:
+        raise RuntimeError("Display resolution %s not supported", res)
+
+    reader = Reader(coords)
+
     # Need to check for arcade lobby first, since
     # control check for regular will also match arcade
-    result.update(read_arcade_lobby_4k(filename))
+    result.update(reader.read_arcade_lobby(image))
     if result["type"] == "arcade_lobby":
         LOG.info("Detected Dotka LP lobby screenshot")
         return result
 
-    result.update(read_regular_lobby_4k(filename))
+    result.update(reader.read_regular_lobby(image))
     if result["type"] == "regular_lobby":
         LOG.info("Detected lobby screenshot")
         return result
@@ -182,76 +218,12 @@ def read_any_screenshot_4k(filename) -> str:
     return result
 
 
-class PatheticDirectoryWatcher:
-    def __init__(
-        self, directory: Path, *, poll_period, retries
-    ) -> "PatheticDirectoryWatcher":
-        self._dir = directory
-        self._seen_files = set()
-        self._poll_period = poll_period
-        self._failed_attempts = Counter()
-        self._retries = retries
-
-    def run(self, callback):
-        self._seen = {f for f in self._dir.glob("*") if f.is_file()}
-        LOG.info(f"Watching directory {self._dir}")
-
-        while True:
-            start = datetime.now()
-            for f in self._dir.glob("*"):
-                if not f.is_file() or not self._should_process(f):
-                    continue
-                self._run_callback(callback, f)
-                self._seen.add(f)
-            rest = self._poll_period - (datetime.now() - start).total_seconds()
-            if rest > 0:
-                time.sleep(rest)
-
-    def _should_process(self, file: Path) -> bool:
-        return file not in self._seen and self._failed_attempts[file] <= self._retries
-
-    def _run_callback(self, callback, file: Path):
-        try:
-            callback(file)
-        except KeyboardInterrupt:
-            raise
-        except Exception as e:
-            if isinstance(e, requests.exceptions.ConnectTimeout):
-                LOG.error(e)
-            else:
-                LOG.exception("Failed to process %s", file)
-            self._failed_attempts[file] += 1
-
-
-def send_results(addr, players):
-    url = f"http://{addr}/api/v1/lobby_screenshot"
-    response = requests.post(url, json={"playersInLobby": players}, timeout=3)
-    if not response.ok:
-        LOG.error("Server response: %s", response.content.decode("utf8"))
-    response.raise_for_status()
-
-
 def main():
     args = parse_program_arguments()
     configure_logging(args)
 
-    if args.command == "watch":
-
-        def handle_file(file: Path):
-            result = read_any_screenshot_4k(file)
-            LOG.info(pprint.pformat(result))
-            if "lobby" not in result["type"]:
-                return
-            send_results(args.eloelo_addr, result["players"])
-
-        watcher = PatheticDirectoryWatcher(
-            args.target, poll_period=args.poll_period, retries=args.retries
-        )
-        watcher.run(handle_file)
-    elif args.command == "ocr":
-        result = read_any_screenshot_4k(args.target)
-        LOG.info(pprint.pformat(result))
-        print(json.dumps(result))
+    result = read_any_screenshot(args.target)
+    print(json.dumps(result))
 
 
 if __name__ == "__main__":
