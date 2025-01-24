@@ -2,6 +2,7 @@ use std::fmt::Display;
 use std::sync::Arc;
 
 use anyhow::Context as _;
+use axum::body::Bytes;
 use axum::extract::ws::{self, WebSocket};
 use axum::extract::{State, WebSocketUpgrade};
 use axum::response::{ErrorResponse, IntoResponse, Redirect, Response};
@@ -10,12 +11,12 @@ use axum::{Json, Router};
 use eloelo_model::player::{DiscordUsername, Player};
 use eloelo_model::{GameId, PlayerId, Team, WinScale};
 use futures_util::StreamExt as _;
-use http::StatusCode;
+use http::{HeaderMap, StatusCode};
 use log::{debug, info};
 use serde::{Deserialize, Serialize};
 use tower_http::services::ServeDir;
 
-use crate::eloelo::message_bus::{FinishMatch, Message, MessageBus, UiCommand};
+use crate::eloelo::message_bus::{Event, FinishMatch, ImageFormat, Message, MessageBus, UiCommand};
 use crate::utils::ResultExt as _;
 
 struct AppState {
@@ -252,19 +253,38 @@ async fn call_player(
     EmptyResponse
 }
 
-#[derive(Debug, Deserialize)]
-#[serde(rename_all = "camelCase")]
-struct LobbyScreenshotData {
-    players_in_lobby: Vec<String>,
-}
-async fn add_lobby_screenshot_data(
+// #[derive(Debug, Deserialize)]
+// #[serde(rename_all = "camelCase")]
+// struct LobbyScreenshotData {
+//     players_in_lobby: Vec<String>,
+// }
+// async fn add_lobby_screenshot_data(
+//     State(state): AppStateArg,
+//     Json(payload): Json<LobbyScreenshotData>,
+// ) -> impl IntoResponse {
+//     state
+//         .message_bus
+//         .send(Message::UiCommand(UiCommand::AddLobbyScreenshotData(
+//             payload.players_in_lobby,
+//         )));
+//     EmptyResponse
+// }
+
+async fn process_dota_screenshot(
     State(state): AppStateArg,
-    Json(payload): Json<LobbyScreenshotData>,
+    headers: HeaderMap,
+    body: Bytes,
 ) -> impl IntoResponse {
+    let image_format = headers
+        .get("Content-Type")
+        .and_then(|v| v.to_str().ok())
+        .inspect(|v| debug!("screenshot Content-Type: {v}"))
+        .and_then(ImageFormat::from_mime_type);
     state
         .message_bus
-        .send(Message::UiCommand(UiCommand::AddLobbyScreenshotData(
-            payload.players_in_lobby,
+        .send(Message::Event(Event::DotaScreenshotReceived(
+            body,
+            image_format,
         )));
     EmptyResponse
 }
@@ -336,7 +356,7 @@ pub async fn serve(message_bus: MessageBus) {
                 .route("/fill_lobby", post(fill_lobby))
                 .route("/call_player", post(call_player)),
         )
-        .route("/api/v1/lobby_screenshot", post(add_lobby_screenshot_data))
+        .route("/api/v1/dota_screenshot", post(process_dota_screenshot))
         .with_state(shared_state)
         .fallback_service(ServeDir::new("ui/dist"));
     let listener = tokio::net::TcpListener::bind("0.0.0.0:3000").await.unwrap();

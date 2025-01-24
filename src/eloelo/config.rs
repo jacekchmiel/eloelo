@@ -38,6 +38,20 @@ pub struct Config {
 
     #[serde(default = "default_fosiaudio_timeout_ms")]
     pub fosiaudio_timeout_ms: u64,
+
+    #[serde(default = "default_dota_ocr_engine_command")]
+    pub dota_ocr_engine_command: String,
+
+    #[serde(default = "default_dota_ocr_engine_pwd")]
+    pub dota_ocr_engine_pwd: Option<PathBuf>,
+}
+
+fn default_dota_ocr_engine_pwd() -> Option<PathBuf> {
+    Some(PathBuf::from("dota-agent"))
+}
+
+fn default_dota_ocr_engine_command() -> String {
+    "uv run dota-ocr-engine.py ocr %".into()
 }
 
 fn default_fosiaudio_timeout_ms() -> u64 {
@@ -64,6 +78,8 @@ impl Default for Config {
             dota_screenshot_dir: None,
             fosiaudio_host: default_fosiaudio_host(),
             fosiaudio_timeout_ms: default_fosiaudio_timeout_ms(),
+            dota_ocr_engine_command: default_dota_ocr_engine_command(),
+            dota_ocr_engine_pwd: default_dota_ocr_engine_pwd(),
         }
     }
 }

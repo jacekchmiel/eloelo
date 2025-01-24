@@ -24,6 +24,7 @@ pub(crate) mod config;
 pub(crate) mod elodisco;
 mod git_mirror;
 pub(crate) mod message_bus;
+pub(crate) mod ocr;
 pub(crate) mod silly_responder;
 pub(crate) mod store;
 pub(crate) mod ui_state;
@@ -102,13 +103,6 @@ impl EloElo {
                 } else {
                     info!("State stored.");
                 }
-                // TODO: figure out how to not store config on exit.
-                // Its bad UX to have custom config overriden by this save.
-                if let Err(e) = self.store_config() {
-                    error!("store_config failed: {}", e);
-                } else {
-                    info!("Config stored.");
-                };
             }
         }
     }

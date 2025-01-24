@@ -1,19 +1,28 @@
 use std::fmt::Display;
 use std::time::Duration;
 
-use log::error;
+use log::{error, info};
 
 pub fn print_err(e: &impl Display) {
     error!("{e:#}")
 }
 
+pub fn print_err_info(e: &impl Display) {
+    info!("{e:#}")
+}
+
 pub trait ResultExt {
     fn print_err(self);
+    fn print_err_info(self);
 }
 
 impl<T> ResultExt for Result<T, anyhow::Error> {
     fn print_err(self) {
         let _ = self.inspect_err(print_err);
+    }
+
+    fn print_err_info(self) {
+        let _ = self.inspect_err(print_err_info);
     }
 }
 

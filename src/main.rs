@@ -1,7 +1,7 @@
 use anyhow::{Context, Result};
 use eloelo::message_bus::{Message, MessageBus, UiCommand};
-use eloelo::{elodisco, store, EloElo};
-use log::{debug, info};
+use eloelo::{elodisco, ocr, store, EloElo};
+use log::{debug, error, info};
 use serenity::futures;
 use std::future::Future;
 use std::pin::Pin;
@@ -53,8 +53,11 @@ async fn main() {
         bot_state,
         message_bus.clone(),
     ));
-    let eloelo = EloElo::new(state, config, message_bus.clone());
+    let eloelo = EloElo::new(state, config.clone(), message_bus.clone());
     let eloelo_task = tokio::spawn(eloelo.dispatch_ui_commands(message_bus.clone()));
+    let _ = ocr::spawn_dota_screenshot_parser(config.clone(), message_bus.clone())
+        .context("spawn_dota_screenshot_parser failed")
+        .inspect_err(|e| error!("{e:#}"));
     tokio::spawn(api::serve(message_bus.clone()));
 
     info!("Running");

@@ -30,11 +30,12 @@ spawelo = { workspace = true }
 duct = "0.13.7"
 reqwest = { version = "0.12.12", features = ["blocking", "multipart"] }
 serde_urlencoded = "0.7.1"
-axum = { version = "0.8.1", features = ["ws"] }
+axum = { version = "0.8.1", features = ["ws", "macros"] }
 http = "1.2.0"
 tokio-stream = { version = "0.1.17", features = ["sync"] }
 futures-util = "0.3.31"
 tower-http = { version = "0.6.2", features = ["fs"] }
+bytes = "1.9.0"
 
 [profile.dev.package.spawelo]
 opt-level = 1
