@@ -1,16 +1,13 @@
 import cv2
 import pytesseract
 import logging
-import pprint
 import argparse
 from pathlib import Path
 import sys
 import re
-from datetime import datetime
-import time
-from collections import Counter
 import coloredlogs
 import json
+import math
 
 DEFAULT_TESSERACT_CONFIG = "--oem 3 --psm 6"
 DEFAULT_SCREENSHOT_DIR = (
@@ -152,16 +149,6 @@ class Reader:
         }
 
 
-class Coords4k:
-    def __init__(self):
-        self.arcade_lobby_control_rect = ((3080, 130), (3250, 200))
-        self.arcade_lobby_players_rect = ((3270, 500), (3800, 1500))
-
-        self.regular_lobby_control_rect = ((3069, 1918), (3718, 1980))
-        self.regular_lobby_radiant_rect = ((2544, 335), (2994, 830))
-        self.regular_lobby_dire_rect = ((3215, 335), (3750, 830))
-
-
 def scale(rect, factor):
     result = (
         (int(rect[0][0] * factor), int(rect[0][1] * factor)),
@@ -185,21 +172,72 @@ class ScaledCoords:
         self.regular_lobby_dire_rect = scale(coords.regular_lobby_dire_rect, factor)
 
 
+class CoordsBase:
+    def __init__(self, width, height):
+        self.width = width
+        self.height = height
+
+    def ratio(self) -> float:
+        return self.width / self.height
+
+    def matches_ratio_of(self, res) -> bool:
+        res_ratio = res[1] / res[0]
+        return math.isclose(self.ratio(), res_ratio, abs_tol=0.01)
+
+    def scale_for(self, res) -> ScaledCoords:
+        scale_factor = self.width / res[1]
+        return ScaledCoords(self, scale_factor)
+
+
+class Coords16x9(CoordsBase):
+    def __init__(self):
+        super().__init__(3840, 2160)
+
+        self.arcade_lobby_control_rect = ((3080, 130), (3250, 200))
+        self.arcade_lobby_players_rect = ((3270, 500), (3800, 1500))
+
+        self.regular_lobby_control_rect = ((3069, 1918), (3718, 1980))
+        self.regular_lobby_radiant_rect = ((2544, 335), (2994, 830))
+        self.regular_lobby_dire_rect = ((3215, 335), (3750, 830))
+
+
+class Coords16x10(CoordsBase):
+    def __init__(self):
+        super().__init__(2560, 1600)
+
+        self.arcade_lobby_control_rect = ((2000, 100), (2130, 150))
+        self.arcade_lobby_players_rect = ((2137, 380), (2500, 1120))
+
+        self.regular_lobby_control_rect = ((1950, 1420), (2500, 1480))
+        self.regular_lobby_radiant_rect = ((1600, 250), (1940, 620))
+        self.regular_lobby_dire_rect = ((2100, 250), (2440, 620))
+
+
+def ratio_from_shape(image_shape) -> float:
+    return image_shape[1] / image_shape[0]
+
+
 def read_any_screenshot(filename) -> str:
     result = {}
+    coords_16x9 = Coords16x9()
+    coords_16x10 = Coords16x10()
 
     image = read(filename)
     res = image.shape[:2]
     LOG.info("image size: %s", res)
 
-    if res == (2160, 3840):
-        coords = Coords4k()
-    elif res == (1440, 2560):
-        coords = ScaledCoords(Coords4k(), 1440 / 2160)
-    elif res == (1080, 1920):
-        coords = ScaledCoords(Coords4k(), 0.5)
+    LOG.debug("ratio: %.2f", ratio_from_shape(res))
+    LOG.debug("16x9 ratio: %.2f", coords_16x9.ratio())
+    LOG.debug("16x10 ratio: %.2f", coords_16x10.ratio())
+
+    if coords_16x9.matches_ratio_of(res):
+        LOG.info("format: 16x9")
+        coords = coords_16x9.scale_for(res)
+    elif coords_16x10.matches_ratio_of(res):
+        LOG.info("format: 16x10")
+        coords = coords_16x10.scale_for(res)
     else:
-        raise RuntimeError("Display resolution %s not supported", res)
+        raise RuntimeError(f"Display resolution {res} not supported")
 
     reader = Reader(coords)
 
