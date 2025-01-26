@@ -2,7 +2,6 @@ use std::collections::{HashMap, HashSet};
 use std::time::Duration;
 
 use anyhow::{Context, Result};
-use call_to_lobby::call_to_lobby;
 use chrono::Local;
 use config::Config;
 use eloelo_model::history::{History, HistoryEntry};
@@ -19,9 +18,9 @@ use ui_state::{State, UiPlayer, UiState};
 
 use crate::utils::{duration_minutes, print_err, unwrap_or_def_verbose, ResultExt as _};
 
-mod call_to_lobby;
 pub(crate) mod config;
 pub(crate) mod elodisco;
+mod fosiaudio;
 mod git_mirror;
 pub(crate) mod message_bus;
 pub(crate) mod ocr;
@@ -96,7 +95,7 @@ impl EloElo {
             UiCommand::CallPlayer(player_id) => self.call_player(&player_id).await,
             UiCommand::ShuffleTeams => self.shuffle_teams(),
             UiCommand::RefreshElo => self.recalculate_elo_from_history(),
-            UiCommand::FinishMatch(finish_match) => self.finish_match(finish_match),
+            UiCommand::FinishMatch(finish_match) => self.finish_match(finish_match).await,
             UiCommand::CloseApplication => {
                 if let Err(e) = self.store_state() {
                     error!("store_state failed: {}", e);
@@ -297,7 +296,7 @@ impl EloElo {
             })));
     }
 
-    fn finish_match(&mut self, finish_match: FinishMatch) {
+    async fn finish_match(&mut self, finish_match: FinishMatch) {
         if let FinishMatch::Finished {
             winner,
             scale,
@@ -327,6 +326,15 @@ impl EloElo {
                 .sync(Some(&commit_message))
                 .context("Failed to sync history git mirror")
                 .print_err(); // TODO: proper error propagation
+
+            // Play winner theme
+            fosiaudio::announce_winner(
+                &self.config.fosiaudio_host,
+                &winner_team_name,
+                Duration::from_millis(self.config.fosiaudio_timeout_ms),
+            )
+            .await
+            .print_err(); // TODO: proper error propagation
 
             // Send rich event
             if !fake {
@@ -469,11 +477,10 @@ impl EloElo {
     }
 
     async fn call_to_lobby(&self) {
-        let _ = call_to_lobby(
+        let _ = fosiaudio::call_missing_players(
             &self.config.fosiaudio_host,
             self.players_missing_from_lobby(),
             Duration::from_millis(self.config.fosiaudio_timeout_ms),
-            false,
         )
         .await
         .context("Call to lobby failed")
@@ -539,16 +546,14 @@ impl EloElo {
     }
 
     async fn call_player(&self, player_id: &PlayerId) {
-        let player = self.players.get(player_id);
-        if player.is_none() {
+        let Some(player) = self.players.get(player_id) else {
             return;
-        }
+        };
         //TODO: move to background
-        let _ = call_to_lobby(
+        let _ = fosiaudio::call_single_player(
             &self.config.fosiaudio_host,
-            player.into_iter(),
+            player,
             Duration::from_millis(self.config.fosiaudio_timeout_ms),
-            true,
         )
         .await
         .context("Call to lobby failed")
