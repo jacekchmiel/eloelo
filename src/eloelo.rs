@@ -13,6 +13,7 @@ use log::{debug, error, info, warn};
 use message_bus::{
     Event, FinishMatch, MatchStart, MatchStartTeam, Message, MessageBus, RichMatchResult, UiCommand,
 };
+use regex::Regex;
 use spawelo::ml_elo;
 use ui_state::{State, UiPlayer, UiState};
 
@@ -521,6 +522,15 @@ impl EloElo {
         }
         let player_ids = player_ids;
 
+        let player_names: Vec<String> = player_names
+            .into_iter()
+            .flat_map(|p| with_alternative_matches(&p))
+            .collect();
+        debug!(
+            "Matching players against extended list: {}",
+            player_names.join(", ")
+        );
+
         for name in player_names {
             match player_ids.get(&name.to_lowercase()) {
                 Some(&player_id) => {
@@ -572,4 +582,42 @@ fn remove_player_id(players: &mut Vec<PlayerId>, player_id: &PlayerId) -> Option
         .enumerate()
         .find_map(|(i, p)| if p == player_id { Some(i) } else { None })
         .map(|idx| players.remove(idx))
+}
+
+fn with_alternative_matches(p: &str) -> Vec<String> {
+    let mut out = vec![String::from(p)];
+    let re = Regex::new(r"(?<alt>\w+?)(.?kuce.?)$").unwrap();
+    if let Some(captures) = re.captures(p) {
+        out.extend(captures.name("alt").map(|m| String::from(m.as_str())));
+    }
+    out
+}
+
+#[cfg(test)]
+mod test {
+    use super::*;
+
+    #[test]
+    fn test_with_alternative_matches() {
+        assert_eq!(
+            with_alternative_matches("spawektkuce]"),
+            vec![String::from("spawektkuce]"), String::from("spawek")]
+        );
+        assert_eq!(
+            with_alternative_matches("jikuce"),
+            vec![String::from("jikuce"), String::from("j")]
+        );
+        assert_eq!(
+            with_alternative_matches("jkuce}"),
+            vec![String::from("jkuce}"), String::from("j")]
+        );
+        assert_eq!(
+            with_alternative_matches("jkuce"),
+            vec![String::from("jkuce"), String::from("j")]
+        );
+        assert_eq!(
+            with_alternative_matches("jkucet"),
+            vec![String::from("jkucet"), String::from("j")]
+        );
+    }
 }
