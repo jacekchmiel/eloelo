@@ -185,7 +185,7 @@ class CoordsBase:
         return math.isclose(self.ratio(), res_ratio, abs_tol=0.01)
 
     def scale_for(self, res) -> ScaledCoords:
-        scale_factor = self.width / res[1]
+        scale_factor = res[1] / self.width
         return ScaledCoords(self, scale_factor)
 
 
