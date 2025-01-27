@@ -73,7 +73,7 @@ Alchemist
 Invoker
 Silencer
 Outworld Devourer
-Lycanthrope
+Lycan
 Brewmaster
 Shadow Demon
 Lone Druid
@@ -103,7 +103,7 @@ Elder Titan
 Legion Commander
 Ember Spirit
 Earth Spirit
-Abyssal Underlord
+Underlord
 Terrorblade
 Phoenix
 Techies
@@ -121,3 +121,6 @@ Monkey King
 Ringmaster
 Kez
 Dawnbreaker
+Mars
+Grimstroke
+Io

@@ -357,8 +357,13 @@ fn heroes_str(heroes: &HashSet<Hero>) -> Option<String> {
     if heroes.is_empty() {
         return None;
     }
-    let heroes: Vec<&str> = heroes.iter().map(|h| h.as_str()).collect();
-    Some(heroes.join(",\n"))
+    let mut heroes: Vec<&str> = heroes.iter().map(|h| h.as_str()).collect();
+    heroes.sort_unstable();
+    Some(format!(
+        "{}\n\nThats {} total heroes",
+        heroes.join(",\n"),
+        heroes.len()
+    ))
 }
 
 #[cfg(test)]
