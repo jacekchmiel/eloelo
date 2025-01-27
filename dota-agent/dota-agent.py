@@ -7,12 +7,23 @@ import time
 from collections import Counter
 import requests
 import coloredlogs
+import platform
 
 DEFAULT_TESSERACT_CONFIG = "--oem 3 --psm 6"
 DEFAULT_ELOELO_ADDR = "localhost:3000"
-DEFAULT_SCREENSHOT_DIR = (
+DEFAULT_SCREENSHOT_DIR_LINUX = (
     "/mnt/c/Program Files (x86)/Steam/userdata/96608807/760/remote/570/screenshots"
 )
+DEFAULT_SCREENSHOT_DIR_WIN = (
+    "C:\\Program Files (x86)\\Steam\\userdata\\96608807\\760\\remote\\570\\screenshots"
+)
+if platform.system() == "Windows":
+    DEFAULT_SCREENSHOT_DIR = DEFAULT_SCREENSHOT_DIR_WIN
+else:
+    DEFAULT_SCREENSHOT_DIR = DEFAULT_SCREENSHOT_DIR_LINUX
+
+
+LOG = logging.getLogger()
 
 
 class ProgramArgumentError(Exception):
@@ -52,16 +63,15 @@ def parse_program_arguments():
         "--quiet", "-q", help="do not print unnecessary stuff", action="store_true"
     )
     args = parser.parse_args()
+    configure_logging(args)
 
-    args.target = Path(DEFAULT_SCREENSHOT_DIR)
-    LOG.info("Using default dir to watch: %s", args.target)
+    if args.target == Path("default"):
+        args.target = Path(DEFAULT_SCREENSHOT_DIR)
+        LOG.info("Using default dir to watch: %s", args.target)
     if not Path(args.target).resolve().is_dir():
         raise ProgramArgumentError("Watch target is not a dir")
 
     return args
-
-
-LOG = logging.getLogger()
 
 
 def configure_logging(args):
@@ -135,7 +145,6 @@ def send_raw_file(addr, path, *, timeout):
 
 def main():
     args = parse_program_arguments()
-    configure_logging(args)
 
     LOG.info("EloElo address: %s", args.eloelo_addr)
     LOG.info("Request timeout: %s", args.request_timeout)
