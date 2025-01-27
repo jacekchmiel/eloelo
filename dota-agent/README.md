@@ -23,3 +23,9 @@ powershell -c "irm https://astral.sh/uv/install.ps1 | iex"
 ```
 uv run dota-agent.py --help
 ```
+
+Most likely:
+
+```
+uv run dota-agent.py /path/to/dota/screenshots --eloelo-addr eloelo.host:port
+```
