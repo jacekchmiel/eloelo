@@ -1,5 +1,6 @@
 use std::collections::{HashMap, HashSet};
 
+use chrono::{DateTime, Local};
 use eloelo_model::player::DiscordUsername;
 use serde::{Deserialize, Serialize};
 
@@ -27,4 +28,17 @@ pub struct DotaBotState {
 
     /// List of allowed heroes. If not empty, randomizer will use only this pool.
     pub allowed_heroes: HashSet<Hero>,
+
+    /// List of heroes offered last match.
+    #[serde(default)]
+    pub last_match_heroes: HashSet<Hero>,
+
+    /// Date of the last match.
+    #[serde(default)]
+    pub last_match_date: Option<DateTime<Local>>,
+
+    /// Explicit opt-out from duplicate heroes avoidance. With this set to true,
+    /// the algorithm won't try to avoid presenting same hero twice in a row.
+    #[serde(default)]
+    pub duplicate_heroes_opt_out: bool,
 }
