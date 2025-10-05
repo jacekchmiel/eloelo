@@ -199,13 +199,7 @@ impl DotaBot {
             match members.get(&username) {
                 Some(user) => {
                     let message = CreateMessage::new().content(heroes_message);
-
-                    tokio::spawn(send_direct_message(
-                        ctx.clone(),
-                        user.clone(),
-                        message,
-                        "heroes",
-                    ));
+                    send_direct_message(ctx.clone(), user.clone(), message, "heroes").await;
                 }
                 None => error!(
                     "{} not found in guild members. This should not happen.",
@@ -363,8 +357,13 @@ fn heroes_str(heroes: &HashSet<Hero>) -> Option<String> {
     if heroes.is_empty() {
         return None;
     }
-    let heroes: Vec<&str> = heroes.iter().map(|h| h.as_str()).collect();
-    Some(heroes.join(",\n"))
+    let mut heroes: Vec<&str> = heroes.iter().map(|h| h.as_str()).collect();
+    heroes.sort_unstable();
+    Some(format!(
+        "{}\n\nThats {} total heroes",
+        heroes.join(",\n"),
+        heroes.len()
+    ))
 }
 
 #[cfg(test)]

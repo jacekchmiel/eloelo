@@ -1,7 +1,9 @@
 use std::fmt::Display;
+use std::path::PathBuf;
 use std::sync::Arc;
 
 use anyhow::Context as _;
+use axum::body::Bytes;
 use axum::extract::ws::{self, WebSocket};
 use axum::extract::{State, WebSocketUpgrade};
 use axum::response::{ErrorResponse, IntoResponse, Redirect, Response};
@@ -10,12 +12,12 @@ use axum::{Json, Router};
 use eloelo_model::player::{DiscordUsername, Player};
 use eloelo_model::{GameId, PlayerId, Team, WinScale};
 use futures_util::StreamExt as _;
-use http::StatusCode;
+use http::{HeaderMap, StatusCode};
 use log::{debug, info};
 use serde::{Deserialize, Serialize};
 use tower_http::services::ServeDir;
 
-use crate::eloelo::message_bus::{FinishMatch, Message, MessageBus, UiCommand};
+use crate::eloelo::message_bus::{Event, FinishMatch, ImageFormat, Message, MessageBus, UiCommand};
 use crate::utils::ResultExt as _;
 
 struct AppState {
@@ -224,19 +226,66 @@ async fn call_to_lobby(State(state): AppStateArg) -> impl IntoResponse {
     EmptyResponse
 }
 
-#[derive(Debug, Deserialize)]
-#[serde(rename_all = "camelCase")]
-struct LobbyScreenshotData {
-    players_in_lobby: Vec<String>,
+async fn clear_lobby(State(state): AppStateArg) -> impl IntoResponse {
+    state
+        .message_bus
+        .send(Message::UiCommand(UiCommand::ClearLobby));
+    EmptyResponse
 }
-async fn add_lobby_screenshot_data(
+
+async fn fill_lobby(State(state): AppStateArg) -> impl IntoResponse {
+    state
+        .message_bus
+        .send(Message::UiCommand(UiCommand::FillLobby));
+    EmptyResponse
+}
+
+#[derive(Debug, Deserialize)]
+struct CallPlayerBody {
+    id: PlayerId,
+}
+async fn call_player(
     State(state): AppStateArg,
-    Json(payload): Json<LobbyScreenshotData>,
+    Json(body): Json<CallPlayerBody>,
 ) -> impl IntoResponse {
     state
         .message_bus
-        .send(Message::UiCommand(UiCommand::AddLobbyScreenshotData(
-            payload.players_in_lobby,
+        .send(Message::UiCommand(UiCommand::CallPlayer(body.id)));
+    EmptyResponse
+}
+
+// #[derive(Debug, Deserialize)]
+// #[serde(rename_all = "camelCase")]
+// struct LobbyScreenshotData {
+//     players_in_lobby: Vec<String>,
+// }
+// async fn add_lobby_screenshot_data(
+//     State(state): AppStateArg,
+//     Json(payload): Json<LobbyScreenshotData>,
+// ) -> impl IntoResponse {
+//     state
+//         .message_bus
+//         .send(Message::UiCommand(UiCommand::AddLobbyScreenshotData(
+//             payload.players_in_lobby,
+//         )));
+//     EmptyResponse
+// }
+
+async fn process_dota_screenshot(
+    State(state): AppStateArg,
+    headers: HeaderMap,
+    body: Bytes,
+) -> impl IntoResponse {
+    let image_format = headers
+        .get("Content-Type")
+        .and_then(|v| v.to_str().ok())
+        .inspect(|v| debug!("screenshot Content-Type: {v}"))
+        .and_then(ImageFormat::from_mime_type);
+    state
+        .message_bus
+        .send(Message::Event(Event::DotaScreenshotReceived(
+            body,
+            image_format,
         )));
     EmptyResponse
 }
@@ -266,6 +315,7 @@ fn wrap_result<T: Serialize, E: Display>(
 async fn ui_event_stream(socket: WebSocket, message_bus: MessageBus) {
     info!("New UI event stream started.");
     let stream = message_bus.subscribe().ui_update_stream().map(wrap_result);
+    message_bus.send(Message::UiCommand(UiCommand::InitializeUi));
     match stream.forward(socket).await {
         Ok(()) => {
             info!("UI event stream closed.");
@@ -280,7 +330,7 @@ async fn redirect_to_ui() -> impl IntoResponse {
     Redirect::permanent("/ui")
 }
 
-pub async fn serve(message_bus: MessageBus) {
+pub async fn serve(message_bus: MessageBus, static_serving_dir: PathBuf) {
     let shared_state = Arc::new(AppState { message_bus });
     let app = Router::new()
         .route("/", get(redirect_to_ui))
@@ -303,11 +353,14 @@ pub async fn serve(message_bus: MessageBus) {
                 .route("/shuffle_teams", post(shuffle_teams))
                 .route("/refresh_elo", post(refresh_elo))
                 .route("/call_to_lobby", post(call_to_lobby))
-                .route("/present_in_lobby_change", post(present_in_lobby_change)),
+                .route("/present_in_lobby_change", post(present_in_lobby_change))
+                .route("/clear_lobby", post(clear_lobby))
+                .route("/fill_lobby", post(fill_lobby))
+                .route("/call_player", post(call_player)),
         )
-        .route("/api/v1/lobby_screenshot", post(add_lobby_screenshot_data))
+        .route("/api/v1/dota_screenshot", post(process_dota_screenshot))
         .with_state(shared_state)
-        .fallback_service(ServeDir::new("ui/dist"));
+        .fallback_service(ServeDir::new(static_serving_dir));
     let listener = tokio::net::TcpListener::bind("0.0.0.0:3000").await.unwrap();
     axum::serve(listener, app)
         .await

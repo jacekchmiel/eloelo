@@ -1,7 +1,10 @@
 # TODO
 
 ## HIGH PRIORITY
-
+- [ ] Do not assign the same hero twice in a row to a player
+  - [ ] Flag to opt-out of this rule
+- [ ] Split match history to multiple files
+- [ ] Flag to disable autogrzybke
 - [ ] Switch to poise - higher level framework for discord
   - [ ] Migrate slash commands to proper implementation
   - [ ] Consider modals instead of DM
@@ -10,11 +13,11 @@
   - [ ] Allow picking heroes from GUI
   - [ ] Add buttons to Discord message for hero pick
   - [ ] OCR heroes from game screenshot?
-- [ ] Missing players in lobby
-  - [ ] OCR screenshot
-  - [ ] Add fallback player aliases, make sure requests are logged for debug
+- [x] Missing players in lobby
+  - [x] OCR screenshot
+  - [x] Add fallback player aliases, make sure requests are logged for debug
   - [x] Call autogrzybke
-  - [ ] Send message
+  - [x] Send message
 - [x] Add hero
 - [x] Additional match info: length, advantage
 - [ ] Display length and advantage on match view
@@ -40,5 +43,3 @@
 - [ ] Randomize Heroes by type
 
 - [ ] Game graphics
-
-- [ ] Tests and microbenchmarks for ELO calculation

@@ -2,7 +2,6 @@ use std::collections::{HashMap, HashSet};
 use std::time::Duration;
 
 use anyhow::{Context, Result};
-use call_to_lobby::call_to_lobby;
 use chrono::Local;
 use config::Config;
 use eloelo_model::history::{History, HistoryEntry};
@@ -14,16 +13,18 @@ use log::{debug, error, info, warn};
 use message_bus::{
     Event, FinishMatch, MatchStart, MatchStartTeam, Message, MessageBus, RichMatchResult, UiCommand,
 };
+use regex::Regex;
 use spawelo::ml_elo;
 use ui_state::{State, UiPlayer, UiState};
 
 use crate::utils::{duration_minutes, print_err, unwrap_or_def_verbose, ResultExt as _};
 
-mod call_to_lobby;
 pub(crate) mod config;
 pub(crate) mod elodisco;
+mod fosiaudio;
 mod git_mirror;
 pub(crate) mod message_bus;
+pub(crate) mod ocr;
 pub(crate) mod silly_responder;
 pub(crate) mod store;
 pub(crate) mod ui_state;
@@ -80,7 +81,7 @@ impl EloElo {
             }
             UiCommand::RemovePlayerFromTeam(player_id) => self.remove_player_from_team(&player_id),
             UiCommand::AddPlayerToTeam(player_id, team) => self.add_player_to_team(player_id, team),
-            UiCommand::AddPlayerToLobby(player_id) => self.add_player_to_lobby(player_id),
+            UiCommand::AddPlayerToLobby(player_id) => self.add_player_to_lobby(player_id).await,
             UiCommand::RemovePlayerFromLobby(player_id) => {
                 self.remove_player_from_lobby(&player_id)
             }
@@ -90,20 +91,18 @@ impl EloElo {
             UiCommand::ChangeGame(game_id) => self.change_game(game_id),
             UiCommand::StartMatch => self.start_match(),
             UiCommand::CallToLobby => self.call_to_lobby().await,
+            UiCommand::FillLobby => self.fill_lobby().await,
+            UiCommand::ClearLobby => self.clear_lobby(),
+            UiCommand::CallPlayer(player_id) => self.call_player(&player_id).await,
             UiCommand::ShuffleTeams => self.shuffle_teams(),
             UiCommand::RefreshElo => self.recalculate_elo_from_history(),
-            UiCommand::FinishMatch(finish_match) => self.finish_match(finish_match),
+            UiCommand::FinishMatch(finish_match) => self.finish_match(finish_match).await,
             UiCommand::CloseApplication => {
                 if let Err(e) = self.store_state() {
                     error!("store_state failed: {}", e);
                 } else {
                     info!("State stored.");
                 }
-                if let Err(e) = self.store_config() {
-                    error!("store_config failed: {}", e);
-                } else {
-                    info!("Config stored.");
-                };
             }
         }
     }
@@ -140,10 +139,6 @@ impl EloElo {
             lobby: self.lobby.clone(),
         };
         store::store_state(&state)
-    }
-
-    fn store_config(&self) -> Result<()> {
-        store::store_config(&self.players)
     }
 
     pub fn ui_state(&self) -> UiState {
@@ -302,7 +297,7 @@ impl EloElo {
             })));
     }
 
-    fn finish_match(&mut self, finish_match: FinishMatch) {
+    async fn finish_match(&mut self, finish_match: FinishMatch) {
         if let FinishMatch::Finished {
             winner,
             scale,
@@ -332,6 +327,15 @@ impl EloElo {
                 .sync(Some(&commit_message))
                 .context("Failed to sync history git mirror")
                 .print_err(); // TODO: proper error propagation
+
+            // Play winner theme
+            fosiaudio::announce_winner(
+                &self.config.fosiaudio_host,
+                &winner_team_name,
+                Duration::from_millis(self.config.fosiaudio_timeout_ms),
+            )
+            .await
+            .print_err(); // TODO: proper error propagation
 
             // Send rich event
             if !fake {
@@ -461,8 +465,12 @@ impl EloElo {
         }
     }
 
-    fn add_player_to_lobby(&mut self, player_id: PlayerId) {
+    async fn add_player_to_lobby(&mut self, player_id: PlayerId) {
         self.lobby.insert(player_id);
+        if self.everybody_in_lobby() {
+            // Empty call to lobby will trigger match starting audio track
+            self.call_to_lobby().await
+        }
     }
 
     fn remove_player_from_lobby(&mut self, player_id: &PlayerId) {
@@ -470,9 +478,10 @@ impl EloElo {
     }
 
     async fn call_to_lobby(&self) {
-        let _ = call_to_lobby(
+        let _ = fosiaudio::call_missing_players(
             &self.config.fosiaudio_host,
             self.players_missing_from_lobby(),
+            Duration::from_millis(self.config.fosiaudio_timeout_ms),
         )
         .await
         .context("Call to lobby failed")
@@ -513,6 +522,15 @@ impl EloElo {
         }
         let player_ids = player_ids;
 
+        let player_names: Vec<String> = player_names
+            .into_iter()
+            .flat_map(|p| with_alternative_matches(&p))
+            .collect();
+        debug!(
+            "Matching players against extended list: {}",
+            player_names.join(", ")
+        );
+
         for name in player_names {
             match player_ids.get(&name.to_lowercase()) {
                 Some(&player_id) => {
@@ -525,6 +543,37 @@ impl EloElo {
             }
         }
     }
+
+    async fn fill_lobby(&mut self) {
+        let full_lobby: HashSet<_> = self.players_in_team().cloned().collect();
+        self.lobby = full_lobby;
+        // Empty call to lobby will trigger match starting audio track
+        self.call_to_lobby().await
+    }
+
+    fn clear_lobby(&mut self) {
+        self.lobby.clear();
+    }
+
+    async fn call_player(&self, player_id: &PlayerId) {
+        let Some(player) = self.players.get(player_id) else {
+            return;
+        };
+        //TODO: move to background
+        let _ = fosiaudio::call_single_player(
+            &self.config.fosiaudio_host,
+            player,
+            Duration::from_millis(self.config.fosiaudio_timeout_ms),
+        )
+        .await
+        .context("Call to lobby failed")
+        .print_err();
+    }
+
+    fn everybody_in_lobby(&self) -> bool {
+        let expected: HashSet<_> = self.players_in_team().cloned().collect();
+        expected == self.lobby
+    }
 }
 
 fn remove_player_id(players: &mut Vec<PlayerId>, player_id: &PlayerId) -> Option<PlayerId> {
@@ -533,4 +582,42 @@ fn remove_player_id(players: &mut Vec<PlayerId>, player_id: &PlayerId) -> Option
         .enumerate()
         .find_map(|(i, p)| if p == player_id { Some(i) } else { None })
         .map(|idx| players.remove(idx))
+}
+
+fn with_alternative_matches(p: &str) -> Vec<String> {
+    let mut out = vec![String::from(p)];
+    let re = Regex::new(r"(?<alt>\w+?)(.?kuce.?)$").unwrap();
+    if let Some(captures) = re.captures(p) {
+        out.extend(captures.name("alt").map(|m| String::from(m.as_str())));
+    }
+    out
+}
+
+#[cfg(test)]
+mod test {
+    use super::*;
+
+    #[test]
+    fn test_with_alternative_matches() {
+        assert_eq!(
+            with_alternative_matches("spawektkuce]"),
+            vec![String::from("spawektkuce]"), String::from("spawek")]
+        );
+        assert_eq!(
+            with_alternative_matches("jikuce"),
+            vec![String::from("jikuce"), String::from("j")]
+        );
+        assert_eq!(
+            with_alternative_matches("jkuce}"),
+            vec![String::from("jkuce}"), String::from("j")]
+        );
+        assert_eq!(
+            with_alternative_matches("jkuce"),
+            vec![String::from("jkuce"), String::from("j")]
+        );
+        assert_eq!(
+            with_alternative_matches("jkucet"),
+            vec![String::from("jkucet"), String::from("j")]
+        );
+    }
 }

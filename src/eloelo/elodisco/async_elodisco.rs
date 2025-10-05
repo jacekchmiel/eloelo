@@ -422,16 +422,6 @@ async fn send_start_match_message(
     send_message(channel, ctx, msg).await;
 }
 
-fn make_hero_assignments_message(
-    hero_assignments: &HashMap<DiscordUsername, Vec<&Hero>>,
-) -> String {
-    hero_assignments
-        .iter()
-        .map(|(user, heroes)| format!("**{user}**: {}", join(heroes, ", ")))
-        .collect::<Vec<_>>()
-        .join("\n")
-}
-
 async fn send_match_cancelled_message(ctx: &Context, channel: &ChannelId) {
     let msg = CreateMessage::new().content("## Match cancelled 😩");
     send_message(channel, ctx, msg).await;

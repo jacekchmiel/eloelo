@@ -14,7 +14,6 @@ export function PresentInLobbyButton({
 		<IconButton
 			{...props}
 			edge={side === "left" ? "start" : "end"}
-			aria-label="delete"
 			onClick={async () => {
 				await invoke("present_in_lobby_change", {
 					id: playerKey,

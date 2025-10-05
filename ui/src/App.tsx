@@ -197,6 +197,19 @@ function MainView({
 		React.useState<FinishMatchModalState>({ show: false });
 	const [startTimestamp, setStartTimestamp] = React.useState<Date>(new Date(0));
 
+	const onToggleLobby = async () => {
+		const anyoneInLobby =
+			state.leftPlayers
+				.map((player) => player.presentInLobby)
+				.concat(state.rightPlayers.map((p) => p.presentInLobby))
+				.filter((p) => p).length > 0;
+		if (anyoneInLobby) {
+			await invoke("clear_lobby", {});
+		} else {
+			await invoke("fill_lobby", {});
+		}
+	};
+
 	return (
 		<>
 			<TeamSelector {...state} avatars={avatars} />
@@ -205,14 +218,7 @@ function MainView({
 				{state.gameState === "assemblingTeams" && (
 					<>
 						<Grid item xs={6}>
-							<Stack direction="row" justifyContent="space-between">
-								<Button
-									onClick={async () => {
-										await invoke("call_to_lobby", {});
-									}}
-								>
-									Call to Lobby
-								</Button>
+							<Stack direction="row" justifyContent="right">
 								<Button
 									onClick={async () => {
 										await invoke("start_match", {});
@@ -288,6 +294,32 @@ function MainView({
 						</Grid>
 					</>
 				)}
+			</Grid>
+			<Grid item xs={12}>
+				<Stack direction="row" justifyContent="center">
+					<h3>Lobby</h3>
+					<Button
+						onClick={async () => {
+							await invoke("call_to_lobby", {});
+						}}
+					>
+						Call
+					</Button>
+					<Button
+						onClick={async () => {
+							await invoke("clear_lobby", {});
+						}}
+					>
+						Clear
+					</Button>
+					<Button
+						onClick={async () => {
+							await invoke("fill_lobby", {});
+						}}
+					>
+						Fill
+					</Button>
+				</Stack>
 			</Grid>
 			<ReserveList
 				players={state.reservePlayers}
@@ -453,14 +485,6 @@ export default function App() {
 			});
 		};
 	}, []);
-
-	React.useEffect(() => {
-		initializeUi();
-	}, []);
-
-	async function initializeUi() {
-		await invoke("initialize_ui", {});
-	}
 
 	const theme = React.useMemo(
 		() =>

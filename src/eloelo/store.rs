@@ -11,7 +11,7 @@ use super::config::Config;
 use super::elodisco::bot_state::BotState;
 use super::ui_state::State;
 use eloelo_model::history::{History, HistoryEntry};
-use eloelo_model::player::{PlayerConfig, PlayerDb};
+use eloelo_model::player::PlayerDb;
 use eloelo_model::GameId;
 
 const HISTORY_SUFFIX: &str = ".history.json";
@@ -86,6 +86,7 @@ pub fn store_default_config() -> Result<()> {
     Ok(serde_yaml::to_writer(config_file, &Config::default())?)
 }
 
+#[allow(dead_code)]
 pub fn store_config(players: &PlayerDb) -> Result<()> {
     ensure_dir_created(&config_file_path())?;
     let stored_config = load_config()?;

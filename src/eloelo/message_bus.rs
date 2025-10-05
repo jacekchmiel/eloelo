@@ -1,4 +1,5 @@
 use anyhow::Result;
+use bytes::Bytes;
 use eloelo_model::player::{DiscordUsername, Player, PlayerDb};
 use eloelo_model::{GameId, PlayerId, Team, WinScale};
 use futures_util::{Stream, StreamExt};
@@ -39,25 +40,35 @@ impl MessageBusSubscription {
         Self::translate_recv(self.0.recv().await)
     }
 
-    pub fn blocking_recv(&mut self) -> Option<Message> {
-        Self::translate_recv(self.0.blocking_recv())
+    pub fn stream(self) -> impl Stream<Item = Result<Message>> {
+        BroadcastStream::new(self.0).map(|r| r.map_err(anyhow::Error::from))
     }
 
     pub fn ui_update_stream(self) -> impl Stream<Item = Result<UiUpdate>> {
-        BroadcastStream::new(self.0).filter_map(|r| async move {
+        self.stream().filter_map(|r| async move {
             match r {
                 Ok(Message::UiUpdate(ui_update)) => Some(Ok(ui_update)),
-                Err(broadcast_err) => Some(Err(broadcast_err.into())),
+                Err(e) => Some(Err(e)),
                 _ => None,
             }
         })
     }
 
     pub fn ui_command_stream(self) -> impl Stream<Item = Result<UiCommand>> {
-        BroadcastStream::new(self.0).filter_map(|r| async move {
+        self.stream().filter_map(|r| async move {
             match r {
                 Ok(Message::UiCommand(ui_command)) => Some(Ok(ui_command)),
-                Err(broadcast_err) => Some(Err(broadcast_err.into())),
+                Err(e) => Some(Err(e)),
+                _ => None,
+            }
+        })
+    }
+
+    pub fn event_stream(self) -> impl Stream<Item = Result<Event>> {
+        self.stream().filter_map(|r| async move {
+            match r {
+                Ok(Message::Event(event)) => Some(Ok(event)),
+                Err(e) => Some(Err(e)),
                 _ => None,
             }
         })
@@ -81,22 +92,6 @@ pub(crate) enum Message {
     Event(Event),
 }
 
-impl Message {
-    pub fn try_into_ui_update(self) -> Option<UiUpdate> {
-        match self {
-            Message::UiUpdate(ui_update) => Some(ui_update),
-            _ => None,
-        }
-    }
-
-    pub fn try_into_ui_command(self) -> Option<UiCommand> {
-        match self {
-            Message::UiCommand(ui_command) => Some(ui_command),
-            _ => None,
-        }
-    }
-}
-
 impl From<UiState> for Message {
     fn from(value: UiState) -> Self {
         Message::UiUpdate(UiUpdate::State(value))
@@ -108,7 +103,6 @@ impl From<UiState> for Message {
 pub enum UiUpdate {
     State(UiState),
     DiscordInfo(Vec<DiscordPlayerInfo>),
-    RoleRecommendation(Vec<RoleRecommendation>),
 }
 
 #[derive(Debug, Clone)]
@@ -161,10 +155,37 @@ pub struct DiscordPlayerInfo {
     pub avatar_url: AvatarUrl,
 }
 
+#[derive(Debug, Clone, Copy)]
+pub enum ImageFormat {
+    Jpg,
+    Bmp,
+    Png,
+}
+
+impl ImageFormat {
+    pub fn from_mime_type(mime: &str) -> Option<Self> {
+        match mime {
+            "image/jpg" => Some(ImageFormat::Jpg),
+            "image/png" => Some(ImageFormat::Png),
+            "image/bmp" => Some(ImageFormat::Bmp),
+            _ => None,
+        }
+    }
+
+    pub fn to_str(&self) -> &str {
+        match self {
+            ImageFormat::Jpg => "jpg",
+            ImageFormat::Bmp => "bmp",
+            ImageFormat::Png => "png",
+        }
+    }
+}
+
 #[derive(Debug, Clone)]
 pub enum Event {
     MatchStart(MatchStart),
     RichMatchResult(RichMatchResult),
+    DotaScreenshotReceived(Bytes, Option<ImageFormat>),
 }
 
 #[derive(Clone, Debug)]
@@ -178,7 +199,10 @@ pub enum UiCommand {
     AddPlayerToLobby(PlayerId),
     RemovePlayerFromLobby(PlayerId),
     ChangeGame(GameId),
+    FillLobby,
+    ClearLobby,
     CallToLobby,
+    CallPlayer(PlayerId),
     StartMatch,
     ShuffleTeams,
     RefreshElo,

@@ -35,6 +35,34 @@ pub struct Config {
 
     #[serde(default = "default_fosiaudio_host")]
     pub fosiaudio_host: String,
+
+    #[serde(default = "default_fosiaudio_timeout_ms")]
+    pub fosiaudio_timeout_ms: u64,
+
+    #[serde(default = "default_dota_ocr_engine_command")]
+    pub dota_ocr_engine_command: String,
+
+    #[serde(default = "default_dota_ocr_engine_pwd")]
+    pub dota_ocr_engine_pwd: Option<PathBuf>,
+
+    #[serde(default = "default_static_serving_dir")]
+    pub static_serving_dir: PathBuf,
+}
+
+fn default_static_serving_dir() -> PathBuf {
+    "ui/dist".into()
+}
+
+fn default_dota_ocr_engine_pwd() -> Option<PathBuf> {
+    Some(PathBuf::from("dota-ocr-engine"))
+}
+
+fn default_dota_ocr_engine_command() -> String {
+    "uv run dota-ocr-engine.py %".into()
+}
+
+fn default_fosiaudio_timeout_ms() -> u64 {
+    3 * 1000
 }
 
 fn default_history_git_mirror() -> PathBuf {
@@ -56,6 +84,10 @@ impl Default for Config {
             history_git_mirror: default_history_git_mirror(),
             dota_screenshot_dir: None,
             fosiaudio_host: default_fosiaudio_host(),
+            fosiaudio_timeout_ms: default_fosiaudio_timeout_ms(),
+            dota_ocr_engine_command: default_dota_ocr_engine_command(),
+            dota_ocr_engine_pwd: default_dota_ocr_engine_pwd(),
+            static_serving_dir: default_static_serving_dir(),
         }
     }
 }

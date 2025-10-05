@@ -28,3 +28,6 @@ dist-ssr
 .vscode
 
 .discord-token
+
+tmp_*
+.trigger

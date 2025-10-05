@@ -2,7 +2,7 @@
 
 use anyhow::Result;
 use duct::{cmd, Expression};
-use log::{error, info, warn};
+use log::{debug, error, info, warn};
 use std::path::PathBuf;
 
 pub struct GitMirror {
@@ -105,6 +105,7 @@ impl GitMirror {
     }
 
     fn run(&self, cmd: Expression) -> std::result::Result<std::process::Output, std::io::Error> {
+        debug!("{} - {cmd:?}", self.path.to_string_lossy());
         cmd.dir(&self.path).stdout_capture().stderr_null().run()
     }
 }

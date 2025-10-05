@@ -1,13 +1,11 @@
 [project]
-name = "dota-agent"
+name = "dota-ocr-engine"
 version = "0.1.0"
 description = "Add your description here"
 readme = "README.md"
 requires-python = ">=3.10"
 dependencies = [
     "coloredlogs>=15.0.1",
-    "flask>=3.1.0",
     "opencv-python>=4.11.0.86",
     "pytesseract>=0.3.13",
-    "requests>=2.32.3",
 ]

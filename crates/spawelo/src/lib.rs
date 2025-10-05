@@ -14,7 +14,7 @@ const ML_ITERATIONS: usize = 5_000;
 
 fn print_debug(i: usize, history: &[HistoryEntry], elo: &HashMap<PlayerId, f64>, elo_sum: f64) {
     let loss = loss(history, &elo);
-    if i % 100 == 0 || i == ML_ITERATIONS - 1 {
+    if i % 1000 == 0 || i == ML_ITERATIONS - 1 {
         debug!(
             "{}/{}, loss: {:.4}, elo_sum: {}",
             i + 1,

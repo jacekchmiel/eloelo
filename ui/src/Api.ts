@@ -21,7 +21,8 @@ export async function connectToUiStream(options: {
 	onUiState: (state: EloEloState) => void;
 	onDiscordInfo: (info: DiscordPlayerInfo[]) => void;
 }) {
-	const ws = new WebSocket(`${location.href}api/v1/ui_stream`);
+	const href = `ws://${location.host}${location.pathname}`;
+	const ws = new WebSocket(`${href}api/v1/ui_stream`);
 
 	ws.onmessage = (event) => {
 		const uiStreamPayload = JSON.parse(event.data);
