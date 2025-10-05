@@ -139,15 +139,6 @@ impl From<String> for AvatarUrl {
 
 #[derive(Debug, Clone, Serialize)]
 #[serde(rename_all = "camelCase")]
-pub struct RoleRecommendation {
-    pub id: PlayerId,
-    pub username: DiscordUsername, // TODO: Probably keep only one of the ids (the more convenient
-    // from producer perspective
-    pub recommendation: Vec<String>,
-}
-
-#[derive(Debug, Clone, Serialize)]
-#[serde(rename_all = "camelCase")]
 pub struct DiscordPlayerInfo {
     pub id: PlayerId,
     pub display_name: String,

@@ -5,6 +5,7 @@ use std::fmt::Display;
 use crate::eloelo::elodisco::utils::send_direct_message;
 use crate::eloelo::message_bus::MatchStart;
 use crate::utils;
+use chrono::Local;
 use eloelo_model::player::DiscordUsername;
 
 use super::bot_state::DotaBotState;
@@ -154,12 +155,27 @@ impl DotaBot {
             .into_iter()
             .map(|u| {
                 let user_state = self.state.get(u).expect("discord user state");
-                if !user_state.allowed_heroes.is_empty() {
-                    (u, user_state.allowed_heroes.iter().collect())
+                let pool: Vec<_> = if !user_state.allowed_heroes.is_empty() {
+                    user_state.allowed_heroes.iter().collect()
                 } else {
-                    let pool = self.heroes.difference(&user_state.banned_heroes).collect();
-                    (u, pool)
-                }
+                    self.heroes.difference(&user_state.banned_heroes).collect()
+                };
+                let should_avoid_duplicates = match user_state.last_match_date {
+                    Some(date) => Local::now() < date + chrono::Duration::days(1),
+                    None => false,
+                };
+                let has_enough_heroes_to_avoid_duplicates = pool.len() >= 3;
+                let pool: Vec<_> = if should_avoid_duplicates
+                    && has_enough_heroes_to_avoid_duplicates
+                    && !user_state.duplicate_heroes_opt_out
+                {
+                    pool.into_iter()
+                        .filter(|h| !user_state.last_match_heroes.contains(h.as_str()))
+                        .collect()
+                } else {
+                    pool
+                };
+                (u, pool)
             })
             .collect()
     }
@@ -388,6 +404,7 @@ mod tests {
                 randomizer: true,
                 banned_heroes: Default::default(),
                 allowed_heroes: make_heroes(&["Sniper", "Axe", "Lina"]),
+                ..DotaBotState::default()
             },
         )]
         .into_iter()
@@ -410,7 +427,7 @@ mod tests {
             DotaBotState {
                 randomizer: true,
                 banned_heroes: make_heroes(&["Sniper", "Axe", "Lina"]),
-                allowed_heroes: Default::default(),
+                ..DotaBotState::default()
             },
         )]
         .into_iter()
@@ -435,6 +452,7 @@ mod tests {
                     randomizer: true,
                     banned_heroes: Default::default(),
                     allowed_heroes: Default::default(),
+                    ..DotaBotState::default()
                 },
             ),
             (
@@ -443,6 +461,7 @@ mod tests {
                     randomizer: true,
                     banned_heroes: Default::default(),
                     allowed_heroes: Default::default(),
+                    ..DotaBotState::default()
                 },
             ),
         ]
@@ -456,6 +475,43 @@ mod tests {
         }
     }
 
+    #[test]
+    fn no_duplicate_assignments() {
+        let player = player_bixkog();
+        let state = [(
+            player.clone(),
+            DotaBotState {
+                randomizer: true,
+                allowed_heroes: make_heroes(&[
+                    "Anti-Mage",
+                    "Axe",
+                    "Bane",
+                    "Bloodseeker",
+                    "Crystal Maiden",
+                    "Drow Ranger",
+                ]),
+                ..DotaBotState::default()
+            },
+        )]
+        .into_iter()
+        .collect();
+        let bot = DotaBot::with_state(state);
+        let users = [player.clone()];
+        let first_assignment = bot
+            .assign_random_heroes(&users)
+            .get(&player)
+            .unwrap()
+            .clone();
+        let second_assignment = bot
+            .assign_random_heroes(&users)
+            .get(&player)
+            .unwrap()
+            .clone();
+        dbg!(&first_assignment);
+        dbg!(&second_assignment);
+        assert!(no_overlaps_between(&first_assignment, &second_assignment));
+    }
+
     fn make_heroes(names: &[&str]) -> HashSet<Hero> {
         names.into_iter().copied().map(Hero::from).collect()
     }
@@ -463,6 +519,12 @@ mod tests {
     fn no_overlaps(assignments: &HashMap<&DiscordUsername, Vec<&Hero>>) -> bool {
         let total_len = assignments.values().flatten().count();
         let unique_len = assignments.values().flatten().collect::<HashSet<_>>().len();
+        total_len == unique_len
+    }
+
+    fn no_overlaps_between(lhs: &Vec<&Hero>, rhs: &Vec<&Hero>) -> bool {
+        let total_len = lhs.len();
+        let unique_len = rhs.into_iter().collect::<HashSet<_>>().len();
         total_len == unique_len
     }
 
