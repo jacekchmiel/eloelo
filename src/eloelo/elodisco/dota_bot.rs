@@ -2,11 +2,13 @@ use std::borrow::Borrow;
 use std::collections::{HashMap, HashSet};
 use std::fmt::Display;
 
+use crate::eloelo::config::Config;
 use crate::eloelo::elodisco::utils::send_direct_message;
 use crate::eloelo::message_bus::MatchStart;
 use crate::utils;
 use chrono::Local;
 use eloelo_model::player::DiscordUsername;
+use eloelo_model::PlayerId;
 
 use super::bot_state::DotaBotState;
 use super::command_handler::{CommandDescription, CommandHandler};
@@ -79,6 +81,9 @@ impl AsRef<Hero> for Hero {
 pub struct DotaBot {
     state: HashMap<DiscordUsername, DotaBotState>,
     heroes: HashSet<Hero>,
+
+    pub discord_test_mode: bool,
+    pub discord_test_mode_players: HashSet<PlayerId>,
 }
 
 impl DotaBot {
@@ -86,7 +91,15 @@ impl DotaBot {
         Self {
             state,
             heroes: Hero::all(),
+            discord_test_mode: false,
+            discord_test_mode_players: Default::default(),
         }
+    }
+
+    pub fn configure(mut self, config: &Config) -> Self {
+        self.discord_test_mode = config.discord_test_mode;
+        self.discord_test_mode_players = config.discord_test_mode_override_players.clone();
+        self
     }
 
     pub fn get_state(&self) -> &HashMap<DiscordUsername, DotaBotState> {
@@ -193,25 +206,37 @@ impl DotaBot {
             .chain(match_start.right_team.players.keys());
         let discord_users = players
             .flat_map(|p| match_start.player_db.get(p))
-            .flat_map(|p| p.discord_username());
-        let users_with_randomizer: Vec<DiscordUsername> = discord_users
-            .filter(|u| self.state.get(u).map(|s| s.randomizer).unwrap_or(false))
+            .flat_map(|p| p.discord_username().map(|u| (&p.id, u)));
+        let with_randomizer: Vec<(&PlayerId, &DiscordUsername)> = discord_users
+            .filter(|u| self.state.get(u.1).map(|s| s.randomizer).unwrap_or(false))
+            .collect();
+        let users: Vec<DiscordUsername> = with_randomizer
+            .iter()
+            .map(|(_, user)| *user)
             .cloned()
             .collect();
-
-        let mut hero_assignments: Vec<_> = self
-            .assign_random_heroes(&users_with_randomizer)
-            .into_iter()
+        let should_notify: HashSet<_> = with_randomizer
+            .iter()
+            .filter(|(p, _)| self.is_allowed_to_receive_notifications(p))
+            .map(|(_, u)| u)
+            .copied()
             .collect();
+
+        let mut hero_assignments: Vec<_> = self.assign_random_heroes(&users).into_iter().collect();
         hero_assignments.sort_by_key(|u| u.0);
 
-        for (username, heroes) in &hero_assignments {
+        let hero_notifications = hero_assignments
+            .iter()
+            .filter(|(user, _)| should_notify.contains(user));
+        for (username, heroes) in hero_notifications {
             info!("Hero assignment {username}: {}", utils::join(heroes, ", "));
             let heroes_message = format!(
                 "**Your random heroes for this match are**\n{}",
                 self.random_heroes_str(heroes)
             );
             // TODO: parallelize sending messages
+
+            // TODO: disable message for test mode.
             match members.get(&username) {
                 Some(user) => {
                     let message = CreateMessage::new().content(heroes_message);
@@ -227,6 +252,10 @@ impl DotaBot {
             .into_iter()
             .map(|(k, v)| (k.clone(), v))
             .collect()
+    }
+
+    pub fn is_allowed_to_receive_notifications(&self, p: &PlayerId) -> bool {
+        !self.discord_test_mode || self.discord_test_mode_players.contains(p)
     }
 }
 

@@ -2,9 +2,10 @@ use std::collections::HashMap;
 
 use anyhow::{format_err, Result};
 use eloelo_model::player::DiscordUsername;
-use log::{error, info};
+use log::{error, info, warn};
 use serenity::all::{Context, CreateMessage, User};
 
+use crate::eloelo::config::Config;
 use crate::eloelo::message_bus::MatchStart;
 use eloelo_model::PlayerId;
 
@@ -13,11 +14,15 @@ use super::utils::send_direct_message;
 
 pub struct NotificationBot {
     notifications: HashMap<DiscordUsername, bool>,
+    config: Config,
 }
 
 impl NotificationBot {
-    pub fn new(notifications: HashMap<DiscordUsername, bool>) -> Self {
-        Self { notifications }
+    pub fn new(notifications: HashMap<DiscordUsername, bool>, config: Config) -> Self {
+        Self {
+            notifications,
+            config,
+        }
     }
 
     pub fn get_state(&self) -> &HashMap<DiscordUsername, bool> {
@@ -39,19 +44,32 @@ impl NotificationBot {
             .flat_map(|p| message.player_db.get(p))
             .flat_map(|p| p.discord_username().map(|d| (&p.id, d)));
         for (player_id, username) in discord_users {
-            let notifications_enabled = self.notifications.get(username).copied().unwrap_or(false);
-            if notifications_enabled {
-                match members.get(username) {
-                    Some(user) => {
-                        let message = CreateMessage::new()
-                            .content(create_personal_match_start_message(player_id, &message));
-                        send_direct_message(ctx.clone(), user.clone(), message, "match_start")
-                            .await;
-                    }
-                    None => error!("{} not found in guild members", username),
+            if !self.notifications_allowed(&player_id) || !self.notifications_enabled(&username) {
+                continue;
+            }
+
+            match members.get(username) {
+                Some(user) => {
+                    let message = CreateMessage::new()
+                        .content(create_personal_match_start_message(player_id, &message));
+                    send_direct_message(ctx.clone(), user.clone(), message, "match_start").await;
                 }
+                None => warn!("{} not found in guild members", username),
             }
         }
+    }
+
+    fn notifications_enabled(&self, username: &DiscordUsername) -> bool {
+        self.notifications.get(username).copied().unwrap_or(false)
+    }
+
+    fn notifications_allowed(&self, player_id: &PlayerId) -> bool {
+        let player_on_allowlist = self
+            .config
+            .discord_test_mode_override_players
+            .contains(player_id);
+
+        !self.config.discord_test_mode || player_on_allowlist
     }
 }
 

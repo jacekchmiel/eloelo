@@ -1,3 +1,4 @@
+use std::collections::HashSet;
 use std::path::PathBuf;
 
 use eloelo_model::player::PlayerConfig;
@@ -23,6 +24,17 @@ pub struct Config {
 
     #[serde(default)]
     pub discord_channel_name: String,
+
+    /// Disables priv messages. Useful for development and testing.
+    #[serde(default)]
+    pub discord_test_mode: bool,
+
+    #[serde(default)]
+    pub discord_test_channel_name: String,
+
+    /// List of usernames that will receive notifications even in test mode.
+    #[serde(default)]
+    pub discord_test_mode_override_players: HashSet<PlayerId>,
 
     #[serde(default)]
     pub max_elo_history: usize,
@@ -88,6 +100,9 @@ impl Default for Config {
             dota_ocr_engine_command: default_dota_ocr_engine_command(),
             dota_ocr_engine_pwd: default_dota_ocr_engine_pwd(),
             static_serving_dir: default_static_serving_dir(),
+            discord_test_mode: true,
+            discord_test_mode_override_players: Default::default(),
+            discord_test_channel_name: Default::default(),
         }
     }
 }
@@ -99,6 +114,14 @@ impl Config {
 
     pub fn default_game(&self) -> &GameId {
         self.games.first().map(|g| &g.name).unwrap()
+    }
+
+    pub fn effective_discord_channel_name(&self) -> &str {
+        if self.discord_test_mode {
+            &self.discord_test_channel_name
+        } else {
+            &self.discord_channel_name
+        }
     }
 }
 
