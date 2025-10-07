@@ -236,7 +236,6 @@ impl DotaBot {
             );
             // TODO: parallelize sending messages
 
-            // TODO: disable message for test mode.
             match members.get(&username) {
                 Some(user) => {
                     let message = CreateMessage::new().content(heroes_message);

@@ -199,6 +199,8 @@ impl EloDisco {
             .notification_bot
             .lock()
             .await
+            // TODO: (REFACTOR) move DirectMessenger construction here, pass dms to notification
+            // and dota bots.
             .match_start(&match_start, &ctx, &members)
             .await;
         info!("Sending match start message to common channel");

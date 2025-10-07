@@ -2,15 +2,15 @@ use std::collections::HashMap;
 
 use anyhow::{format_err, Result};
 use eloelo_model::player::DiscordUsername;
-use log::{error, info, warn};
+use log::{info, warn};
 use serenity::all::{Context, CreateMessage, User};
 
 use crate::eloelo::config::Config;
+use crate::eloelo::elodisco::utils::DirectMessenger;
 use crate::eloelo::message_bus::MatchStart;
 use eloelo_model::PlayerId;
 
 use super::command_handler::{CommandDescription, CommandHandler};
-use super::utils::send_direct_message;
 
 pub struct NotificationBot {
     notifications: HashMap<DiscordUsername, bool>,
@@ -40,22 +40,23 @@ impl NotificationBot {
             .players
             .keys()
             .chain(message.right_team.players.keys());
+
         let discord_users = players
             .flat_map(|p| message.player_db.get(p))
-            .flat_map(|p| p.discord_username().map(|d| (&p.id, d)));
-        for (player_id, username) in discord_users {
-            if !self.notifications_allowed(&player_id) || !self.notifications_enabled(&username) {
-                continue;
-            }
-
-            match members.get(username) {
-                Some(user) => {
-                    let message = CreateMessage::new()
-                        .content(create_personal_match_start_message(player_id, &message));
-                    send_direct_message(ctx.clone(), user.clone(), message, "match_start").await;
+            .flat_map(|p| p.discord_username().map(|d| (&p.id, d)))
+            .filter(|(p, u)| self.notifications_allowed(&p) && self.notifications_enabled(&u))
+            .filter_map(|(p, u)| {
+                let user = members.get(u);
+                if user.is_none() {
+                    warn!("{} not found in guild members", u);
                 }
-                None => warn!("{} not found in guild members", username),
-            }
+                user.cloned().map(|u| (p, DirectMessenger::new(ctx, u)))
+            });
+
+        for (player_id, dm) in discord_users {
+            let message = CreateMessage::new()
+                .content(create_personal_match_start_message(player_id, &message));
+            dm.send_dm(message, "match_start").await;
         }
     }
 
