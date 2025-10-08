@@ -25,6 +25,32 @@ pub struct PlayerConfig {
     pub ocr_names: Vec<String>,
 }
 
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Default)]
+#[serde(rename_all = "camelCase")]
+pub struct PlayersConfig {
+    #[serde(default)]
+    pub players: Vec<PlayerConfig>,
+}
+
+impl PlayersConfig {
+    pub fn get_player(&self, p: &PlayerId) -> Option<&PlayerConfig> {
+        self.players.iter().find(|v| v.id == *p)
+    }
+
+    pub fn example() -> Self {
+        let example_player = PlayerConfig {
+            id: PlayerId::from("exampleplayer"),
+            display_name: Some(String::from("Example Player")),
+            discord_username: Some(DiscordUsername::from("example-player0")),
+            fosiaudio_name: Some(String::from("example")),
+            ocr_names: vec![String::from("ocrname")],
+        };
+        Self {
+            players: vec![example_player],
+        }
+    }
+}
+
 impl Player {
     pub fn new(id: PlayerId) -> Self {
         let config = PlayerConfig {
@@ -114,6 +140,19 @@ impl PlayerDb {
         Self {
             players: players.into_iter().map(|p| (p.id.clone(), p)).collect(),
         }
+    }
+
+    pub fn to_players_config(&self) -> PlayersConfig {
+        let mut out = PlayersConfig {
+            players: self
+                .players
+                .values()
+                .cloned()
+                .map(PlayerConfig::from)
+                .collect(),
+        };
+        out.players.sort_by(|p, q| p.id.cmp(&q.id));
+        out
     }
 
     pub fn get(&self, id: &PlayerId) -> Option<&Player> {

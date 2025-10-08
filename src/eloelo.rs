@@ -5,7 +5,7 @@ use anyhow::{Context, Result};
 use chrono::Local;
 use config::Config;
 use eloelo_model::history::{History, HistoryEntry};
-use eloelo_model::player::{Player, PlayerDb};
+use eloelo_model::player::{Player, PlayerDb, PlayersConfig};
 use eloelo_model::{GameId, GameState, PlayerId, Team, WinScale};
 use futures_util::stream::{StreamExt as _, TryStreamExt as _};
 use git_mirror::GitMirror;
@@ -38,12 +38,18 @@ pub struct EloElo {
     game_state: GameState,
     history: History,
     config: Config,
+    players_config: PlayersConfig,
     message_bus: MessageBus,
     git_mirror: GitMirror,
 }
 
 impl EloElo {
-    pub fn new(state: Option<State>, config: Config, message_bus: MessageBus) -> Self {
+    pub fn new(
+        state: Option<State>,
+        config: Config,
+        players_config: PlayersConfig,
+        message_bus: MessageBus,
+    ) -> Self {
         let state = state.unwrap_or_else(|| State::new(config.default_game().clone()));
 
         let _ = std::fs::create_dir_all(&config.history_git_mirror)
@@ -57,13 +63,14 @@ impl EloElo {
 
         let mut elo = EloElo {
             selected_game: state.selected_game,
-            players: PlayerDb::new(config.players.clone().into_iter().map(Player::from)),
+            players: PlayerDb::new(players_config.players.iter().cloned().map(Player::from)),
             left_players: state.left_players,
             right_players: state.right_players,
             lobby: state.lobby,
             game_state: state.game_state,
             history,
             config,
+            players_config,
             message_bus,
             git_mirror,
         };
@@ -227,10 +234,12 @@ impl EloElo {
 
     fn add_new_player(&mut self, player: Player) {
         self.players.insert(player);
+        store::store_players(self.players.to_players_config()).print_err();
     }
 
     fn remove_player(&mut self, player_id: &PlayerId) {
         self.players.remove(player_id);
+        store::store_players(self.players.to_players_config()).print_err();
     }
 
     fn move_player_to_other_team(&mut self, player_id: &PlayerId) {
@@ -499,7 +508,7 @@ impl EloElo {
     fn update_lobby_from_screenshot(&mut self, player_names: Vec<String>) {
         let mut player_ids = HashMap::new();
         for player_id in self.players_in_team() {
-            let p = self.config.get_player(player_id).unwrap();
+            let p = self.players_config.get_player(player_id).unwrap();
             let mut possible_names = Vec::new();
             possible_names.push(player_id.as_str().to_lowercase().to_string());
             possible_names.extend(

@@ -45,6 +45,7 @@ async fn terminate_on_signal() -> Result<()> {
 async fn main() {
     logging::init();
     let config = unwrap_or_def_verbose(store::load_config());
+    let players_config = unwrap_or_def_verbose(store::load_players());
     let state = unwrap_or_def_verbose(store::load_state());
     let bot_state = unwrap_or_def_verbose(store::load_bot_state());
     let message_bus = MessageBus::new();
@@ -53,7 +54,12 @@ async fn main() {
         bot_state,
         message_bus.clone(),
     ));
-    let eloelo = EloElo::new(state, config.clone(), message_bus.clone());
+    let eloelo = EloElo::new(
+        state,
+        config.clone(),
+        players_config.clone(),
+        message_bus.clone(),
+    );
     let eloelo_task = tokio::spawn(eloelo.dispatch_ui_commands(message_bus.clone()));
     let _ = ocr::spawn_dota_screenshot_parser(config.clone(), message_bus.clone())
         .context("spawn_dota_screenshot_parser failed")

@@ -5,6 +5,7 @@ use super::message_bus::{Event, FinishMatch, Message, MessageBus, UiCommand, UiU
 use anyhow::{Context as _, Result};
 use async_elodisco::EloDisco;
 use bot_state::BotState;
+use itertools::Itertools;
 use log::{info, warn};
 use serenity::all::GatewayIntents;
 
@@ -44,8 +45,8 @@ pub async fn run(config: Config, bot_state: BotState, message_bus: MessageBus) {
     );
     if config.discord_test_mode {
         warn!(
-            "Players allowed to be notified: {:?}",
-            config.discord_test_mode_override_players
+            "Players allowed to be notified: {}",
+            config.discord_test_mode_players.iter().join(", ")
         );
     }
     let async_elodisco = EloDisco::new(bot_state, config);
