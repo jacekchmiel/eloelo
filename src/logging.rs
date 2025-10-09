@@ -1,4 +1,4 @@
-use flexi_logger::{Duplicate, FileSpec, Logger, LoggerHandle, WriteMode};
+use flexi_logger::{colored_default_format, Duplicate, FileSpec, Logger, LoggerHandle, WriteMode};
 use log::error;
 
 use super::store::data_dir;
@@ -11,6 +11,8 @@ pub fn init() -> LoggerHandle {
     .log_to_file(FileSpec::default().directory(data_dir().join("logs")))
     .write_mode(WriteMode::BufferAndFlush)
     .duplicate_to_stderr(Duplicate::Debug) // print warnings and errors also to the console
+    .format_for_stderr(colored_default_format)
+    .set_palette("1;3;-;8;5".to_string())
     .start()
     .expect("log init");
 
