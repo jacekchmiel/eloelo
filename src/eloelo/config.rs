@@ -21,9 +21,9 @@ pub struct Config {
     #[serde(default)]
     pub discord_channel_name: String,
 
-    /// Disables priv messages. Useful for development and testing.
+    /// Disables priv messages and storing history. Useful for development and testing.
     #[serde(default)]
-    pub discord_test_mode: bool,
+    pub test_mode: bool,
 
     #[serde(default)]
     pub discord_test_channel_name: String,
@@ -103,7 +103,7 @@ impl Default for Config {
             dota_ocr_engine_pwd: default_dota_ocr_engine_pwd(),
             static_serving_dir: default_static_serving_dir(),
             serving_addr: default_serving_addr(),
-            discord_test_mode: true,
+            test_mode: true,
             discord_test_mode_players: Default::default(),
             discord_test_channel_name: Default::default(),
         }
@@ -116,7 +116,7 @@ impl Config {
     }
 
     pub fn effective_discord_channel_name(&self) -> &str {
-        if self.discord_test_mode {
+        if self.test_mode {
             &self.discord_test_channel_name
         } else {
             &self.discord_channel_name

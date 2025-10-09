@@ -97,7 +97,7 @@ impl DotaBot {
     }
 
     pub fn configure(mut self, config: &Config) -> Self {
-        self.discord_test_mode = config.discord_test_mode;
+        self.discord_test_mode = config.test_mode;
         self.discord_test_mode_players = config.discord_test_mode_players.clone();
         self
     }

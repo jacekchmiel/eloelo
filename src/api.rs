@@ -18,7 +18,9 @@ use serde::{Deserialize, Serialize};
 use spawelo::SpaweloOptions;
 use tower_http::services::ServeDir;
 
-use crate::eloelo::message_bus::{Event, FinishMatch, ImageFormat, Message, MessageBus, UiCommand};
+use crate::eloelo::message_bus::{
+    Event, FinishMatch, ImageFormat, MatchInfo, Message, MessageBus, UiCommand,
+};
 use crate::utils::ResultExt as _;
 
 struct AppState {
@@ -208,12 +210,12 @@ async fn finish_match(
                 .ok_or_else(|| bad_request("Missing match duration"))?;
             let scale = body.scale.ok_or_else(|| bad_request("Missing win scale"))?;
             let fake = body.fake.unwrap_or(false);
-            UiCommand::FinishMatch(FinishMatch::Finished {
+            UiCommand::FinishMatch(FinishMatch::Finished(MatchInfo {
                 winner,
                 scale,
                 duration,
                 fake,
-            })
+            }))
         }
     };
     state.message_bus.send(Message::UiCommand(cmd));

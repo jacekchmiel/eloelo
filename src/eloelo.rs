@@ -17,6 +17,7 @@ use regex::Regex;
 use spawelo::{ml_elo, SpaweloOptions};
 use ui_state::{State, UiPlayer, UiState};
 
+use crate::eloelo::message_bus::MatchInfo;
 use crate::utils::{duration_minutes, print_err, unwrap_or_def_verbose, ResultExt as _};
 
 pub(crate) mod config;
@@ -312,60 +313,18 @@ impl EloElo {
     }
 
     async fn finish_match(&mut self, finish_match: FinishMatch) {
-        if let FinishMatch::Finished {
-            winner,
-            scale,
-            duration,
-            fake,
-        } = finish_match
-        {
-            let commit_message = self.mk_finish_match_commit_message(winner, scale, duration, fake);
-            let winner_team_name = self.get_team_name(winner);
-            let (winner, loser) = match winner {
-                Team::Left => (self.left_players.clone(), self.right_players.clone()),
-                Team::Right => (self.right_players.clone(), self.left_players.clone()),
-            };
-            let history_entry = HistoryEntry {
-                timestamp: Local::now(),
-                winner,
-                loser,
-                scale,
-                duration,
-                fake,
-            };
-            let _ = store::append_history_entry(&self.selected_game, &history_entry)
-                .context("Failed to append history entry")
-                .print_err(); // TODO: proper error propagation
-            let _ = self
-                .git_mirror
-                .sync(Some(&commit_message))
-                .context("Failed to sync history git mirror")
-                .print_err(); // TODO: proper error propagation
-
-            // Play winner theme
-            fosiaudio::announce_winner(
-                &self.config.fosiaudio_host,
-                &winner_team_name,
-                Duration::from_millis(self.config.fosiaudio_timeout_ms),
-            )
-            .await
-            .print_err(); // TODO: proper error propagation
-
-            // Send rich event
-            if !fake {
-                self.message_bus
-                    .send(Message::Event(Event::RichMatchResult(RichMatchResult {
-                        winner_team_name,
-                        duration,
-                        scale,
-                    })));
-            }
+        if let FinishMatch::Finished(info) = finish_match {
+            let history_entry = self.make_history_entry(info);
+            self.store_updated_history(&history_entry, info.winner);
+            self.play_winner_theme(info.winner).await;
+            self.send_match_result(info);
 
             // Failsafe history message in log
             let history_log_msg = serde_json::to_string(&history_entry)
                 .unwrap_or_else(|e| format!("Failed to serialize history: {e}"));
             info!(target: "history", "FinishMatch: {history_log_msg}");
 
+            // Update local state
             self.history_for_current_game_mut().push(history_entry);
             self.update_elo();
             self.lobby = HashSet::new();
@@ -599,6 +558,63 @@ impl EloElo {
     fn everybody_in_lobby(&self) -> bool {
         let expected: HashSet<_> = self.players_in_team().cloned().collect();
         expected == self.lobby
+    }
+
+    async fn play_winner_theme(&self, winner: Team) {
+        let winner_team_name = self.get_team_name(winner);
+        fosiaudio::announce_winner(
+            &self.config.fosiaudio_host,
+            &winner_team_name,
+            Duration::from_millis(self.config.fosiaudio_timeout_ms),
+        )
+        .await
+        .print_err(); // TODO: proper error propagation
+    }
+
+    fn send_match_result(&self, info: MatchInfo) {
+        if info.fake {
+            return;
+        }
+        self.message_bus
+            .send(Message::Event(Event::RichMatchResult(RichMatchResult {
+                winner_team_name: self.get_team_name(info.winner),
+                duration: info.duration,
+                scale: info.scale,
+            })));
+    }
+
+    fn store_updated_history(&self, history_entry: &HistoryEntry, winner: Team) {
+        let _ = store::append_history_entry(&self.selected_game, &history_entry)
+            .context("Failed to append history entry")
+            .print_err(); // TODO: proper error propagation
+        if !self.config.test_mode {
+            let commit_message = self.mk_finish_match_commit_message(
+                winner,
+                history_entry.scale,
+                history_entry.duration,
+                history_entry.fake,
+            );
+            let _ = self
+                .git_mirror
+                .sync(Some(&commit_message))
+                .context("Failed to sync history git mirror")
+                .print_err(); // TODO: proper error propagation
+        }
+    }
+
+    fn make_history_entry(&self, info: MatchInfo) -> HistoryEntry {
+        let (winner, loser) = match info.winner {
+            Team::Left => (self.left_players.clone(), self.right_players.clone()),
+            Team::Right => (self.right_players.clone(), self.left_players.clone()),
+        };
+        HistoryEntry {
+            timestamp: Local::now(),
+            winner,
+            loser,
+            scale: info.scale,
+            duration: info.duration,
+            fake: info.fake,
+        }
     }
 }
 

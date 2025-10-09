@@ -207,10 +207,13 @@ pub enum UiCommand {
 #[derive(Clone, Debug)]
 pub enum FinishMatch {
     Cancelled,
-    Finished {
-        winner: Team,
-        scale: WinScale,
-        duration: Duration,
-        fake: bool,
-    },
+    Finished(MatchInfo),
+}
+
+#[derive(Clone, Copy, Debug)]
+pub struct MatchInfo {
+    pub winner: Team,
+    pub scale: WinScale,
+    pub duration: Duration,
+    pub fake: bool,
 }

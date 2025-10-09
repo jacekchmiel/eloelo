@@ -67,7 +67,7 @@ impl NotificationBot {
     fn notifications_allowed(&self, player_id: &PlayerId) -> bool {
         let player_on_allowlist = self.config.discord_test_mode_players.contains(player_id);
 
-        !self.config.discord_test_mode || player_on_allowlist
+        !self.config.test_mode || player_on_allowlist
     }
 }
 

@@ -36,14 +36,14 @@ fn start_serenity_in_background(token: String, elodisco: EloDisco) {
 
 pub async fn run(config: Config, bot_state: BotState, message_bus: MessageBus) {
     let token = config.discord_bot_token.clone();
-    if config.discord_test_mode {
+    if config.test_mode {
         warn!("Discord running in test mode");
     }
     info!(
         "Announcement channel name: {}",
         config.effective_discord_channel_name()
     );
-    if config.discord_test_mode {
+    if config.test_mode {
         warn!(
             "Players allowed to be notified: {}",
             config.discord_test_mode_players.iter().join(", ")
