@@ -324,7 +324,13 @@ async fn redirect_to_ui() -> impl IntoResponse {
     Redirect::permanent("/ui")
 }
 
-pub async fn serve(message_bus: MessageBus, static_serving_dir: PathBuf) {
+pub async fn serve(message_bus: MessageBus, static_serving_dir: PathBuf, addr: String) {
+    info!("API listening on: {addr}");
+    info!(
+        "API static serving dir: {}",
+        static_serving_dir.to_string_lossy()
+    );
+
     let shared_state = Arc::new(AppState { message_bus });
     let app = Router::new()
         .route("/", get(redirect_to_ui))
@@ -356,7 +362,7 @@ pub async fn serve(message_bus: MessageBus, static_serving_dir: PathBuf) {
         .route("/api/v1/dota_screenshot", post(process_dota_screenshot))
         .with_state(shared_state)
         .fallback_service(ServeDir::new(static_serving_dir));
-    let listener = tokio::net::TcpListener::bind("0.0.0.0:3000").await.unwrap();
+    let listener = tokio::net::TcpListener::bind(addr).await.unwrap();
     axum::serve(listener, app)
         .await
         .context("Api server failed")

@@ -69,6 +69,7 @@ async fn main() {
     tokio::spawn(api::serve(
         message_bus.clone(),
         config.static_serving_dir.clone(),
+        config.serving_addr.clone(),
     ));
 
     info!("Running");

@@ -55,6 +55,13 @@ pub struct Config {
 
     #[serde(default = "default_static_serving_dir")]
     pub static_serving_dir: PathBuf,
+
+    #[serde(default = "default_serving_addr")]
+    pub serving_addr: String,
+}
+
+fn default_serving_addr() -> String {
+    "0.0.0.0:3000".into()
 }
 
 fn default_static_serving_dir() -> PathBuf {
@@ -95,6 +102,7 @@ impl Default for Config {
             dota_ocr_engine_command: default_dota_ocr_engine_command(),
             dota_ocr_engine_pwd: default_dota_ocr_engine_pwd(),
             static_serving_dir: default_static_serving_dir(),
+            serving_addr: default_serving_addr(),
             discord_test_mode: true,
             discord_test_mode_players: Default::default(),
             discord_test_channel_name: Default::default(),
