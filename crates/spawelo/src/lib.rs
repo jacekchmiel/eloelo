@@ -8,6 +8,10 @@ use eloelo_model::PlayerId;
 use itertools::Itertools;
 use log::{debug, info};
 
+mod options;
+
+pub use options::SpaweloOptions;
+
 // Learning rate is set to very high level to make the computation faster. Learning is not really 100% finished after 1000 iterations, but it gives good results, and blazing fast with this setting
 const LEARNING_RATE: f64 = 5000.0;
 const ML_ITERATIONS: usize = 5_000;
@@ -135,20 +139,57 @@ fn win_probability(winner_elo: f64, loser_elo: f64) -> f64 {
     1.0 / (1.0 + 10.0f64.powf(-elo_diff / 400.0))
 }
 
+#[derive(Debug, PartialEq, Eq)]
+struct PlayerData {
+    id: PlayerId,
+    elo: i32,
+    lose_streak: i32,
+}
+
+// TODO: Propagate applied lose streak info to returned values
 pub fn shuffle_teams<'a>(
     players: impl IntoIterator<Item = PlayerWithElo>,
+    lose_streaks: &HashMap<PlayerId, i32>,
+    options: &SpaweloOptions,
 ) -> (i32, Vec<PlayerWithElo>, Vec<PlayerWithElo>) {
-    let players: Vec<_> = players.into_iter().collect();
+    let players: Vec<PlayerData> = players
+        .into_iter()
+        .map(|(id, elo)| {
+            let lose_streak = lose_streaks.get(&id).copied().unwrap_or(0);
+            PlayerData {
+                id,
+                elo,
+                lose_streak,
+            }
+        })
+        .collect();
+
     let team_size = players.len() / 2;
-    let mut best_diff: i32 = players.iter().map(|p| p.1).sum();
-    let mut best_team: Vec<&PlayerWithElo> = vec![];
+    let mut best_diff: i32 = players.iter().map(|p| p.elo).sum();
+    let mut best_team: Vec<&PlayerData> = vec![];
     for team in players.iter().combinations(team_size) {
-        let team_elo: i32 = team.iter().map(|p| p.1).sum();
-        let other_team_elo: i32 = players
-            .iter()
-            .filter(|p| !team.contains(&p))
-            .map(|p| p.1)
-            .sum();
+        let other_team: Vec<_> = players.iter().filter(|p| !team.contains(&p)).collect();
+
+        let team_elo: i32 = team.iter().map(|p| p.elo).sum();
+        let other_team_elo: i32 = other_team.iter().map(|p| p.elo).sum();
+
+        let team_lose_streak = max_lose_streak_for_team(&team);
+        let other_team_lose_streak = max_lose_streak_for_team(&other_team);
+        // Positive diff means that "team" has a bigger lose streak
+        let lose_streak_diff = team_lose_streak - other_team_lose_streak;
+
+        // Apply lose streak "bonus" to the team with larger streak.
+        let team_elo = if lose_streak_diff > 0 {
+            apply_pity_bonus(team_elo, lose_streak_diff, options)
+        } else {
+            team_elo
+        };
+        let other_team_elo = if lose_streak_diff < 0 {
+            apply_pity_bonus(other_team_elo, -lose_streak_diff, options)
+        } else {
+            other_team_elo
+        };
+
         let diff = (team_elo - other_team_elo).abs();
         if diff < best_diff {
             best_diff = diff;
@@ -156,13 +197,32 @@ pub fn shuffle_teams<'a>(
         }
     }
 
-    let best_team: Vec<PlayerWithElo> = best_team.into_iter().map(|p| (p.0.clone(), p.1)).collect();
+    let best_team: Vec<PlayerWithElo> = best_team
+        .into_iter()
+        .map(|p| (p.id.clone(), p.elo))
+        .collect();
+    let best_team_ids: Vec<&PlayerId> = best_team.iter().map(|p| &p.0).collect();
     let other_team = players
         .into_iter()
-        .filter(|p| !best_team.contains(&p))
+        .filter(|p| !best_team_ids.contains(&&p.id))
+        .map(|p| (p.id.clone(), p.elo))
         .collect();
 
     (best_diff, best_team, other_team)
+}
+
+fn max_lose_streak_for_team<'a>(team: &[&PlayerData]) -> i32 {
+    team.into_iter().map(|p| p.lose_streak).max().unwrap_or(0)
+}
+
+fn apply_pity_bonus(team_elo: i32, lose_streak: i32, options: &SpaweloOptions) -> i32 {
+    if lose_streak < options.pity_bonus_min_loses {
+        return team_elo;
+    }
+    let pity_loses = lose_streak - options.pity_bonus_min_loses;
+    let pity_bonus_factor = options.pity_bouns_factor.powi(pity_loses);
+    let new_elo = team_elo as f64 * (1.0 - pity_bonus_factor);
+    new_elo as i32
 }
 
 #[cfg(test)]

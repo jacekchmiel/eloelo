@@ -2,6 +2,7 @@ use std::collections::HashMap;
 use std::time::Duration;
 
 use chrono::{DateTime, Local};
+use log::error;
 use serde::{Deserialize, Deserializer, Serialize, Serializer};
 
 use crate::{GameId, PlayerId, WinScale};
@@ -58,5 +59,72 @@ impl HistoryEntry {
             WinScale::Advantage => 0.85,
             WinScale::Pwnage => 0.95,
         }
+    }
+}
+
+impl History {
+    pub fn calculate_lose_streaks(&self, game: &GameId) -> HashMap<PlayerId, i32> {
+        let Some(entries) = self.entries.get(game) else {
+            error!("Missing history entries to calculate lose streaks for requested game: {game}");
+            return Default::default();
+        };
+
+        let mut streaks: HashMap<&PlayerId, i32> = HashMap::new();
+        for e in entries {
+            for id in &e.winner {
+                *streaks.entry(id).or_default() = 0;
+            }
+            for id in &e.loser {
+                *streaks.entry(id).or_default() += 1;
+            }
+        }
+
+        streaks
+            .into_iter()
+            .map(|(id, cnt)| (id.clone(), cnt))
+            .collect()
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use chrono::Utc;
+
+    use super::*;
+
+    fn make_entry(
+        time: i64,
+        winner: impl IntoIterator<Item = &'static str>,
+        loser: impl IntoIterator<Item = &'static str>,
+    ) -> HistoryEntry {
+        HistoryEntry {
+            timestamp: DateTime::<Utc>::from_timestamp(time, 0).unwrap().into(),
+            winner: winner.into_iter().map(PlayerId::from).collect(),
+            loser: loser.into_iter().map(PlayerId::from).collect(),
+            scale: WinScale::Even,
+            duration: Duration::from_secs(40 * 60),
+            fake: false,
+        }
+    }
+
+    #[test]
+    fn calculate_lose_streaks_test() {
+        let game_id = GameId::from("game");
+        let history = History {
+            entries: HashMap::from([(
+                game_id.clone(),
+                vec![
+                    make_entry(1, ["bixkog", "spawek"], ["j"]),
+                    make_entry(2, ["bixkog", "spawek"], ["j", "hypys"]),
+                    make_entry(3, ["bixkog"], ["j", "bania", "hypys"]),
+                ],
+            )]),
+        };
+        let streaks = history.calculate_lose_streaks(&game_id);
+        assert_eq!(streaks.get(&PlayerId::from("j")).copied(), Some(3));
+        assert_eq!(streaks.get(&PlayerId::from("hypys")).copied(), Some(2));
+        assert_eq!(streaks.get(&PlayerId::from("bania")).copied(), Some(1));
+        assert_eq!(streaks.get(&PlayerId::from("spawek")).copied(), Some(0));
+        assert_eq!(streaks.get(&PlayerId::from("bixkog")).copied(), Some(0));
     }
 }

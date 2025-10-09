@@ -14,7 +14,7 @@ use message_bus::{
     Event, FinishMatch, MatchStart, MatchStartTeam, Message, MessageBus, RichMatchResult, UiCommand,
 };
 use regex::Regex;
-use spawelo::ml_elo;
+use spawelo::{ml_elo, SpaweloOptions};
 use ui_state::{State, UiPlayer, UiState};
 
 use crate::utils::{duration_minutes, print_err, unwrap_or_def_verbose, ResultExt as _};
@@ -41,6 +41,7 @@ pub struct EloElo {
     players_config: PlayersConfig,
     message_bus: MessageBus,
     git_mirror: GitMirror,
+    options: SpaweloOptions,
 }
 
 impl EloElo {
@@ -48,6 +49,7 @@ impl EloElo {
         state: Option<State>,
         config: Config,
         players_config: PlayersConfig,
+        options: SpaweloOptions,
         message_bus: MessageBus,
     ) -> Self {
         let state = state.unwrap_or_else(|| State::new(config.default_game().clone()));
@@ -73,6 +75,7 @@ impl EloElo {
             players_config,
             message_bus,
             git_mirror,
+            options,
         };
         elo.recalculate_elo_from_history();
         elo
@@ -104,6 +107,7 @@ impl EloElo {
             UiCommand::ShuffleTeams => self.shuffle_teams(),
             UiCommand::RefreshElo => self.recalculate_elo_from_history(),
             UiCommand::FinishMatch(finish_match) => self.finish_match(finish_match).await,
+            UiCommand::UpdateOptions(spawelo_options) => self.update_options(spawelo_options),
             UiCommand::CloseApplication => {
                 if let Err(e) = self.store_state() {
                     error!("store_state failed: {}", e);
@@ -159,6 +163,7 @@ impl EloElo {
             reserve_players: self.build_ui_players(&reserve_players, default_elo),
             game_state: self.game_state,
             history: self.history.clone(),
+            options: self.options,
         }
     }
 
@@ -370,6 +375,10 @@ impl EloElo {
         debug!("finish_match handled");
     }
 
+    fn update_options(&self, options: SpaweloOptions) {
+        store::store_options("spawelo", &options).print_err();
+    }
+
     fn mk_finish_match_commit_message(
         &self,
         winner: Team,
@@ -447,10 +456,18 @@ impl EloElo {
             self.players
                 .get_ranked_owned(&self.right_players, &self.selected_game, default_elo);
 
-        let (_, left, right) = spawelo::shuffle_teams(left.into_iter().chain(right));
+        let (_, left, right) = spawelo::shuffle_teams(
+            left.into_iter().chain(right),
+            &self.lose_streaks_for_current_game(),
+            &self.options,
+        );
 
         self.left_players = left.into_iter().map(|p| p.0).collect();
         self.right_players = right.into_iter().map(|p| p.0).collect();
+    }
+
+    fn lose_streaks_for_current_game(&self) -> HashMap<PlayerId, i32> {
+        self.history.calculate_lose_streaks(&self.selected_game)
     }
 
     fn recalculate_elo_from_history(&mut self) {

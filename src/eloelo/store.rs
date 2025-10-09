@@ -34,6 +34,10 @@ fn players_file_path() -> PathBuf {
     data_dir().join("players.yaml")
 }
 
+fn options_file_path(name: &str) -> PathBuf {
+    data_dir().join(format!("{name}_options.yaml"))
+}
+
 pub fn data_dir() -> PathBuf {
     let project_dirs = directories::ProjectDirs::from("com", "eloelo", "eloelo")
         .expect("Cannot retrieve project dirs");
@@ -100,6 +104,27 @@ pub fn load_players() -> Result<PlayersConfig> {
         info!("Loaded {n} players: {player_ids}");
     }
     Ok(config)
+}
+
+pub fn load_options<T: DeserializeOwned + Default>(name: &str) -> Result<T> {
+    let p = options_file_path(name);
+    info!("Options file: {}", p.to_string_lossy());
+    if !p.exists() {
+        info!(
+            "{} file does not exist. Returning default.",
+            p.to_string_lossy()
+        );
+        return Ok(Default::default());
+    }
+    let config_file = File::open(p)?;
+    Ok(serde_yaml::from_reader(config_file)?)
+}
+
+pub fn store_options<T: Serialize>(name: &str, v: &T) -> Result<()> {
+    let p = options_file_path(name);
+    ensure_dir_created(&p)?;
+    let file = File::create(&p)?;
+    Ok(serde_yaml::to_writer(file, v)?)
 }
 
 pub fn store_default_config() -> Result<()> {

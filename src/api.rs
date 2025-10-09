@@ -15,6 +15,7 @@ use futures_util::StreamExt as _;
 use http::{HeaderMap, StatusCode};
 use log::{debug, info};
 use serde::{Deserialize, Serialize};
+use spawelo::SpaweloOptions;
 use tower_http::services::ServeDir;
 
 use crate::eloelo::message_bus::{Event, FinishMatch, ImageFormat, Message, MessageBus, UiCommand};
@@ -254,22 +255,15 @@ async fn call_player(
     EmptyResponse
 }
 
-// #[derive(Debug, Deserialize)]
-// #[serde(rename_all = "camelCase")]
-// struct LobbyScreenshotData {
-//     players_in_lobby: Vec<String>,
-// }
-// async fn add_lobby_screenshot_data(
-//     State(state): AppStateArg,
-//     Json(payload): Json<LobbyScreenshotData>,
-// ) -> impl IntoResponse {
-//     state
-//         .message_bus
-//         .send(Message::UiCommand(UiCommand::AddLobbyScreenshotData(
-//             payload.players_in_lobby,
-//         )));
-//     EmptyResponse
-// }
+async fn save_options(
+    State(state): AppStateArg,
+    Json(body): Json<SpaweloOptions>,
+) -> impl IntoResponse {
+    state
+        .message_bus
+        .send(Message::UiCommand(UiCommand::UpdateOptions(body)));
+    EmptyResponse
+}
 
 async fn process_dota_screenshot(
     State(state): AppStateArg,
@@ -356,7 +350,8 @@ pub async fn serve(message_bus: MessageBus, static_serving_dir: PathBuf) {
                 .route("/present_in_lobby_change", post(present_in_lobby_change))
                 .route("/clear_lobby", post(clear_lobby))
                 .route("/fill_lobby", post(fill_lobby))
-                .route("/call_player", post(call_player)),
+                .route("/call_player", post(call_player))
+                .route("/options", post(save_options)),
         )
         .route("/api/v1/dota_screenshot", post(process_dota_screenshot))
         .with_state(shared_state)
