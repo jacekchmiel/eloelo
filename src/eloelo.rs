@@ -150,7 +150,9 @@ impl EloElo {
             game_state: self.game_state,
             lobby: self.lobby.clone(),
         };
-        store::store_state(&state)
+        store::store_state(&state)?;
+        store::store_options(&self.options)?;
+        Ok(())
     }
 
     pub fn ui_state(&self) -> UiState {
@@ -370,7 +372,7 @@ impl EloElo {
     }
 
     fn update_options(&self, options: SpaweloOptions) {
-        store::store_options("spawelo", &options).print_err();
+        store::store_options(&options).print_err();
     }
 
     fn mk_finish_match_commit_message(

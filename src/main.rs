@@ -48,7 +48,7 @@ async fn main() {
     let players_config = unwrap_or_def_verbose(store::load_players());
     let state = unwrap_or_def_verbose(store::load_state());
     let bot_state = unwrap_or_def_verbose(store::load_bot_state());
-    let spawelo_options = unwrap_or_def_verbose(store::load_options("spawelo"));
+    let spawelo_options = unwrap_or_def_verbose(store::load_options());
     let message_bus = MessageBus::new();
     tokio::spawn(elodisco::run(
         config.clone(),
