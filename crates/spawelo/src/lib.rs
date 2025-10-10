@@ -1,9 +1,10 @@
+use std::borrow::Borrow;
 use std::collections::HashMap;
 use std::time::Instant;
 
 use eloelo_model::history::HistoryEntry;
 use eloelo_model::player::{Player, PlayerWithElo};
-use eloelo_model::PlayerId;
+use eloelo_model::{BalancedTeam, PlayerId};
 
 use itertools::Itertools;
 use log::{debug, info};
@@ -139,90 +140,127 @@ fn win_probability(winner_elo: f64, loser_elo: f64) -> f64 {
     1.0 / (1.0 + 10.0f64.powf(-elo_diff / 400.0))
 }
 
-#[derive(Debug, PartialEq, Eq)]
-struct PlayerData {
-    id: PlayerId,
-    elo: i32,
-    lose_streak: i32,
-}
-
 // TODO: Propagate applied lose streak info to returned values
-pub fn shuffle_teams<'a>(
+pub fn shuffle_teams(
     players: impl IntoIterator<Item = PlayerWithElo>,
     lose_streaks: &HashMap<PlayerId, i32>,
     options: &SpaweloOptions,
-) -> (i32, Vec<PlayerWithElo>, Vec<PlayerWithElo>) {
-    let players: Vec<PlayerData> = players
-        .into_iter()
-        .map(|(id, elo)| {
-            let lose_streak = lose_streaks.get(&id).copied().unwrap_or(0);
-            PlayerData {
-                id,
-                elo,
-                lose_streak,
-            }
-        })
-        .collect();
-
+) -> (BalancedTeam, BalancedTeam) {
+    let players: Vec<_> = players.into_iter().collect();
     let team_size = players.len() / 2;
-    let mut best_diff: i32 = players.iter().map(|p| p.elo).sum();
-    let mut best_team: Vec<&PlayerData> = vec![];
+
+    struct BestChoice<'a> {
+        diff: i32,
+        teams: (Vec<&'a PlayerId>, Vec<&'a PlayerId>),
+        info: (TeamEloInfo, TeamEloInfo),
+    }
+    let mut best_choice = BestChoice {
+        diff: players.iter().map(|p| p.elo).sum(),
+        teams: Default::default(),
+        info: Default::default(),
+    };
+
     for team in players.iter().combinations(team_size) {
         let other_team: Vec<_> = players.iter().filter(|p| !team.contains(&p)).collect();
+        let (team_info, other_info) =
+            calculate_teams_elo_internal(&team, &other_team, lose_streaks, options);
 
-        let team_elo: i32 = team.iter().map(|p| p.elo).sum();
-        let other_team_elo: i32 = other_team.iter().map(|p| p.elo).sum();
-
-        let team_lose_streak = max_lose_streak_for_team(&team);
-        let other_team_lose_streak = max_lose_streak_for_team(&other_team);
-        // Positive diff means that "team" has a bigger lose streak
-        let lose_streak_diff = team_lose_streak - other_team_lose_streak;
-
-        // Apply lose streak "bonus" to the team with larger streak.
-        let team_elo = if lose_streak_diff > 0 {
-            apply_pity_bonus(team_elo, lose_streak_diff, options)
-        } else {
-            team_elo
-        };
-        let other_team_elo = if lose_streak_diff < 0 {
-            apply_pity_bonus(other_team_elo, -lose_streak_diff, options)
-        } else {
-            other_team_elo
-        };
-
-        let diff = (team_elo - other_team_elo).abs();
-        if diff < best_diff {
-            best_diff = diff;
-            best_team = team;
+        let diff = (team_info.pity_elo - other_info.pity_elo).abs();
+        if diff < best_choice.diff {
+            best_choice.diff = diff;
+            best_choice.teams.0 = team.iter().map(|p| &p.id).collect();
+            best_choice.info.0 = team_info;
+            best_choice.teams.1 = other_team.iter().map(|p| &p.id).collect();
+            best_choice.info.1 = other_info;
         }
     }
 
-    let best_team: Vec<PlayerWithElo> = best_team
-        .into_iter()
-        .map(|p| (p.id.clone(), p.elo))
-        .collect();
-    let best_team_ids: Vec<&PlayerId> = best_team.iter().map(|p| &p.0).collect();
-    let other_team = players
-        .into_iter()
-        .filter(|p| !best_team_ids.contains(&&p.id))
-        .map(|p| (p.id.clone(), p.elo))
-        .collect();
-
-    (best_diff, best_team, other_team)
+    (
+        build_balanced_team(
+            best_choice.teams.0.into_iter().cloned().collect(),
+            best_choice.info.0,
+        ),
+        build_balanced_team(
+            best_choice.teams.1.into_iter().cloned().collect(),
+            best_choice.info.1,
+        ),
+    )
 }
 
-fn max_lose_streak_for_team<'a>(team: &[&PlayerData]) -> i32 {
-    team.into_iter().map(|p| p.lose_streak).max().unwrap_or(0)
+fn max_lose_streak_for_team(
+    team: &[impl Borrow<PlayerWithElo>],
+    lose_streaks: &HashMap<PlayerId, i32>,
+) -> i32 {
+    team.into_iter()
+        .map(|p| lose_streaks.get(&p.borrow().id).copied().unwrap_or(0))
+        .max()
+        .unwrap_or(0)
 }
 
-fn apply_pity_bonus(team_elo: i32, lose_streak: i32, options: &SpaweloOptions) -> i32 {
-    if lose_streak < options.pity_bonus_min_loses {
-        return team_elo;
+fn apply_pity_bonus(team_elo: i32, lose_streak: i32, options: &SpaweloOptions) -> (f32, i32) {
+    if lose_streak <= options.pity_bonus_min_loses {
+        return (0.0, team_elo);
     }
     let pity_loses = lose_streak - options.pity_bonus_min_loses;
     let pity_bonus_factor = options.pity_bouns_factor.powi(pity_loses);
-    let new_elo = team_elo as f64 * (1.0 - pity_bonus_factor);
-    new_elo as i32
+    let new_elo = team_elo as f32 * pity_bonus_factor;
+    (pity_bonus_factor, new_elo as i32)
+}
+
+pub fn calculate_teams_elo(
+    left_players: Vec<PlayerWithElo>,
+    right_players: Vec<PlayerWithElo>,
+    lose_streaks: &HashMap<PlayerId, i32>,
+    options: &SpaweloOptions,
+) -> (BalancedTeam, BalancedTeam) {
+    let (left, right) =
+        calculate_teams_elo_internal(&left_players, &right_players, lose_streaks, options);
+
+    (
+        build_balanced_team(left_players, left),
+        build_balanced_team(right_players, right),
+    )
+}
+
+fn build_balanced_team(players: Vec<impl Into<PlayerId>>, info: TeamEloInfo) -> BalancedTeam {
+    let players = BalancedTeam {
+        players: players.into_iter().map(|p| p.into()).collect(),
+        pity_bonus: info.pity_bonus_factor,
+        pity_elo: info.pity_elo,
+        real_elo: info.real_elo,
+    };
+    players
+}
+
+#[derive(Debug, Copy, Clone, Default)]
+struct TeamEloInfo {
+    pity_bonus_factor: f32,
+    pity_elo: i32,
+    real_elo: i32,
+    lose_streak: i32,
+}
+
+fn calculate_teams_elo_internal(
+    left_players: &[impl Borrow<PlayerWithElo>],
+    right_players: &[impl Borrow<PlayerWithElo>],
+    lose_streaks: &HashMap<PlayerId, i32>,
+    options: &SpaweloOptions,
+) -> (TeamEloInfo, TeamEloInfo) {
+    let mut l = TeamEloInfo::default();
+    let mut r = TeamEloInfo::default();
+    l.lose_streak = max_lose_streak_for_team(&left_players, lose_streaks);
+    r.lose_streak = max_lose_streak_for_team(&right_players, lose_streaks);
+
+    l.real_elo = calculate_team_real_elo(&left_players);
+    r.real_elo = calculate_team_real_elo(&right_players);
+
+    (l.pity_bonus_factor, l.pity_elo) = apply_pity_bonus(l.real_elo, l.lose_streak, options);
+    (r.pity_bonus_factor, r.pity_elo) = apply_pity_bonus(r.real_elo, r.lose_streak, options);
+    (l, r)
+}
+
+fn calculate_team_real_elo(left_players: &[impl Borrow<PlayerWithElo>]) -> i32 {
+    left_players.into_iter().map(|p| p.borrow().elo).sum()
 }
 
 #[cfg(test)]
@@ -233,5 +271,93 @@ mod test {
     fn test_winner_win_probability() {
         assert_eq!((win_probability(1100.0, 1000.0) * 100.0).round(), 64.0);
         assert_eq!((win_probability(1200.0, 1000.0) * 100.0).round(), 76.0);
+    }
+
+    fn player(name: &str, elo: i32) -> PlayerWithElo {
+        PlayerWithElo {
+            id: PlayerId::from(name),
+            elo,
+        }
+    }
+
+    fn id(name: &str) -> PlayerId {
+        PlayerId::from(name)
+    }
+
+    #[test]
+    fn test_calculate_teams_elo() {
+        let left = vec![player("j", 1000)];
+        let right = vec![player("bixkog", 3000)];
+        let options = SpaweloOptions {
+            pity_bouns_factor: 0.5,
+            pity_bonus_min_loses: 0,
+        };
+        let lose_streaks = HashMap::from([(id("j"), 1)]);
+        let (t1, t2) = calculate_teams_elo_internal(&left, &right, &lose_streaks, &options);
+        assert_eq!(t1.real_elo, 1000);
+        assert_eq!(t2.real_elo, 3000);
+        assert_eq!(t1.pity_bonus_factor, 0.5);
+        assert_eq!(t2.pity_bonus_factor, 0.0);
+        assert_eq!(t1.pity_elo, 500);
+        assert_eq!(t2.pity_elo, 3000);
+    }
+
+    #[test]
+    fn test_calculate_teams_elo_larger_streak() {
+        let left = vec![player("j", 1000)];
+        let right = vec![player("bixkog", 3000)];
+        let options = SpaweloOptions {
+            pity_bouns_factor: 0.5,
+            pity_bonus_min_loses: 0,
+        };
+        let lose_streaks = HashMap::from([(id("j"), 3)]);
+        let (t1, t2) = calculate_teams_elo_internal(&left, &right, &lose_streaks, &options);
+        assert_eq!(t1.real_elo, 1000);
+        assert_eq!(t2.real_elo, 3000);
+        assert_eq!(t1.pity_bonus_factor, 0.125);
+        assert_eq!(t2.pity_bonus_factor, 0.0);
+        assert_eq!(t1.pity_elo, 125);
+        assert_eq!(t2.pity_elo, 3000);
+    }
+
+    #[test]
+    fn test_calculate_teams_elo_larger_min_loses() {
+        // Min loses option effectively delays the bonus application.
+        //
+        // With min loses 2, the bonus will not apply until 3 loses streak, and even then the
+        // number of losses aplied will be 1. Thats because the first 2 loses are ignored.
+        let left = vec![player("j", 1000)];
+        let right = vec![player("bixkog", 3000)];
+        let options = SpaweloOptions {
+            pity_bouns_factor: 0.5,
+            pity_bonus_min_loses: 2,
+        };
+        let lose_streaks = HashMap::from([(id("j"), 3)]);
+        let (t1, t2) = calculate_teams_elo_internal(&left, &right, &lose_streaks, &options);
+        assert_eq!(t1.real_elo, 1000);
+        assert_eq!(t2.real_elo, 3000);
+        assert_eq!(t1.pity_bonus_factor, 0.5);
+        assert_eq!(t2.pity_bonus_factor, 0.0);
+        assert_eq!(t1.pity_elo, 500);
+        assert_eq!(t2.pity_elo, 3000);
+    }
+
+    #[test]
+    fn test_calculate_teams_elo_streak_equal_to_min_loses() {
+        // Streak equal to min loses option should not generate any bonus.
+        let left = vec![player("j", 1000)];
+        let right = vec![player("bixkog", 3000)];
+        let options = SpaweloOptions {
+            pity_bouns_factor: 0.5,
+            pity_bonus_min_loses: 2,
+        };
+        let lose_streaks = HashMap::from([(id("j"), 2)]);
+        let (t1, t2) = calculate_teams_elo_internal(&left, &right, &lose_streaks, &options);
+        assert_eq!(t1.real_elo, 1000);
+        assert_eq!(t2.real_elo, 3000);
+        assert_eq!(t1.pity_bonus_factor, 0.0);
+        assert_eq!(t2.pity_bonus_factor, 0.0);
+        assert_eq!(t1.pity_elo, 500);
+        assert_eq!(t2.pity_elo, 3000);
     }
 }

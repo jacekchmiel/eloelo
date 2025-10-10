@@ -6,7 +6,7 @@ use chrono::Local;
 use config::Config;
 use eloelo_model::history::{History, HistoryEntry};
 use eloelo_model::player::{Player, PlayerDb, PlayersConfig};
-use eloelo_model::{GameId, GameState, PlayerId, Team, WinScale};
+use eloelo_model::{BalancedTeam, GameId, GameState, PlayerId, Team, WinScale};
 use futures_util::stream::{StreamExt as _, TryStreamExt as _};
 use git_mirror::GitMirror;
 use log::{debug, error, info, warn};
@@ -15,7 +15,7 @@ use message_bus::{
 };
 use regex::Regex;
 use spawelo::{ml_elo, SpaweloOptions};
-use ui_state::{State, UiPlayer, UiState};
+use ui_state::{PityBonus, State, UiPlayer, UiState};
 
 use crate::eloelo::message_bus::MatchInfo;
 use crate::utils::{duration_minutes, print_err, unwrap_or_def_verbose, ResultExt as _};
@@ -33,8 +33,8 @@ pub(crate) mod ui_state;
 pub struct EloElo {
     selected_game: GameId,
     players: PlayerDb,
-    left_players: Vec<PlayerId>,
-    right_players: Vec<PlayerId>,
+    left_team: BalancedTeam,
+    right_team: BalancedTeam,
     lobby: HashSet<PlayerId>,
     game_state: GameState,
     history: History,
@@ -67,8 +67,8 @@ impl EloElo {
         let mut elo = EloElo {
             selected_game: state.selected_game,
             players: PlayerDb::new(players_config.players.iter().cloned().map(Player::from)),
-            left_players: state.left_players,
-            right_players: state.right_players,
+            left_team: state.left_team,
+            right_team: state.right_team,
             lobby: state.lobby,
             game_state: state.game_state,
             history,
@@ -145,8 +145,8 @@ impl EloElo {
     fn store_state(&self) -> Result<()> {
         let state = State {
             selected_game: self.selected_game.clone(),
-            left_players: self.left_players.clone(),
-            right_players: self.right_players.clone(),
+            left_team: self.left_team.clone(),
+            right_team: self.right_team.clone(),
             game_state: self.game_state,
             lobby: self.lobby.clone(),
         };
@@ -154,14 +154,15 @@ impl EloElo {
     }
 
     pub fn ui_state(&self) -> UiState {
-        let reserve_players: Vec<_> = self.reserve_players().cloned().collect();
         let default_elo = self.default_elo_for_current_game();
+        let reserve_players = &self.make_reserve_players();
         UiState {
             available_games: self.config.games.clone(),
             selected_game: self.selected_game.clone(),
-            left_players: self.build_ui_players(&self.left_players, default_elo),
-            right_players: self.build_ui_players(&self.right_players, default_elo),
-            reserve_players: self.build_ui_players(&reserve_players, default_elo),
+            left_players: self.build_ui_players(&self.left_team.players, default_elo),
+            right_players: self.build_ui_players(&self.right_team.players, default_elo),
+            reserve_players: self.build_ui_players(reserve_players, default_elo),
+            pity_bonus: self.make_pity_bonus_data(&self.left_team, &self.right_team),
             game_state: self.game_state,
             history: self.history.clone(),
             options: self.options,
@@ -178,25 +179,30 @@ impl EloElo {
         })
     }
 
-    fn reserve_players(&self) -> impl Iterator<Item = &PlayerId> + '_ {
-        self.players.all().filter_map(|p| {
-            if self.is_in_a_team(&p.id) {
-                None
-            } else {
-                Some(&p.id)
-            }
-        })
+    fn make_reserve_players(&self) -> Vec<PlayerId> {
+        self.players
+            .all()
+            .filter_map(|p| {
+                if self.is_in_a_team(&p.id) {
+                    None
+                } else {
+                    Some(p.id.clone())
+                }
+            })
+            .collect()
     }
 
     fn is_in_a_team(&self, p: &PlayerId) -> bool {
-        self.left_players.contains(p) || self.right_players.contains(p)
+        self.left_team.players.iter().find(|x| *x == p).is_some()
+            || self.right_team.players.iter().find(|x| *x == p).is_some()
     }
 
     fn default_elo_for_current_game(&self) -> i32 {
         let players_ranks: Vec<i32> = self
-            .left_players
+            .left_team
+            .players
             .iter()
-            .chain(self.right_players.iter())
+            .chain(self.right_team.players.iter())
             .flat_map(|p| self.players.get_rank(p, &self.selected_game))
             .collect();
         let elo_sum: i32 = players_ranks.iter().sum();
@@ -207,34 +213,36 @@ impl EloElo {
         }
     }
 
-    fn build_ui_players(&self, player_ids: &[PlayerId], default_elo: i32) -> Vec<UiPlayer> {
-        player_ids
+    fn build_ui_players(&self, players: &[PlayerId], default_elo: i32) -> Vec<UiPlayer> {
+        let lose_streaks = self.lose_streaks_for_current_game();
+        players
             .iter()
             .cloned()
-            .map(|player_id| {
+            .map(|player| {
                 let elo = self
                     .players
-                    .get_rank(&player_id, &self.selected_game)
+                    .get_rank(&player, &self.selected_game)
                     .unwrap_or(default_elo);
                 let name = self
                     .players
-                    .get(&player_id)
+                    .get(&player)
                     .map(|p| p.get_display_name().to_string())
-                    .unwrap_or_else(|| player_id.to_string());
+                    .unwrap_or_else(|| player.to_string());
                 let discord_username = self
                     .players
-                    .get(&player_id)
+                    .get(&player)
                     .and_then(|p| p.discord_username().map(|n| n.to_string()));
-                let present_in_lobby = self.lobby.contains(&player_id);
+                let present_in_lobby = self.lobby.contains(&player);
+                let lose_streak = lose_streaks.get(&player).copied();
                 UiPlayer {
-                    id: player_id,
+                    id: player,
                     name,
                     discord_username,
                     elo,
                     present_in_lobby,
+                    lose_streak,
                 }
             })
-            // .map(UiPlayer::build_for(&self.selected_game, self.players.all()))
             .collect()
     }
 
@@ -249,26 +257,49 @@ impl EloElo {
     }
 
     fn move_player_to_other_team(&mut self, player_id: &PlayerId) {
-        if let Some(player) = remove_player_id(&mut self.left_players, player_id) {
-            self.right_players.push(player);
+        if let Some(player) = remove_player_id(&mut self.left_team.players, player_id) {
+            self.right_team.players.push(player);
             return;
         }
-        if let Some(player) = remove_player_id(&mut self.right_players, player_id) {
-            self.left_players.push(player);
+        if let Some(player) = remove_player_id(&mut self.right_team.players, player_id) {
+            self.left_team.players.push(player);
         }
+        self.update_teams_elo();
+    }
+
+    fn update_teams_elo(&mut self) {
+        let default_elo = self.default_elo_for_current_game();
+        let left = self
+            .players
+            .get_ranked_owned(&self.left_team.players, &self.selected_game, default_elo)
+            .into_iter()
+            .collect();
+        let right = self
+            .players
+            .get_ranked_owned(&self.right_team.players, &self.selected_game, default_elo)
+            .into_iter()
+            .collect();
+        (self.left_team, self.right_team) = spawelo::calculate_teams_elo(
+            left,
+            right,
+            &self.lose_streaks_for_current_game(),
+            &self.options,
+        );
     }
 
     fn remove_player_from_team(&mut self, player_id: &PlayerId) {
-        remove_player_id(&mut self.left_players, player_id)
-            .or_else(|| remove_player_id(&mut self.right_players, player_id));
-        self.remove_player_from_lobby(player_id)
+        remove_player_id(&mut self.left_team.players, player_id)
+            .or_else(|| remove_player_id(&mut self.right_team.players, player_id));
+        self.remove_player_from_lobby(player_id);
+        self.update_teams_elo();
     }
 
     fn add_player_to_team(&mut self, player_id: PlayerId, team: Team) {
         match team {
-            Team::Left => self.left_players.push(player_id),
-            Team::Right => self.right_players.push(player_id),
-        }
+            Team::Left => self.left_team.players.push(player_id),
+            Team::Right => self.right_team.players.push(player_id),
+        };
+        self.update_teams_elo();
     }
 
     fn change_game(&mut self, game: GameId) {
@@ -290,11 +321,11 @@ impl EloElo {
                         .iter()
                         .find(|g| g.name == self.selected_game)
                         .map_or("Left Team".to_string(), |g| g.left_team.clone()),
-                    players: self.players.get_ranked_owned(
-                        &self.left_players,
-                        &self.selected_game,
-                        default_elo,
-                    ),
+                    players: self
+                        .players
+                        .get_ranked_owned(&self.left_team.players, &self.selected_game, default_elo)
+                        .map(|p| (p.id, p.elo))
+                        .collect(),
                 },
                 right_team: MatchStartTeam {
                     name: self
@@ -303,11 +334,15 @@ impl EloElo {
                         .iter()
                         .find(|g| g.name == self.selected_game)
                         .map_or("Right Team".to_string(), |g| g.right_team.clone()),
-                    players: self.players.get_ranked_owned(
-                        &self.right_players,
-                        &self.selected_game,
-                        default_elo,
-                    ),
+                    players: self
+                        .players
+                        .get_ranked_owned(
+                            &self.right_team.players,
+                            &self.selected_game,
+                            default_elo,
+                        )
+                        .map(|p| (p.id, p.elo))
+                        .collect(),
                 },
             })));
     }
@@ -405,24 +440,27 @@ impl EloElo {
             }
         }
     }
-
     fn shuffle_teams(&mut self) {
         let default_elo = self.default_elo_for_current_game();
-        let left =
-            self.players
-                .get_ranked_owned(&self.left_players, &self.selected_game, default_elo);
-        let right =
-            self.players
-                .get_ranked_owned(&self.right_players, &self.selected_game, default_elo);
+        let left = self.players.get_ranked_owned(
+            &self.left_team.players,
+            &self.selected_game,
+            default_elo,
+        );
+        let right = self.players.get_ranked_owned(
+            &self.right_team.players,
+            &self.selected_game,
+            default_elo,
+        );
 
-        let (_, left, right) = spawelo::shuffle_teams(
+        let (left, right) = spawelo::shuffle_teams(
             left.into_iter().chain(right),
             &self.lose_streaks_for_current_game(),
             &self.options,
         );
 
-        self.left_players = left.into_iter().map(|p| p.0).collect();
-        self.right_players = right.into_iter().map(|p| p.0).collect();
+        self.left_team = left;
+        self.right_team = right;
     }
 
     fn lose_streaks_for_current_game(&self) -> HashMap<PlayerId, i32> {
@@ -474,9 +512,10 @@ impl EloElo {
     }
 
     fn players_missing_from_lobby(&self) -> impl Iterator<Item = &Player> {
-        self.left_players
+        self.left_team
+            .players
             .iter()
-            .chain(&self.right_players)
+            .chain(&self.right_team.players)
             .filter(|p| !self.lobby.contains(p))
             .flat_map(|p| self.players.get(p))
     }
@@ -604,8 +643,14 @@ impl EloElo {
 
     fn make_history_entry(&self, info: MatchInfo) -> HistoryEntry {
         let (winner, loser) = match info.winner {
-            Team::Left => (self.left_players.clone(), self.right_players.clone()),
-            Team::Right => (self.right_players.clone(), self.left_players.clone()),
+            Team::Left => (
+                self.left_team.players.clone(),
+                self.right_team.players.clone(),
+            ),
+            Team::Right => (
+                self.right_team.players.clone(),
+                self.left_team.players.clone(),
+            ),
         };
         HistoryEntry {
             timestamp: Local::now(),
@@ -614,6 +659,17 @@ impl EloElo {
             scale: info.scale,
             duration: info.duration,
             fake: info.fake,
+        }
+    }
+
+    fn make_pity_bonus_data(
+        &self,
+        left_team: &BalancedTeam,
+        right_team: &BalancedTeam,
+    ) -> PityBonus {
+        PityBonus {
+            left: left_team.into(),
+            right: right_team.into(),
         }
     }
 }

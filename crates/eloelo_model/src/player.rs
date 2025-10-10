@@ -175,17 +175,19 @@ impl PlayerDb {
             .map(move |(k, v)| (k, v.get_elo(game).unwrap_or(default_elo)))
     }
 
-    pub fn get_ranked_owned(
-        &self,
-        players: &[PlayerId],
-        game: &GameId,
+    pub fn get_ranked_owned<'a>(
+        &'a self,
+        players: &'a [PlayerId],
+        game: &'a GameId,
         default_elo: i32,
-    ) -> HashMap<PlayerId, i32> {
+    ) -> impl Iterator<Item = PlayerWithElo> + 'a {
         self.players
             .iter()
             .filter(|(k, _)| players.contains(k))
-            .map(move |(k, v)| (k.clone(), v.get_elo(game).unwrap_or(default_elo)))
-            .collect()
+            .map(move |(k, v)| PlayerWithElo {
+                id: k.clone(),
+                elo: v.get_elo(game).unwrap_or(default_elo),
+            })
     }
 
     pub fn get_rank(&self, player_id: &PlayerId, game: &GameId) -> Option<i32> {
@@ -235,7 +237,17 @@ impl PlayerDb {
     }
 }
 
-pub type PlayerWithElo = (PlayerId, i32);
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct PlayerWithElo {
+    pub id: PlayerId,
+    pub elo: i32,
+}
+
+impl Into<PlayerId> for PlayerWithElo {
+    fn into(self) -> PlayerId {
+        self.id
+    }
+}
 
 #[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Serialize, Deserialize, Hash)]
 pub struct DiscordUsername(String);
