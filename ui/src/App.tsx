@@ -106,6 +106,44 @@ const FightText = styled(Typography)({
 	},
 });
 
+function EloEloHeader({
+	state,
+	setShowHistoryState,
+}: {
+	state: EloEloState;
+	setShowHistoryState: (mut: (prev: boolean) => boolean) => void;
+}) {
+	return (
+		<Stack
+			flexDirection="row"
+			justifyContent="space-between"
+			alignItems="center"
+		>
+			<GameSelector
+				availableGames={state.availableGames.map((g) => g.name)}
+				selectedGame={state.selectedGame}
+				disabled={state.gameState === "matchInProgress"}
+			/>
+			{state.gameState === "matchInProgress" && (
+				<FightText variant="h3" color="error">
+					Fight!
+				</FightText>
+			)}
+			<Stack flexDirection="row" justifyContent="right">
+				<IconButton
+					onClick={async () => setShowHistoryState((prev: boolean) => !prev)}
+				>
+					<EventNoteIcon />
+				</IconButton>
+				<IconButton onClick={async () => await invoke("refresh_elo", {})}>
+					<RefreshIcon />
+				</IconButton>
+				<ThemeSwitcher />
+			</Stack>
+		</Stack>
+	);
+}
+
 function EloElo({
 	state,
 	discordInfo,
@@ -114,33 +152,7 @@ function EloElo({
 
 	return (
 		<Stack spacing={2} flexGrow={1} maxWidth={1024}>
-			<Stack
-				flexDirection="row"
-				justifyContent="space-between"
-				alignItems="center"
-			>
-				<GameSelector
-					availableGames={state.availableGames.map((g) => g.name)}
-					selectedGame={state.selectedGame}
-					disabled={state.gameState === "matchInProgress"}
-				/>
-				{state.gameState === "matchInProgress" && (
-					<FightText variant="h3" color="error">
-						Fight!
-					</FightText>
-				)}
-				<Stack flexDirection="row" justifyContent="right">
-					<IconButton
-						onClick={async () => setShowHistoryState((prev) => !prev)}
-					>
-						<EventNoteIcon />
-					</IconButton>
-					<IconButton onClick={async () => await invoke("refresh_elo", {})}>
-						<RefreshIcon />
-					</IconButton>
-					<ThemeSwitcher />
-				</Stack>
-			</Stack>
+			<EloEloHeader state={state} setShowHistoryState={setShowHistoryState} />
 			{showHistoryState ? (
 				<HistoryView
 					history={getHistoryForCurrentGame(state)}
