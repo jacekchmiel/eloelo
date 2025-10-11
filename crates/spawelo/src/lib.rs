@@ -200,7 +200,7 @@ fn max_lose_streak_for_team(
 fn apply_pity_bonus(team_elo: i32, lose_streak: i32, options: &SpaweloOptions) -> (f32, i32) {
     let min_loses = options.pity_bonus_min_loses.max(1);
     if lose_streak < min_loses {
-        return (0.0, team_elo);
+        return (1.0, team_elo);
     }
     let pity_loses = lose_streak - min_loses + 1;
     let pity_bonus_factor = options.pity_bouns_factor.powi(pity_loses);
@@ -226,7 +226,7 @@ pub fn calculate_teams_elo(
 fn build_balanced_team(players: Vec<impl Into<PlayerId>>, info: TeamEloInfo) -> BalancedTeam {
     let players = BalancedTeam {
         players: players.into_iter().map(|p| p.into()).collect(),
-        pity_bonus: info.pity_bonus_factor,
+        pity_bonus: 1.0 - info.pity_bonus_factor,
         pity_elo: info.pity_elo,
         real_elo: info.real_elo,
     };
@@ -298,7 +298,7 @@ mod test {
         assert_eq!(t1.real_elo, 1000);
         assert_eq!(t2.real_elo, 3000);
         assert_eq!(t1.pity_bonus_factor, 0.5);
-        assert_eq!(t2.pity_bonus_factor, 0.0);
+        assert_eq!(t2.pity_bonus_factor, 1.0);
         assert_eq!(t1.pity_elo, 500);
         assert_eq!(t2.pity_elo, 3000);
     }
@@ -316,7 +316,7 @@ mod test {
         assert_eq!(t1.real_elo, 1000);
         assert_eq!(t2.real_elo, 3000);
         assert_eq!(t1.pity_bonus_factor, 0.125);
-        assert_eq!(t2.pity_bonus_factor, 0.0);
+        assert_eq!(t2.pity_bonus_factor, 1.0);
         assert_eq!(t1.pity_elo, 125);
         assert_eq!(t2.pity_elo, 3000);
     }
@@ -338,7 +338,7 @@ mod test {
         assert_eq!(t1.real_elo, 1000);
         assert_eq!(t2.real_elo, 3000);
         assert_eq!(t1.pity_bonus_factor, 0.25);
-        assert_eq!(t2.pity_bonus_factor, 0.0);
+        assert_eq!(t2.pity_bonus_factor, 1.0);
         assert_eq!(t1.pity_elo, 250);
         assert_eq!(t2.pity_elo, 3000);
     }
@@ -357,7 +357,7 @@ mod test {
         assert_eq!(t1.real_elo, 1000);
         assert_eq!(t2.real_elo, 3000);
         assert_eq!(t1.pity_bonus_factor, 0.5);
-        assert_eq!(t2.pity_bonus_factor, 0.0);
+        assert_eq!(t2.pity_bonus_factor, 1.0);
         assert_eq!(t1.pity_elo, 500);
         assert_eq!(t2.pity_elo, 3000);
     }
@@ -376,7 +376,7 @@ mod test {
         assert_eq!(t1.real_elo, 1000);
         assert_eq!(t2.real_elo, 3000);
         assert_eq!(t1.pity_bonus_factor, 0.5);
-        assert_eq!(t2.pity_bonus_factor, 0.0);
+        assert_eq!(t2.pity_bonus_factor, 1.0);
         assert_eq!(t1.pity_elo, 500);
         assert_eq!(t2.pity_elo, 3000);
     }
