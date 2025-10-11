@@ -12,10 +12,12 @@ import {
 	ListItemText,
 	Paper,
 	Stack,
+	Tooltip,
 	styled,
 } from "@mui/material";
 import { invoke } from "./Api";
 import { CallPlayerButton } from "./components/CallPlayerButton";
+import { DefaultTooltip } from "./components/DefaultTooltip";
 import { PresentInLobbyButton } from "./components/PresentInLobbyButton";
 import type {
 	Avatars,
@@ -64,15 +66,17 @@ function DeleteButton({
 	...props
 }: { side: Side; playerKey: string } & IconButtonProps) {
 	return (
-		<IconButton
-			{...props}
-			edge={side === "left" ? "start" : "end"}
-			onClick={async () => {
-				await invoke("remove_player_from_team", { id: playerKey });
-			}}
-		>
-			<DeleteIcon />
-		</IconButton>
+		<DefaultTooltip title="Remove from team">
+			<IconButton
+				{...props}
+				edge={side === "left" ? "start" : "end"}
+				onClick={async () => {
+					await invoke("remove_player_from_team", { id: playerKey });
+				}}
+			>
+				<DeleteIcon />
+			</IconButton>
+		</DefaultTooltip>
 	);
 }
 
@@ -92,6 +96,28 @@ function PlayerProfile({
 				<Avatar src={avatarUrl} />
 			</ListItemAvatar>
 			<ListItemText primary={player.name} secondary={player.elo} sx={textSx} />
+			{player.loseStreak != null && (
+				<StreakIndicator value={-player.loseStreak} />
+			)}
+		</>
+	);
+}
+
+function StreakIndicator({ value }: { value: number }) {
+	const isLoseStreak = value < 0;
+
+	return (
+		<>
+			{value !== 0 && (
+				<DefaultTooltip title={isLoseStreak ? "Lose Streak" : "Win Streak"}>
+					<ListItemText
+						primaryTypographyProps={{ color: "error" }}
+						sx={{ marginX: 1, flexGrow: 0, minWidth: 24 }}
+					>
+						{isLoseStreak ? `${value}▼` : `${value}▲`}
+					</ListItemText>
+				</DefaultTooltip>
+			)}
 		</>
 	);
 }

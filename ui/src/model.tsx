@@ -4,7 +4,7 @@ export type Player = {
 	discordUsername: string | undefined;
 	elo: number;
 	presentInLobby: boolean;
-	loseStreak: number | null;
+	loseStreak: number | undefined;
 };
 
 export type GameState = "assemblingTeams" | "matchInProgress";
