@@ -35,7 +35,7 @@ export type EloEloState = {
 	reservePlayers: Player[];
 	gameState: GameState;
 	history: History;
-	pityBonus: PityBonus | null;
+	pityBonus: PityBonus | undefined;
 };
 
 export type PityBonus = {

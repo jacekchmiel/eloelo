@@ -194,19 +194,6 @@ function MainView({
 		React.useState<FinishMatchModalState>({ show: false });
 	const [startTimestamp, setStartTimestamp] = React.useState<Date>(new Date(0));
 
-	const onToggleLobby = async () => {
-		const anyoneInLobby =
-			state.leftPlayers
-				.map((player) => player.presentInLobby)
-				.concat(state.rightPlayers.map((p) => p.presentInLobby))
-				.filter((p) => p).length > 0;
-		if (anyoneInLobby) {
-			await invoke("clear_lobby", {});
-		} else {
-			await invoke("fill_lobby", {});
-		}
-	};
-
 	return (
 		<>
 			<TeamSelector {...state} avatars={avatars} />
@@ -345,7 +332,7 @@ const initialEloEloState: EloEloState = {
 	reservePlayers: [],
 	gameState: "assemblingTeams",
 	history: { entries: {} },
-	pityBonus: null,
+	pityBonus: undefined,
 };
 
 export default function App() {

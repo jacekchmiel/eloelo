@@ -251,7 +251,7 @@ type TeamSelectorProps = {
 	availableGames: Game[];
 	gameState: GameState;
 	avatars: Avatars;
-	pityBonus: PityBonus | null;
+	pityBonus: PityBonus | undefined;
 };
 
 export function TeamSelector({
