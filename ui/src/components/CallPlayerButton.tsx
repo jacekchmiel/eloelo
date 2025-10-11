@@ -22,6 +22,6 @@ export function CallPlayerButton({
 			>
 				<CampaignIcon />
 			</IconButton>
-		</ DefaultTooltip>
+		</DefaultTooltip>
 	);
 }
