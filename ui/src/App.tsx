@@ -67,11 +67,9 @@ function GameSelector({
 	return (
 		<Box sx={{ width: "fit-content", minWidth: 120 }}>
 			<FormControl fullWidth>
-				<InputLabel>Game</InputLabel>
 				<Select
 					disabled={disabled}
 					value={selectedGame}
-					label="Game"
 					onChange={handleChange}
 					sx={{ backgroundColor: "background.paper" }}
 				>

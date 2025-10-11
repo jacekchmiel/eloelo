@@ -3,7 +3,6 @@ import ChevronRightIcon from "@mui/icons-material/ChevronRight";
 import DeleteIcon from "@mui/icons-material/Delete";
 import {
 	Avatar,
-	Box,
 	IconButton,
 	type IconButtonProps,
 	List,
@@ -12,7 +11,7 @@ import {
 	ListItemText,
 	Paper,
 	Stack,
-	styled,
+	Typography,
 } from "@mui/material";
 import { invoke } from "./Api";
 import { CallPlayerButton } from "./components/CallPlayerButton";
@@ -28,18 +27,6 @@ import type {
 	Side,
 	TeamPityBonus,
 } from "./model";
-
-const Header = styled(Box)(({ theme }) => ({
-	...theme.typography.h5,
-	textAlign: "left",
-	color: theme.palette.text.primary,
-}));
-
-const Info = styled(Box)(({ theme }) => ({
-	...theme.typography.subtitle2,
-	textAlign: "right",
-	color: theme.palette.text.secondary,
-}));
 
 function MoveButton({
 	side,
@@ -211,18 +198,29 @@ function TeamRoster({
 		);
 	}
 	const pityElo = pityBonus?.pityElo;
-	const bonus = pityBonus && ((1 - pityBonus.pityBonus) * 100).toFixed();
+	const bonus = pityBonus && (pityBonus.pityBonus * 100).toFixed();
 	return (
 		<Paper sx={{ width: "100%", maxWidth: "500px" }}>
 			<Stack sx={{ p: 2 }}>
-				<Header>{name}</Header>
-				<Stack direction="row" justifyContent="space-between">
-					<Info>{eloSum.toFixed(0)}</Info>
-					{pityBonus && (
-						<Info>{`${pityElo} with pity bonus of -${bonus}%`}</Info>
-					)}
-				</Stack>
 				<List>
+					<ListItem sx={{ py: 0 }}>
+						<ListItemText
+							sx={{ my: 0 }}
+							primaryTypographyProps={{ fontSize: 20 }}
+							primary={name}
+						/>
+					</ListItem>
+					<ListItem sx={{ pt: 0 }}>
+						<ListItemText
+							sx={{ mt: 0, ml: 2 }}
+							primary={`ELO ${eloSum.toFixed(0)}`}
+							secondary={
+								pityBonus?.pityBonus !== 0
+									? `${pityElo} with -${bonus}% pity bonus included`
+									: "No pity bonus"
+							}
+						/>
+					</ListItem>
 					{players
 						.sort((a, b) => cmp(a.elo, b.elo) * -1)
 						.map((player) => {
