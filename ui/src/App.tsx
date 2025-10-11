@@ -1,37 +1,29 @@
 import EventNoteIcon from "@mui/icons-material/EventNote";
 
-import { PlaylistAddOutlined } from "@mui/icons-material";
 import RefreshIcon from "@mui/icons-material/Refresh";
 import {
 	Box,
 	Button,
 	CssBaseline,
 	FormControl,
-	FormControlLabel,
-	FormLabel,
 	Grid,
 	IconButton,
 	InputLabel,
 	MenuItem,
-	Modal,
-	Radio,
-	RadioGroup,
 	Select,
 	type SelectChangeEvent,
 	Stack,
-	TextField,
 	Typography,
 } from "@mui/material";
 import { grey } from "@mui/material/colors";
 import { ThemeProvider, createTheme, styled } from "@mui/material/styles";
 import React from "react";
 import { connectToUiStream, invoke } from "./Api";
+import { elapsedString } from "./Duration";
 import {
-	elapsedString,
-	isValidDurationString,
-	parseDurationString,
-	serializeDurationSeconds,
-} from "./Duration";
+	FinishMatchModal,
+	type FinishMatchModalState,
+} from "./FinishMatchModal";
 import { HistoryView } from "./HistoryView";
 import { ReserveList } from "./ReserveList";
 import { TeamSelector } from "./TeamSelector";
@@ -39,10 +31,8 @@ import { ColorModeContext, ThemeSwitcher } from "./ThemeSwitcher";
 import {
 	type DiscordPlayerInfo,
 	type EloEloState,
-	type WinScale,
 	extractAvatars,
 } from "./model";
-import { type EloEloStateTransport, parseEloEloState } from "./parse";
 import { useColorMode } from "./useColorMode";
 
 // const invoke = async (command: string, args: object) => {
@@ -166,13 +156,6 @@ function EloElo({
 		</Stack>
 	);
 }
-
-type FinishMatchModalState = {
-	show: boolean;
-	winner?: "left" | "right";
-	fake?: boolean;
-	duration?: string;
-};
 
 function MainView({
 	state,
@@ -332,119 +315,6 @@ function MainView({
 				setState={setFinishMatchModalState}
 			/>
 		</>
-	);
-}
-
-function FinishMatchModal({
-	state,
-	setState,
-}: {
-	state: FinishMatchModalState;
-	setState: React.Dispatch<React.SetStateAction<FinishMatchModalState>>;
-}) {
-	const sx = {
-		position: "absolute",
-		top: "50%",
-		left: "50%",
-		transform: "translate(-50%, -50%)",
-		width: 400,
-		bgcolor: "background.paper",
-		boxShadow: 24,
-		p: 4,
-	};
-
-	const userProvidedDurationInvalid = !isValidDurationString(state.duration);
-	const showWinnerChoice = state.fake !== undefined && state.fake;
-	const buttons: [WinScale, string][] = [
-		["pwnage", "Pwnage"],
-		["advantage", "Advantage"],
-		["even", "Even"],
-	];
-
-	const winnerTeam = state.winner === "left" ? "Left Team" : "Right Team";
-	const heading = state.fake
-		? "Enter fake result"
-		: `${winnerTeam} won! How it went?`;
-	const noWinner = state.winner === undefined;
-
-	return (
-		<Modal open={state.show} onClose={() => setState({ show: false })}>
-			<Box sx={sx}>
-				<Stack spacing={4}>
-					<Typography variant="h6" component="h2">
-						{heading}
-					</Typography>
-					{showWinnerChoice && (
-						<FormControl>
-							<FormLabel>Winner</FormLabel>
-							<RadioGroup
-								row
-								onChange={(event) => {
-									setState((current) => {
-										return {
-											winner: event.target.value as "left" | "right",
-											...current,
-										};
-									});
-								}}
-							>
-								<FormControlLabel
-									value="left"
-									control={<Radio />}
-									label="Left Team"
-								/>
-								<FormControlLabel
-									value="right"
-									control={<Radio />}
-									label="Right Team"
-								/>
-							</RadioGroup>
-						</FormControl>
-					)}
-					<TextField
-						label="Duration"
-						variant="standard"
-						onChange={(event) => {
-							setState((current) => {
-								return {
-									...current,
-									duration: event.target.value,
-								};
-							});
-						}}
-						error={userProvidedDurationInvalid}
-						value={state.duration ?? "0m"}
-					/>
-					<Stack spacing={2}>
-						{buttons.map((b) => {
-							const [scale, text] = b;
-							return (
-								<Button
-									key={scale}
-									variant="contained"
-									onClick={async () => {
-										await invoke("finish_match", {
-											winner: state.winner,
-											scale,
-											duration: serializeDurationSeconds(
-												parseDurationString(
-													state.duration === undefined ? "0" : state.duration,
-												),
-											),
-											fake: state.fake,
-										});
-										setState({ show: false });
-									}}
-									disabled={userProvidedDurationInvalid || noWinner}
-								>
-									{text}
-								</Button>
-							);
-						})}
-					</Stack>
-				</Stack>
-			</Box>
-		</Modal>
 	);
 }
 
