@@ -113,7 +113,7 @@ function EloElo({
 	const [showHistoryState, setShowHistoryState] = React.useState(false);
 
 	return (
-		<Stack spacing={2}>
+		<Stack spacing={2} flexGrow={1} maxWidth={1024}>
 			<Stack
 				flexDirection="row"
 				justifyContent="space-between"
@@ -331,6 +331,7 @@ const initialEloEloState: EloEloState = {
 	reservePlayers: [],
 	gameState: "assemblingTeams",
 	history: { entries: {} },
+	pityBonus: null,
 };
 
 export default function App() {
@@ -370,7 +371,7 @@ export default function App() {
 	);
 
 	return (
-		<Box p={2}>
+		<Box p={2} sx={{ display: "flex", justifyContent: "center" }}>
 			<ColorModeContext.Provider value={colorMode}>
 				<ThemeProvider theme={theme}>
 					<CssBaseline />
