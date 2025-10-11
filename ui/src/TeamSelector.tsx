@@ -12,7 +12,6 @@ import {
 	ListItemText,
 	Paper,
 	Stack,
-	Tooltip,
 	styled,
 } from "@mui/material";
 import { invoke } from "./Api";
@@ -124,7 +123,7 @@ function StreakIndicator({ value }: { value: number }) {
 						primaryTypographyProps={{ color: "error" }}
 						sx={{ marginX: 1, flexGrow: 0, minWidth: 24 }}
 					>
-						{isLoseStreak ? `${value}▼` : `${value}▲`}
+						{isLoseStreak ? `▼${value}` : `▲${value}`}
 					</ListItemText>
 				</DefaultTooltip>
 			)}

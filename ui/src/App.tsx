@@ -2,6 +2,7 @@ import EventNoteIcon from "@mui/icons-material/EventNote";
 
 import RefreshIcon from "@mui/icons-material/Refresh";
 import {
+	AppBar,
 	Box,
 	Button,
 	CssBaseline,
@@ -13,6 +14,7 @@ import {
 	Select,
 	type SelectChangeEvent,
 	Stack,
+	Toolbar,
 	Typography,
 } from "@mui/material";
 import { grey } from "@mui/material/colors";
@@ -62,26 +64,22 @@ function GameSelector({
 		await invoke("change_game", { name: event.target.value });
 	};
 
-	const menuItems = availableGames.map((game) => (
-		<MenuItem value={game} key={game}>
-			{game}
-		</MenuItem>
-	));
-
 	return (
 		<Box sx={{ width: "fit-content", minWidth: 120 }}>
 			<FormControl fullWidth>
-				<InputLabel id="game-select-label">Game</InputLabel>
+				<InputLabel>Game</InputLabel>
 				<Select
 					disabled={disabled}
-					labelId="game-select-label"
-					id="demo-simple-select"
 					value={selectedGame}
 					label="Game"
 					onChange={handleChange}
 					sx={{ backgroundColor: "background.paper" }}
 				>
-					{menuItems}
+					{availableGames.map((game) => (
+						<MenuItem value={game} key={game}>
+							{game}
+						</MenuItem>
+					))}
 				</Select>
 			</FormControl>
 		</Box>
@@ -114,33 +112,37 @@ function EloEloHeader({
 	setShowHistoryState: (mut: (prev: boolean) => boolean) => void;
 }) {
 	return (
-		<Stack
-			flexDirection="row"
-			justifyContent="space-between"
-			alignItems="center"
-		>
-			<GameSelector
-				availableGames={state.availableGames.map((g) => g.name)}
-				selectedGame={state.selectedGame}
-				disabled={state.gameState === "matchInProgress"}
-			/>
-			{state.gameState === "matchInProgress" && (
-				<FightText variant="h3" color="error">
-					Fight!
-				</FightText>
-			)}
-			<Stack flexDirection="row" justifyContent="right">
-				<IconButton
-					onClick={async () => setShowHistoryState((prev: boolean) => !prev)}
-				>
-					<EventNoteIcon />
-				</IconButton>
-				<IconButton onClick={async () => await invoke("refresh_elo", {})}>
-					<RefreshIcon />
-				</IconButton>
-				<ThemeSwitcher />
-			</Stack>
-		</Stack>
+		<AppBar position="static">
+			<Toolbar
+				sx={{
+					paddingY: 1,
+					justifyContent: "space-between",
+					alignContent: "center",
+				}}
+			>
+				<GameSelector
+					availableGames={state.availableGames.map((g) => g.name)}
+					selectedGame={state.selectedGame}
+					disabled={state.gameState === "matchInProgress"}
+				/>
+				{state.gameState === "matchInProgress" && (
+					<FightText variant="h3" color="error">
+						Fight!
+					</FightText>
+				)}
+				<Stack flexDirection="row" justifyContent="right">
+					<IconButton
+						onClick={async () => setShowHistoryState((prev: boolean) => !prev)}
+					>
+						<EventNoteIcon />
+					</IconButton>
+					<IconButton onClick={async () => await invoke("refresh_elo", {})}>
+						<RefreshIcon />
+					</IconButton>
+					<ThemeSwitcher />
+				</Stack>
+			</Toolbar>
+		</AppBar>
 	);
 }
 
