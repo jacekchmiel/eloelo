@@ -12,11 +12,12 @@ import {
 	ListItemText,
 	Paper,
 	Stack,
-	styled,
 	Tooltip,
+	styled,
 } from "@mui/material";
 import { invoke } from "./Api";
 import { CallPlayerButton } from "./components/CallPlayerButton";
+import { DefaultTooltip } from "./components/DefaultTooltip";
 import { PresentInLobbyButton } from "./components/PresentInLobbyButton";
 import type {
 	Avatars,
@@ -28,7 +29,6 @@ import type {
 	Side,
 	TeamPityBonus,
 } from "./model";
-import { DefaultTooltip } from "./components/DefaultTooltip";
 
 const Header = styled(Box)(({ theme }) => ({
 	...theme.typography.h5,
@@ -76,7 +76,7 @@ function DeleteButton({
 			>
 				<DeleteIcon />
 			</IconButton>
-		</ DefaultTooltip>
+		</DefaultTooltip>
 	);
 }
 
@@ -84,7 +84,13 @@ function PlayerProfile({
 	player,
 	avatarUrl,
 	side,
-}: { player: Player; avatarUrl: string | undefined; side: Side }) {
+	crown,
+}: {
+	player: Player;
+	avatarUrl: string | undefined;
+	side: Side;
+	crown: boolean;
+}) {
 	const textSx = { textAlign: side === "left" ? "start" : "end" };
 	const avatarSx = {
 		display: "flex",
@@ -95,7 +101,11 @@ function PlayerProfile({
 			<ListItemAvatar sx={avatarSx}>
 				<Avatar src={avatarUrl} />
 			</ListItemAvatar>
-			<ListItemText primary={player.name} secondary={player.elo} sx={textSx} />
+			<ListItemText
+				primary={`${crown ? "👑 " : ""}${player.name}`}
+				secondary={player.elo}
+				sx={textSx}
+			/>
 			{player.loseStreak != null && (
 				<StreakIndicator value={-player.loseStreak} />
 			)}
@@ -109,16 +119,15 @@ function StreakIndicator({ value }: { value: number }) {
 	return (
 		<>
 			{value !== 0 && (
-				<DefaultTooltip title={isLoseStreak ? "Lose Streak" : "Win Streak"} >
+				<DefaultTooltip title={isLoseStreak ? "Lose Streak" : "Win Streak"}>
 					<ListItemText
 						primaryTypographyProps={{ color: "error" }}
 						sx={{ marginX: 1, flexGrow: 0, minWidth: 24 }}
 					>
 						{isLoseStreak ? `▼${value}` : `▲${value}`}
 					</ListItemText>
-				</DefaultTooltip >
-			)
-			}
+				</DefaultTooltip>
+			)}
 		</>
 	);
 }
@@ -128,11 +137,13 @@ function RosterRow({
 	side,
 	assemblingTeams,
 	avatarUrl,
+	crown,
 }: {
 	player: Player;
 	side: Side;
 	assemblingTeams: boolean;
 	avatarUrl: string | undefined;
+	crown: boolean;
 }) {
 	return (
 		<ListItem
@@ -152,7 +163,12 @@ function RosterRow({
 				present={player.presentInLobby}
 			/>
 			<CallPlayerButton side={side} playerKey={player.id} />
-			<PlayerProfile {...{ player }} avatarUrl={avatarUrl} side={side} />
+			<PlayerProfile
+				{...{ player }}
+				avatarUrl={avatarUrl}
+				side={side}
+				crown={crown}
+			/>
 			<MoveButton
 				side={side}
 				playerKey={player.id}
@@ -179,6 +195,7 @@ function TeamRoster({
 	assemblingTeams,
 	avatars,
 	pityBonus,
+	maxLoseStreak,
 }: {
 	name: string;
 	players: Player[];
@@ -186,6 +203,7 @@ function TeamRoster({
 	assemblingTeams: boolean;
 	avatars: Avatars;
 	pityBonus: TeamPityBonus | undefined;
+	maxLoseStreak: number;
 }) {
 	const eloSum = players.map((p) => p.elo).reduce((s, v) => s + v, 0);
 	if (pityBonus && eloSum !== pityBonus.realElo) {
@@ -217,6 +235,7 @@ function TeamRoster({
 									{...{ player, side, assemblingTeams }}
 									key={player.name}
 									avatarUrl={avatarUrl}
+									crown={player.loseStreak === maxLoseStreak}
 								/>
 							);
 						})}
@@ -256,6 +275,14 @@ export function TeamSelector({
 		typeof selectedGameData === "undefined"
 			? "Right team"
 			: selectedGameData.rightTeam;
+	const maxLoseStreak = Math.max(
+		...(leftPlayers
+			.concat(rightPlayers)
+			.map((p: Player) => {
+				return p.loseStreak;
+			})
+			.filter(Boolean) as number[]),
+	);
 
 	return (
 		<Stack direction="row" spacing={2} justifyContent="center">
@@ -266,6 +293,7 @@ export function TeamSelector({
 				assemblingTeams={gameState === "assemblingTeams"}
 				avatars={avatars}
 				pityBonus={pityBonus?.left}
+				maxLoseStreak={maxLoseStreak}
 			/>
 			<TeamRoster
 				name={rightTeam}
@@ -274,6 +302,7 @@ export function TeamSelector({
 				assemblingTeams={gameState === "assemblingTeams"}
 				avatars={avatars}
 				pityBonus={pityBonus?.right}
+				maxLoseStreak={maxLoseStreak}
 			/>
 		</Stack>
 	);

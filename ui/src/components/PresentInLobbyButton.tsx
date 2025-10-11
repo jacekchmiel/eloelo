@@ -29,6 +29,6 @@ export function PresentInLobbyButton({
 					<PersonOffIcon color="error" />
 				)}
 			</IconButton>
-		</ DefaultTooltip>
+		</DefaultTooltip>
 	);
 }
