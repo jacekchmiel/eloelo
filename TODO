@@ -1,18 +1,12 @@
 # TODO
 
 ## HIGH PRIORITY
-- [ ] Do not assign the same hero twice in a row to a player
-  - [ ] Flag to opt-out of this rule
-- [ ] Split match history to multiple files
-- [ ] Flag to disable autogrzybke
-- [ ] Switch to poise - higher level framework for discord
-  - [ ] Migrate slash commands to proper implementation
-  - [ ] Consider modals instead of DM
-  - [ ] Consider ephemeral messages instead of DM
-- [ ] Store heroes in history
-  - [ ] Allow picking heroes from GUI
-  - [ ] Add buttons to Discord message for hero pick
-  - [ ] OCR heroes from game screenshot?
+- [ ] S Calculate lose streaks only from recent matches (w/setting)
+- [ ] S Flag to disable autogrzybke
+- [ ] S Display length, advantage and fake on match view
+- [ ] M Add time decay for old matches
+- [x] Do not assign the same hero twice in a row to a player
+  - [x] Flag to opt-out of this rule
 - [x] Missing players in lobby
   - [x] OCR screenshot
   - [x] Add fallback player aliases, make sure requests are logged for debug
@@ -20,26 +14,37 @@
   - [x] Send message
 - [x] Add hero
 - [x] Additional match info: length, advantage
-- [ ] Display length and advantage on match view
 - [x] Store match history (the most precious thing we have) in cloud/safe storage, also so it can be shared with other
       (maybe a git repo with a commit for each new match?)
 - [x] Uniform playerId/discordId
 - [x] Fix proposed duration in finish match modal
 
-- [ ] Log all matches in separate, append-only file as backup
-- [ ] Crash dump
-
 ## LOW PRIORITY
 
-- [ ] Graphs Per player
+- [ ] L Switch to poise - higher level framework for discord
+  - [ ] Migrate slash commands to proper implementation
+  - [ ] Consider modals instead of DM
+  - [ ] Consider ephemeral messages instead of DM
+
+- [ ] L Graphs Per player
   - [ ] Best teammates
   - [ ] Wins/Loses summary
   - [ ] Row colors per win/lose
 
+- [ ] S Log all matches in separate, append-only file as backup
+
 - [ ] Interactive ELO calculation (progress, and live score changes)
 
-- [ ] Settings UI - generated from rust struct (any in TS)
+- [ ] M Settings UI - generated from rust struct (any in TS)
+- [ ] M Transmit logs to UI
+- [ ] M Display UI wait (e.g. when blocked on Autogrzybke, ELO calc)
 
-- [ ] Randomize Heroes by type
+- [ ] L Randomize Heroes by type
 
-- [ ] Game graphics
+- [ ] M Game graphics
+
+- [ ] XL Store heroes in history
+  - [ ] Allow picking heroes from GUI
+  - [ ] Add buttons to Discord message for hero pick
+  - [ ] OCR heroes from game screenshot?
+- [ ] Split match history to multiple files
