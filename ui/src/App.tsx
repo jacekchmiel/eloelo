@@ -1,37 +1,31 @@
 import EventNoteIcon from "@mui/icons-material/EventNote";
 
-import { PlaylistAddOutlined } from "@mui/icons-material";
 import RefreshIcon from "@mui/icons-material/Refresh";
 import {
+	AppBar,
 	Box,
 	Button,
 	CssBaseline,
 	FormControl,
-	FormControlLabel,
-	FormLabel,
 	Grid,
 	IconButton,
 	InputLabel,
 	MenuItem,
-	Modal,
-	Radio,
-	RadioGroup,
 	Select,
 	type SelectChangeEvent,
 	Stack,
-	TextField,
+	Toolbar,
 	Typography,
 } from "@mui/material";
 import { grey } from "@mui/material/colors";
 import { ThemeProvider, createTheme, styled } from "@mui/material/styles";
 import React from "react";
 import { connectToUiStream, invoke } from "./Api";
+import { elapsedString } from "./Duration";
 import {
-	elapsedString,
-	isValidDurationString,
-	parseDurationString,
-	serializeDurationSeconds,
-} from "./Duration";
+	FinishMatchModal,
+	type FinishMatchModalState,
+} from "./FinishMatchModal";
 import { HistoryView } from "./HistoryView";
 import { ReserveList } from "./ReserveList";
 import { TeamSelector } from "./TeamSelector";
@@ -39,10 +33,8 @@ import { ColorModeContext, ThemeSwitcher } from "./ThemeSwitcher";
 import {
 	type DiscordPlayerInfo,
 	type EloEloState,
-	type WinScale,
 	extractAvatars,
 } from "./model";
-import { type EloEloStateTransport, parseEloEloState } from "./parse";
 import { useColorMode } from "./useColorMode";
 
 // const invoke = async (command: string, args: object) => {
@@ -72,26 +64,20 @@ function GameSelector({
 		await invoke("change_game", { name: event.target.value });
 	};
 
-	const menuItems = availableGames.map((game) => (
-		<MenuItem value={game} key={game}>
-			{game}
-		</MenuItem>
-	));
-
 	return (
 		<Box sx={{ width: "fit-content", minWidth: 120 }}>
 			<FormControl fullWidth>
-				<InputLabel id="game-select-label">Game</InputLabel>
 				<Select
 					disabled={disabled}
-					labelId="game-select-label"
-					id="demo-simple-select"
 					value={selectedGame}
-					label="Game"
 					onChange={handleChange}
 					sx={{ backgroundColor: "background.paper" }}
 				>
-					{menuItems}
+					{availableGames.map((game) => (
+						<MenuItem value={game} key={game}>
+							{game}
+						</MenuItem>
+					))}
 				</Select>
 			</FormControl>
 		</Box>
@@ -116,18 +102,21 @@ const FightText = styled(Typography)({
 	},
 });
 
-function EloElo({
+function EloEloHeader({
 	state,
-	discordInfo,
-}: { state: EloEloState; discordInfo: DiscordPlayerInfo[] }) {
-	const [showHistoryState, setShowHistoryState] = React.useState(false);
-
+	setShowHistoryState,
+}: {
+	state: EloEloState;
+	setShowHistoryState: (mut: (prev: boolean) => boolean) => void;
+}) {
 	return (
-		<Stack spacing={2}>
-			<Stack
-				flexDirection="row"
-				justifyContent="space-between"
-				alignItems="center"
+		<AppBar position="static">
+			<Toolbar
+				sx={{
+					paddingY: 1,
+					justifyContent: "space-between",
+					alignContent: "center",
+				}}
 			>
 				<GameSelector
 					availableGames={state.availableGames.map((g) => g.name)}
@@ -141,7 +130,7 @@ function EloElo({
 				)}
 				<Stack flexDirection="row" justifyContent="right">
 					<IconButton
-						onClick={async () => setShowHistoryState((prev) => !prev)}
+						onClick={async () => setShowHistoryState((prev: boolean) => !prev)}
 					>
 						<EventNoteIcon />
 					</IconButton>
@@ -150,7 +139,20 @@ function EloElo({
 					</IconButton>
 					<ThemeSwitcher />
 				</Stack>
-			</Stack>
+			</Toolbar>
+		</AppBar>
+	);
+}
+
+function EloElo({
+	state,
+	discordInfo,
+}: { state: EloEloState; discordInfo: DiscordPlayerInfo[] }) {
+	const [showHistoryState, setShowHistoryState] = React.useState(false);
+
+	return (
+		<Stack spacing={2} flexGrow={1} maxWidth={1024}>
+			<EloEloHeader state={state} setShowHistoryState={setShowHistoryState} />
 			{showHistoryState ? (
 				<HistoryView
 					history={getHistoryForCurrentGame(state)}
@@ -166,13 +168,6 @@ function EloElo({
 		</Stack>
 	);
 }
-
-type FinishMatchModalState = {
-	show: boolean;
-	winner?: "left" | "right";
-	fake?: boolean;
-	duration?: string;
-};
 
 function MainView({
 	state,
@@ -196,19 +191,6 @@ function MainView({
 	const [finishMatchModalState, setFinishMatchModalState] =
 		React.useState<FinishMatchModalState>({ show: false });
 	const [startTimestamp, setStartTimestamp] = React.useState<Date>(new Date(0));
-
-	const onToggleLobby = async () => {
-		const anyoneInLobby =
-			state.leftPlayers
-				.map((player) => player.presentInLobby)
-				.concat(state.rightPlayers.map((p) => p.presentInLobby))
-				.filter((p) => p).length > 0;
-		if (anyoneInLobby) {
-			await invoke("clear_lobby", {});
-		} else {
-			await invoke("fill_lobby", {});
-		}
-	};
 
 	return (
 		<>
@@ -335,119 +317,6 @@ function MainView({
 	);
 }
 
-function FinishMatchModal({
-	state,
-	setState,
-}: {
-	state: FinishMatchModalState;
-	setState: React.Dispatch<React.SetStateAction<FinishMatchModalState>>;
-}) {
-	const sx = {
-		position: "absolute",
-		top: "50%",
-		left: "50%",
-		transform: "translate(-50%, -50%)",
-		width: 400,
-		bgcolor: "background.paper",
-		boxShadow: 24,
-		p: 4,
-	};
-
-	const userProvidedDurationInvalid = !isValidDurationString(state.duration);
-	const showWinnerChoice = state.fake !== undefined && state.fake;
-	const buttons: [WinScale, string][] = [
-		["pwnage", "Pwnage"],
-		["advantage", "Advantage"],
-		["even", "Even"],
-	];
-
-	const winnerTeam = state.winner === "left" ? "Left Team" : "Right Team";
-	const heading = state.fake
-		? "Enter fake result"
-		: `${winnerTeam} won! How it went?`;
-	const noWinner = state.winner === undefined;
-
-	return (
-		<Modal open={state.show} onClose={() => setState({ show: false })}>
-			<Box sx={sx}>
-				<Stack spacing={4}>
-					<Typography variant="h6" component="h2">
-						{heading}
-					</Typography>
-					{showWinnerChoice && (
-						<FormControl>
-							<FormLabel>Winner</FormLabel>
-							<RadioGroup
-								row
-								onChange={(event) => {
-									setState((current) => {
-										return {
-											winner: event.target.value as "left" | "right",
-											...current,
-										};
-									});
-								}}
-							>
-								<FormControlLabel
-									value="left"
-									control={<Radio />}
-									label="Left Team"
-								/>
-								<FormControlLabel
-									value="right"
-									control={<Radio />}
-									label="Right Team"
-								/>
-							</RadioGroup>
-						</FormControl>
-					)}
-					<TextField
-						label="Duration"
-						variant="standard"
-						onChange={(event) => {
-							setState((current) => {
-								return {
-									...current,
-									duration: event.target.value,
-								};
-							});
-						}}
-						error={userProvidedDurationInvalid}
-						value={state.duration ?? "0m"}
-					/>
-					<Stack spacing={2}>
-						{buttons.map((b) => {
-							const [scale, text] = b;
-							return (
-								<Button
-									key={scale}
-									variant="contained"
-									onClick={async () => {
-										await invoke("finish_match", {
-											winner: state.winner,
-											scale,
-											duration: serializeDurationSeconds(
-												parseDurationString(
-													state.duration === undefined ? "0" : state.duration,
-												),
-											),
-											fake: state.fake,
-										});
-										setState({ show: false });
-									}}
-									disabled={userProvidedDurationInvalid || noWinner}
-								>
-									{text}
-								</Button>
-							);
-						})}
-					</Stack>
-				</Stack>
-			</Box>
-		</Modal>
-	);
-}
-
 function getHistoryForCurrentGame(state: EloEloState) {
 	const maybeHistory = state.history.entries[state.selectedGame];
 	return maybeHistory === undefined ? [] : maybeHistory;
@@ -461,6 +330,7 @@ const initialEloEloState: EloEloState = {
 	reservePlayers: [],
 	gameState: "assemblingTeams",
 	history: { entries: {} },
+	pityBonus: undefined,
 };
 
 export default function App() {
@@ -500,7 +370,7 @@ export default function App() {
 	);
 
 	return (
-		<Box p={2}>
+		<Box p={2} sx={{ display: "flex", justifyContent: "center" }}>
 			<ColorModeContext.Provider value={colorMode}>
 				<ThemeProvider theme={theme}>
 					<CssBaseline />

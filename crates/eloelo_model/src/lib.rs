@@ -152,6 +152,14 @@ impl TryFrom<String> for WinScale {
     }
 }
 
+#[derive(Debug, Clone, Default, PartialEq, Serialize, Deserialize)]
+pub struct BalancedTeam {
+    pub players: Vec<PlayerId>,
+    pub pity_bonus: f32,
+    pub pity_elo: i32,
+    pub real_elo: i32,
+}
+
 #[cfg(test)]
 mod test {
     use super::*;

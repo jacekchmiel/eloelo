@@ -5,7 +5,8 @@ use super::message_bus::{Event, FinishMatch, Message, MessageBus, UiCommand, UiU
 use anyhow::{Context as _, Result};
 use async_elodisco::EloDisco;
 use bot_state::BotState;
-use log::info;
+use itertools::Itertools;
+use log::{info, warn};
 use serenity::all::GatewayIntents;
 
 mod async_elodisco;
@@ -35,6 +36,19 @@ fn start_serenity_in_background(token: String, elodisco: EloDisco) {
 
 pub async fn run(config: Config, bot_state: BotState, message_bus: MessageBus) {
     let token = config.discord_bot_token.clone();
+    if config.test_mode {
+        warn!("Discord running in test mode");
+    }
+    info!(
+        "Announcement channel name: {}",
+        config.effective_discord_channel_name()
+    );
+    if config.test_mode {
+        warn!(
+            "Players allowed to be notified: {}",
+            config.discord_test_mode_players.iter().join(", ")
+        );
+    }
     let async_elodisco = EloDisco::new(bot_state, config);
     start_serenity_in_background(token, async_elodisco.clone());
 

@@ -15,9 +15,12 @@ use futures_util::StreamExt as _;
 use http::{HeaderMap, StatusCode};
 use log::{debug, info};
 use serde::{Deserialize, Serialize};
+use spawelo::SpaweloOptions;
 use tower_http::services::ServeDir;
 
-use crate::eloelo::message_bus::{Event, FinishMatch, ImageFormat, Message, MessageBus, UiCommand};
+use crate::eloelo::message_bus::{
+    Event, FinishMatch, ImageFormat, MatchInfo, Message, MessageBus, UiCommand,
+};
 use crate::utils::ResultExt as _;
 
 struct AppState {
@@ -207,12 +210,12 @@ async fn finish_match(
                 .ok_or_else(|| bad_request("Missing match duration"))?;
             let scale = body.scale.ok_or_else(|| bad_request("Missing win scale"))?;
             let fake = body.fake.unwrap_or(false);
-            UiCommand::FinishMatch(FinishMatch::Finished {
+            UiCommand::FinishMatch(FinishMatch::Finished(MatchInfo {
                 winner,
                 scale,
                 duration,
                 fake,
-            })
+            }))
         }
     };
     state.message_bus.send(Message::UiCommand(cmd));
@@ -254,22 +257,15 @@ async fn call_player(
     EmptyResponse
 }
 
-// #[derive(Debug, Deserialize)]
-// #[serde(rename_all = "camelCase")]
-// struct LobbyScreenshotData {
-//     players_in_lobby: Vec<String>,
-// }
-// async fn add_lobby_screenshot_data(
-//     State(state): AppStateArg,
-//     Json(payload): Json<LobbyScreenshotData>,
-// ) -> impl IntoResponse {
-//     state
-//         .message_bus
-//         .send(Message::UiCommand(UiCommand::AddLobbyScreenshotData(
-//             payload.players_in_lobby,
-//         )));
-//     EmptyResponse
-// }
+async fn save_options(
+    State(state): AppStateArg,
+    Json(body): Json<SpaweloOptions>,
+) -> impl IntoResponse {
+    state
+        .message_bus
+        .send(Message::UiCommand(UiCommand::UpdateOptions(body)));
+    EmptyResponse
+}
 
 async fn process_dota_screenshot(
     State(state): AppStateArg,
@@ -330,7 +326,13 @@ async fn redirect_to_ui() -> impl IntoResponse {
     Redirect::permanent("/ui")
 }
 
-pub async fn serve(message_bus: MessageBus, static_serving_dir: PathBuf) {
+pub async fn serve(message_bus: MessageBus, static_serving_dir: PathBuf, addr: String) {
+    info!("API listening on: {addr}");
+    info!(
+        "API static serving dir: {}",
+        static_serving_dir.to_string_lossy()
+    );
+
     let shared_state = Arc::new(AppState { message_bus });
     let app = Router::new()
         .route("/", get(redirect_to_ui))
@@ -356,12 +358,13 @@ pub async fn serve(message_bus: MessageBus, static_serving_dir: PathBuf) {
                 .route("/present_in_lobby_change", post(present_in_lobby_change))
                 .route("/clear_lobby", post(clear_lobby))
                 .route("/fill_lobby", post(fill_lobby))
-                .route("/call_player", post(call_player)),
+                .route("/call_player", post(call_player))
+                .route("/options", post(save_options)),
         )
         .route("/api/v1/dota_screenshot", post(process_dota_screenshot))
         .with_state(shared_state)
         .fallback_service(ServeDir::new(static_serving_dir));
-    let listener = tokio::net::TcpListener::bind("0.0.0.0:3000").await.unwrap();
+    let listener = tokio::net::TcpListener::bind(addr).await.unwrap();
     axum::serve(listener, app)
         .await
         .context("Api server failed")

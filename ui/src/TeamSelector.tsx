@@ -3,7 +3,6 @@ import ChevronRightIcon from "@mui/icons-material/ChevronRight";
 import DeleteIcon from "@mui/icons-material/Delete";
 import {
 	Avatar,
-	Box,
 	IconButton,
 	type IconButtonProps,
 	List,
@@ -12,31 +11,22 @@ import {
 	ListItemText,
 	Paper,
 	Stack,
-	styled,
+	Typography,
 } from "@mui/material";
 import { invoke } from "./Api";
 import { CallPlayerButton } from "./components/CallPlayerButton";
+import { DefaultTooltip } from "./components/DefaultTooltip";
 import { PresentInLobbyButton } from "./components/PresentInLobbyButton";
 import type {
 	Avatars,
 	Game,
 	GameState,
+	PityBonus,
 	Player,
 	PlayerAvatar,
 	Side,
+	TeamPityBonus,
 } from "./model";
-
-const Header = styled(Box)(({ theme }) => ({
-	...theme.typography.h6,
-	textAlign: "left",
-	color: theme.palette.text.primary,
-}));
-
-const SubHeader = styled(Box)(({ theme }) => ({
-	...theme.typography.subtitle1,
-	textAlign: "left",
-	color: theme.palette.text.primary,
-}));
 
 function MoveButton({
 	side,
@@ -62,28 +52,68 @@ function DeleteButton({
 	...props
 }: { side: Side; playerKey: string } & IconButtonProps) {
 	return (
-		<IconButton
-			{...props}
-			edge={side === "left" ? "start" : "end"}
-			onClick={async () => {
-				await invoke("remove_player_from_team", { id: playerKey });
-			}}
-		>
-			<DeleteIcon />
-		</IconButton>
+		<DefaultTooltip title="Remove from team">
+			<IconButton
+				{...props}
+				edge={side === "left" ? "start" : "end"}
+				onClick={async () => {
+					await invoke("remove_player_from_team", { id: playerKey });
+				}}
+			>
+				<DeleteIcon />
+			</IconButton>
+		</DefaultTooltip>
 	);
 }
 
 function PlayerProfile({
 	player,
 	avatarUrl,
-}: { player: Player; avatarUrl: string | undefined }) {
+	side,
+	crown,
+}: {
+	player: Player;
+	avatarUrl: string | undefined;
+	side: Side;
+	crown: boolean;
+}) {
+	const textSx = { textAlign: side === "left" ? "start" : "end" };
+	const avatarSx = {
+		display: "flex",
+		justifyContent: side === "left" ? "flex-start" : "flex-end",
+	};
 	return (
 		<>
-			<ListItemAvatar>
+			<ListItemAvatar sx={avatarSx}>
 				<Avatar src={avatarUrl} />
 			</ListItemAvatar>
-			<ListItemText primary={player.name} secondary={player.elo} />
+			<ListItemText
+				primary={`${crown ? "👑 " : ""}${player.name}`}
+				secondary={player.elo}
+				sx={textSx}
+			/>
+			{player.loseStreak != null && (
+				<StreakIndicator value={-player.loseStreak} />
+			)}
+		</>
+	);
+}
+
+function StreakIndicator({ value }: { value: number }) {
+	const isLoseStreak = value < 0;
+
+	return (
+		<>
+			{value !== 0 && (
+				<DefaultTooltip title={isLoseStreak ? "Lose Streak" : "Win Streak"}>
+					<ListItemText
+						primaryTypographyProps={{ color: "error" }}
+						sx={{ marginX: 1, flexGrow: 0, minWidth: 24 }}
+					>
+						{isLoseStreak ? `▼${value}` : `▲${value}`}
+					</ListItemText>
+				</DefaultTooltip>
+			)}
 		</>
 	);
 }
@@ -93,11 +123,13 @@ function RosterRow({
 	side,
 	assemblingTeams,
 	avatarUrl,
+	crown,
 }: {
 	player: Player;
 	side: Side;
 	assemblingTeams: boolean;
 	avatarUrl: string | undefined;
+	crown: boolean;
 }) {
 	return (
 		<ListItem
@@ -117,7 +149,12 @@ function RosterRow({
 				present={player.presentInLobby}
 			/>
 			<CallPlayerButton side={side} playerKey={player.id} />
-			<PlayerProfile {...{ player }} avatarUrl={avatarUrl} />
+			<PlayerProfile
+				{...{ player }}
+				avatarUrl={avatarUrl}
+				side={side}
+				crown={crown}
+			/>
 			<MoveButton
 				side={side}
 				playerKey={player.id}
@@ -143,20 +180,47 @@ function TeamRoster({
 	side,
 	assemblingTeams,
 	avatars,
+	pityBonus,
+	maxLoseStreak,
 }: {
 	name: string;
 	players: Player[];
 	side: Side;
 	assemblingTeams: boolean;
 	avatars: Avatars;
+	pityBonus: TeamPityBonus | undefined;
+	maxLoseStreak: number;
 }) {
 	const eloSum = players.map((p) => p.elo).reduce((s, v) => s + v, 0);
+	if (pityBonus && eloSum !== pityBonus.realElo) {
+		console.error(
+			`eloSum and pityBonus.realElo differ: ${{ eloSum: eloSum, realElo: pityBonus.realElo }}`,
+		);
+	}
+	const pityElo = pityBonus?.pityElo;
+	const bonus = pityBonus && (pityBonus.pityBonus * 100).toFixed();
 	return (
 		<Paper sx={{ width: "100%", maxWidth: "500px" }}>
 			<Stack sx={{ p: 2 }}>
-				<Header>{name}</Header>
-				<SubHeader>{eloSum.toFixed(0)}</SubHeader>
 				<List>
+					<ListItem sx={{ py: 0 }}>
+						<ListItemText
+							sx={{ my: 0 }}
+							primaryTypographyProps={{ fontSize: 20 }}
+							primary={name}
+						/>
+					</ListItem>
+					<ListItem sx={{ pt: 0 }}>
+						<ListItemText
+							sx={{ mt: 0, ml: 2 }}
+							primary={`ELO ${eloSum.toFixed(0)}`}
+							secondary={
+								pityBonus?.pityBonus !== 0
+									? `${pityElo} with -${bonus}% pity bonus included`
+									: "No pity bonus"
+							}
+						/>
+					</ListItem>
 					{players
 						.sort((a, b) => cmp(a.elo, b.elo) * -1)
 						.map((player) => {
@@ -168,6 +232,7 @@ function TeamRoster({
 									{...{ player, side, assemblingTeams }}
 									key={player.name}
 									avatarUrl={avatarUrl}
+									crown={player.loseStreak === maxLoseStreak}
 								/>
 							);
 						})}
@@ -184,6 +249,7 @@ type TeamSelectorProps = {
 	availableGames: Game[];
 	gameState: GameState;
 	avatars: Avatars;
+	pityBonus: PityBonus | undefined;
 };
 
 export function TeamSelector({
@@ -193,6 +259,7 @@ export function TeamSelector({
 	availableGames,
 	gameState,
 	avatars,
+	pityBonus,
 }: TeamSelectorProps) {
 	const selectedGameData = availableGames.find(
 		(v: Game): boolean => v.name === selectedGame,
@@ -205,6 +272,14 @@ export function TeamSelector({
 		typeof selectedGameData === "undefined"
 			? "Right team"
 			: selectedGameData.rightTeam;
+	const maxLoseStreak = Math.max(
+		...(leftPlayers
+			.concat(rightPlayers)
+			.map((p: Player) => {
+				return p.loseStreak;
+			})
+			.filter(Boolean) as number[]),
+	);
 
 	return (
 		<Stack direction="row" spacing={2} justifyContent="center">
@@ -214,6 +289,8 @@ export function TeamSelector({
 				side="left"
 				assemblingTeams={gameState === "assemblingTeams"}
 				avatars={avatars}
+				pityBonus={pityBonus?.left}
+				maxLoseStreak={maxLoseStreak}
 			/>
 			<TeamRoster
 				name={rightTeam}
@@ -221,6 +298,8 @@ export function TeamSelector({
 				side="right"
 				assemblingTeams={gameState === "assemblingTeams"}
 				avatars={avatars}
+				pityBonus={pityBonus?.right}
+				maxLoseStreak={maxLoseStreak}
 			/>
 		</Stack>
 	);

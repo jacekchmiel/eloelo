@@ -1,6 +1,6 @@
+use std::collections::HashSet;
 use std::path::PathBuf;
 
-use eloelo_model::player::PlayerConfig;
 use eloelo_model::{GameId, PlayerId, Team};
 use serde::{Deserialize, Serialize};
 
@@ -13,9 +13,6 @@ pub struct Config {
     pub games: Vec<Game>,
 
     #[serde(default)]
-    pub players: Vec<PlayerConfig>,
-
-    #[serde(default)]
     pub discord_bot_token: String,
 
     #[serde(default)]
@@ -23,6 +20,17 @@ pub struct Config {
 
     #[serde(default)]
     pub discord_channel_name: String,
+
+    /// Disables priv messages and storing history. Useful for development and testing.
+    #[serde(default)]
+    pub test_mode: bool,
+
+    #[serde(default)]
+    pub discord_test_channel_name: String,
+
+    /// List of usernames that will receive notifications even in test mode.
+    #[serde(default)]
+    pub discord_test_mode_players: HashSet<PlayerId>,
 
     #[serde(default)]
     pub max_elo_history: usize,
@@ -47,6 +55,13 @@ pub struct Config {
 
     #[serde(default = "default_static_serving_dir")]
     pub static_serving_dir: PathBuf,
+
+    #[serde(default = "default_serving_addr")]
+    pub serving_addr: String,
+}
+
+fn default_serving_addr() -> String {
+    "0.0.0.0:3000".into()
 }
 
 fn default_static_serving_dir() -> PathBuf {
@@ -76,7 +91,6 @@ impl Default for Config {
     fn default() -> Self {
         Self {
             games: vec![Game::new(GameId::from("Default Game"))],
-            players: vec![],
             discord_bot_token: Default::default(),
             discord_server_name: Default::default(),
             discord_channel_name: Default::default(),
@@ -88,17 +102,25 @@ impl Default for Config {
             dota_ocr_engine_command: default_dota_ocr_engine_command(),
             dota_ocr_engine_pwd: default_dota_ocr_engine_pwd(),
             static_serving_dir: default_static_serving_dir(),
+            serving_addr: default_serving_addr(),
+            test_mode: true,
+            discord_test_mode_players: Default::default(),
+            discord_test_channel_name: Default::default(),
         }
     }
 }
 
 impl Config {
-    pub fn get_player(&self, p: &PlayerId) -> Option<&PlayerConfig> {
-        self.players.iter().find(|v| v.id == *p)
-    }
-
     pub fn default_game(&self) -> &GameId {
         self.games.first().map(|g| &g.name).unwrap()
+    }
+
+    pub fn effective_discord_channel_name(&self) -> &str {
+        if self.test_mode {
+            &self.discord_test_channel_name
+        } else {
+            &self.discord_channel_name
+        }
     }
 }
 

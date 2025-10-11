@@ -23,7 +23,7 @@ chrono = { version = "0.4.38", features = ["serde"] }
 tokio = { version = "1.40.0", features = ["signal", "rt-multi-thread"] }
 serenity = "0.12.2"
 log = "0.4.22"
-flexi_logger = "0.29.3"
+flexi_logger = "0.31.7"
 itertools = "0.13.0"
 eloelo_model = { workspace = true }
 spawelo = { workspace = true }

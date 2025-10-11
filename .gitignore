@@ -31,3 +31,4 @@ dist-ssr
 
 tmp_*
 .trigger
+local_config

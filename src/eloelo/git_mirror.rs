@@ -115,6 +115,7 @@ mod tests {
     use std::fs::File;
     use std::io::{Read as _, Write as _};
     use std::path::Path;
+    use std::process::Output;
     use std::str::FromStr as _;
     use tempdir::TempDir;
 
@@ -129,25 +130,23 @@ mod tests {
         Ok(())
     }
 
+    fn run_silent(cmd: Expression) -> Result<Output, std::io::Error> {
+        cmd.stderr_null().stdout_null().run()
+    }
+
     fn prepare_upstream(tmp_dir: &Path) -> Result<PathBuf> {
         let upstream_dir = tmp_dir.join("upstream");
         std::fs::create_dir(&upstream_dir)?;
-        cmd!("git", "init", "--bare").dir(&upstream_dir).run()?;
-        cmd!("git", "branch", "-m", "main")
-            .dir(&upstream_dir)
-            .run()?;
+        run_silent(cmd!("git", "init", "--bare").dir(&upstream_dir))?;
+        run_silent(cmd!("git", "branch", "-m", "main").dir(&upstream_dir))?;
         Ok(upstream_dir)
     }
 
     fn clone_upstream(tmp_dir: &Path, name: &str) -> Result<PathBuf> {
         let repo_dir = tmp_dir.join(name);
-        cmd!("git", "clone", "upstream", name).dir(&tmp_dir).run()?;
-        cmd!("git", "config", "user.email", "eloelo@example.com")
-            .dir(&repo_dir)
-            .run()?;
-        cmd!("git", "config", "user.name", "Elo Elo")
-            .dir(&repo_dir)
-            .run()?;
+        run_silent(cmd!("git", "clone", "upstream", name).dir(&tmp_dir))?;
+        run_silent(cmd!("git", "config", "user.email", "eloelo@example.com").dir(&repo_dir))?;
+        run_silent(cmd!("git", "config", "user.name", "Elo Elo").dir(&repo_dir))?;
         Ok(repo_dir)
     }
 
@@ -168,11 +167,9 @@ mod tests {
     fn commit_file(root: &Path, filename: &str, content: &str) -> Result<()> {
         let ext_clone_dir = clone_upstream(&root, "ext")?;
         create_file(&ext_clone_dir.join(filename), content)?;
-        cmd!("git", "add", "*").dir(&ext_clone_dir).run()?;
-        cmd!("git", "commit", "-am", "Commit Message")
-            .dir(&ext_clone_dir)
-            .run()?;
-        cmd!("git", "push").dir(&ext_clone_dir).run()?;
+        run_silent(cmd!("git", "add", "*").dir(&ext_clone_dir))?;
+        run_silent(cmd!("git", "commit", "-am", "Commit Message").dir(&ext_clone_dir))?;
+        run_silent(cmd!("git", "push").dir(&ext_clone_dir))?;
         std::fs::remove_dir_all(ext_clone_dir)?;
         Ok(())
     }

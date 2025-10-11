@@ -45,7 +45,7 @@ where
 {
     result
         .inspect_err(|e| {
-            error!("ERROR: {e}");
+            error!("{e}");
         })
         .unwrap_or_default()
 }

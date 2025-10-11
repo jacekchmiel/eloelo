@@ -3,15 +3,17 @@ use std::fs::{self, File};
 use std::path::{Path, PathBuf};
 
 use anyhow::{Context, Result};
-use log::{debug, info};
+use eloelo_model::player::PlayersConfig;
+use itertools::Itertools;
+use log::{debug, info, warn};
 use serde::de::DeserializeOwned;
 use serde::{Deserialize, Serialize};
+use spawelo::SpaweloOptions;
 
 use super::config::Config;
 use super::elodisco::bot_state::BotState;
 use super::ui_state::State;
 use eloelo_model::history::{History, HistoryEntry};
-use eloelo_model::player::PlayerDb;
 use eloelo_model::GameId;
 
 const HISTORY_SUFFIX: &str = ".history.json";
@@ -29,6 +31,14 @@ fn config_file_path() -> PathBuf {
     data_dir().join("config.yaml")
 }
 
+fn players_file_path() -> PathBuf {
+    data_dir().join("players.yaml")
+}
+
+fn options_file_path<T: NamedOptions>() -> PathBuf {
+    data_dir().join(format!("{}_options.yaml", T::name()))
+}
+
 pub fn data_dir() -> PathBuf {
     let project_dirs = directories::ProjectDirs::from("com", "eloelo", "eloelo")
         .expect("Cannot retrieve project dirs");
@@ -36,7 +46,7 @@ pub fn data_dir() -> PathBuf {
 }
 
 pub fn load_state() -> Result<Option<State>> {
-    info!("Store: State file: {}", state_file_path().to_string_lossy());
+    info!("State file: {}", state_file_path().to_string_lossy());
     if !state_file_path().exists() {
         return Ok(None);
     }
@@ -53,7 +63,7 @@ pub fn store_state(state: &State) -> Result<()> {
 
 pub fn load_bot_state() -> Result<BotState> {
     let path = bot_state_file_path();
-    info!("Store: Discord Bot State file: {}", path.to_string_lossy());
+    info!("Discord Bot State file: {}", path.to_string_lossy());
     if !path.exists() {
         store_bot_state(&Default::default())?;
     }
@@ -69,15 +79,63 @@ pub fn store_bot_state(state: &BotState) -> Result<()> {
 }
 
 pub fn load_config() -> Result<Config> {
-    info!(
-        "Store: Config file: {}",
-        config_file_path().to_string_lossy()
-    );
+    info!("Config file: {}", config_file_path().to_string_lossy());
     if !config_file_path().exists() {
+        info!("Config file does not exist, creating.");
         store_default_config()?;
     }
     let config_file = File::open(config_file_path())?;
     Ok(serde_yaml::from_reader(config_file)?)
+}
+
+pub fn load_players() -> Result<PlayersConfig> {
+    info!("Players file: {}", players_file_path().to_string_lossy());
+    if !players_file_path().exists() {
+        info!("Players file does not exist, creating.");
+        store_default_players_config()?;
+    }
+    let config_file = File::open(players_file_path())?;
+    let config: PlayersConfig = serde_yaml::from_reader(config_file)?;
+    let player_ids: String = config.players.iter().map(|p| &p.id).join(", ");
+    let n = config.players.len();
+
+    if n == 0 {
+        warn!("Loaded {n} players");
+    } else {
+        info!("Loaded {n} players: {player_ids}");
+    }
+    Ok(config)
+}
+
+pub fn load_options<T: DeserializeOwned + Default + NamedOptions>() -> Result<T> {
+    let p = options_file_path::<T>();
+    info!("Options file: {}", p.to_string_lossy());
+    if !p.exists() {
+        info!(
+            "{} file does not exist. Returning default.",
+            p.to_string_lossy()
+        );
+        return Ok(Default::default());
+    }
+    let config_file = File::open(p)?;
+    Ok(serde_yaml::from_reader(config_file)?)
+}
+
+pub trait NamedOptions {
+    fn name() -> &'static str;
+}
+
+impl NamedOptions for SpaweloOptions {
+    fn name() -> &'static str {
+        "spawelo"
+    }
+}
+
+pub fn store_options<T: Serialize + NamedOptions>(v: &T) -> Result<()> {
+    let p = options_file_path::<T>();
+    ensure_dir_created(&p)?;
+    let file = File::create(&p)?;
+    Ok(serde_yaml::to_writer(file, v)?)
 }
 
 pub fn store_default_config() -> Result<()> {
@@ -86,16 +144,19 @@ pub fn store_default_config() -> Result<()> {
     Ok(serde_yaml::to_writer(config_file, &Config::default())?)
 }
 
-#[allow(dead_code)]
-pub fn store_config(players: &PlayerDb) -> Result<()> {
-    ensure_dir_created(&config_file_path())?;
-    let stored_config = load_config()?;
-    let config_to_store = Config {
-        players: players.all().map(|p| p.clone().into()).collect(),
-        ..stored_config
-    };
-    store_file_with_backup(&config_file_path(), &config_to_store)?;
-    Ok(())
+pub fn store_default_players_config() -> Result<()> {
+    ensure_dir_created(&players_file_path())?;
+    let config_file = File::create(&players_file_path())?;
+    Ok(serde_yaml::to_writer(
+        config_file,
+        &PlayersConfig::example(),
+    )?)
+}
+
+pub fn store_players(players: PlayersConfig) -> Result<()> {
+    ensure_dir_created(&players_file_path())?;
+    let config_file = File::create(&players_file_path())?;
+    Ok(serde_yaml::to_writer(config_file, &players)?)
 }
 
 #[derive(Serialize, Deserialize, PartialEq)]
@@ -129,14 +190,11 @@ pub fn history_dir() -> PathBuf {
 
 pub fn load_history() -> Result<History> {
     let mut out = History::default();
-    info!("Store: History Dir: {}", history_dir().to_string_lossy());
+    info!("History Dir: {}", history_dir().to_string_lossy());
     for dir_entry in fs::read_dir(history_dir())? {
         let dir_entry = dir_entry?;
         if is_regular_history_file(&dir_entry.path()) {
-            info!(
-                "Store: History File: {}",
-                dir_entry.path().to_string_lossy()
-            );
+            info!("History File: {}", dir_entry.path().to_string_lossy());
             let history = load_history_file(&dir_entry.path())?;
             out.entries
                 .entry(history.game)

@@ -112,7 +112,8 @@ impl EloDisco {
                 .iter()
                 .map(|(p, s)| (p.clone(), s.dota.clone()))
                 .collect(),
-        );
+        )
+        .configure(&config);
         EloDisco(Arc::new(AsyncEloDiscoInner {
             silly_responder: SillyResponder::new(),
             dota_bot: Mutex::new(dota_bot),
@@ -122,6 +123,7 @@ impl EloDisco {
                     .iter()
                     .map(|(p, c)| (p.clone(), c.notifications))
                     .collect(),
+                config.clone(),
             )),
             config,
             stored_bot_state: Mutex::new(bot_state),
@@ -197,9 +199,11 @@ impl EloDisco {
             .notification_bot
             .lock()
             .await
+            // TODO: (REFACTOR) move DirectMessenger construction here, pass dms to notification
+            // and dota bots.
             .match_start(&match_start, &ctx, &members)
             .await;
-        info!("DISCORD: Sending match start message to common channel");
+        info!("Sending match start message to common channel");
         // TODO: make dota a hardcoded game
         if match_start.game == GameId::from("DotA 2") {
             let dota_bot = self.0.dota_bot.lock().await;
@@ -322,6 +326,7 @@ impl EloDisco {
     }
 
     async fn get_channel(&self, ctx: &Context, guild: GuildId) -> Option<GuildChannel> {
+        let channel_name = self.0.config.effective_discord_channel_name();
         ctx.http
             .get_channels(guild)
             .await
@@ -331,7 +336,7 @@ impl EloDisco {
             .ok()
             .into_iter()
             .flatten()
-            .find(|c| c.name == self.0.config.discord_channel_name)
+            .find(|c| &c.name == channel_name)
     }
 
     async fn respond(&self, ctx: &Context, channel_id: ChannelId, response: &str) {
@@ -462,13 +467,6 @@ fn make_duration_comment(duration: Duration) -> String {
 async fn send_message(channel: &ChannelId, ctx: &Context, msg: CreateMessage) {
     let _ = channel.send_message(ctx, msg).await.inspect_err(print_err);
 }
-
-// fn make_player_entry(
-//     player: &Player,
-//     elo: i32,
-//     hero_assignments: &HashMap<DiscordUsername, Vec<&Hero>>,
-// ) {
-// }
 
 #[derive(Clone, Debug)]
 struct PlayerEmbedData {

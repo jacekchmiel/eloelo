@@ -5,6 +5,7 @@ use eloelo_model::{GameId, PlayerId, Team, WinScale};
 use futures_util::{Stream, StreamExt};
 use log::error;
 use serde::Serialize;
+use spawelo::SpaweloOptions;
 use std::collections::HashMap;
 use std::time::Duration;
 use tokio::sync::broadcast::error::RecvError;
@@ -199,16 +200,20 @@ pub enum UiCommand {
     RefreshElo,
     FinishMatch(FinishMatch),
     AddLobbyScreenshotData(Vec<String>),
+    UpdateOptions(SpaweloOptions),
     CloseApplication,
 }
 
 #[derive(Clone, Debug)]
 pub enum FinishMatch {
     Cancelled,
-    Finished {
-        winner: Team,
-        scale: WinScale,
-        duration: Duration,
-        fake: bool,
-    },
+    Finished(MatchInfo),
+}
+
+#[derive(Clone, Copy, Debug)]
+pub struct MatchInfo {
+    pub winner: Team,
+    pub scale: WinScale,
+    pub duration: Duration,
+    pub fake: bool,
 }
