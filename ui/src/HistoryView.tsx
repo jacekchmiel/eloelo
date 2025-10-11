@@ -37,6 +37,7 @@ export function HistoryView({
 						elo: 0,
 						discordUsername: undefined,
 						presentInLobby: false,
+						loseStreak: 0,
 					};
 		});
 	};

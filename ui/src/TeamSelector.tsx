@@ -21,21 +21,23 @@ import type {
 	Avatars,
 	Game,
 	GameState,
+	PityBonus,
 	Player,
 	PlayerAvatar,
 	Side,
+	TeamPityBonus,
 } from "./model";
 
 const Header = styled(Box)(({ theme }) => ({
-	...theme.typography.h6,
+	...theme.typography.h5,
 	textAlign: "left",
 	color: theme.palette.text.primary,
 }));
 
-const SubHeader = styled(Box)(({ theme }) => ({
-	...theme.typography.subtitle1,
-	textAlign: "left",
-	color: theme.palette.text.primary,
+const Info = styled(Box)(({ theme }) => ({
+	...theme.typography.subtitle2,
+	textAlign: "right",
+	color: theme.palette.text.secondary,
 }));
 
 function MoveButton({
@@ -77,13 +79,19 @@ function DeleteButton({
 function PlayerProfile({
 	player,
 	avatarUrl,
-}: { player: Player; avatarUrl: string | undefined }) {
+	side,
+}: { player: Player; avatarUrl: string | undefined; side: Side }) {
+	const textSx = { textAlign: side === "left" ? "start" : "end" };
+	const avatarSx = {
+		display: "flex",
+		justifyContent: side === "left" ? "flex-start" : "flex-end",
+	};
 	return (
 		<>
-			<ListItemAvatar>
+			<ListItemAvatar sx={avatarSx}>
 				<Avatar src={avatarUrl} />
 			</ListItemAvatar>
-			<ListItemText primary={player.name} secondary={player.elo} />
+			<ListItemText primary={player.name} secondary={player.elo} sx={textSx} />
 		</>
 	);
 }
@@ -117,7 +125,7 @@ function RosterRow({
 				present={player.presentInLobby}
 			/>
 			<CallPlayerButton side={side} playerKey={player.id} />
-			<PlayerProfile {...{ player }} avatarUrl={avatarUrl} />
+			<PlayerProfile {...{ player }} avatarUrl={avatarUrl} side={side} />
 			<MoveButton
 				side={side}
 				playerKey={player.id}
@@ -143,19 +151,33 @@ function TeamRoster({
 	side,
 	assemblingTeams,
 	avatars,
+	pityBonus,
 }: {
 	name: string;
 	players: Player[];
 	side: Side;
 	assemblingTeams: boolean;
 	avatars: Avatars;
+	pityBonus: TeamPityBonus | undefined;
 }) {
 	const eloSum = players.map((p) => p.elo).reduce((s, v) => s + v, 0);
+	if (pityBonus && eloSum !== pityBonus.realElo) {
+		console.error(
+			`eloSum and pityBonus.realElo differ: ${{ eloSum: eloSum, realElo: pityBonus.realElo }}`,
+		);
+	}
+	const pityElo = pityBonus?.pityElo;
+	const bonus = pityBonus && ((1 - pityBonus.pityBonus) * 100).toFixed();
 	return (
 		<Paper sx={{ width: "100%", maxWidth: "500px" }}>
 			<Stack sx={{ p: 2 }}>
 				<Header>{name}</Header>
-				<SubHeader>{eloSum.toFixed(0)}</SubHeader>
+				<Stack direction="row" justifyContent="space-between">
+					<Info>{eloSum.toFixed(0)}</Info>
+					{pityBonus && (
+						<Info>{`${pityElo} with pity bonus of -${bonus}%`}</Info>
+					)}
+				</Stack>
 				<List>
 					{players
 						.sort((a, b) => cmp(a.elo, b.elo) * -1)
@@ -184,6 +206,7 @@ type TeamSelectorProps = {
 	availableGames: Game[];
 	gameState: GameState;
 	avatars: Avatars;
+	pityBonus: PityBonus | null;
 };
 
 export function TeamSelector({
@@ -193,6 +216,7 @@ export function TeamSelector({
 	availableGames,
 	gameState,
 	avatars,
+	pityBonus,
 }: TeamSelectorProps) {
 	const selectedGameData = availableGames.find(
 		(v: Game): boolean => v.name === selectedGame,
@@ -214,6 +238,7 @@ export function TeamSelector({
 				side="left"
 				assemblingTeams={gameState === "assemblingTeams"}
 				avatars={avatars}
+				pityBonus={pityBonus?.left}
 			/>
 			<TeamRoster
 				name={rightTeam}
@@ -221,6 +246,7 @@ export function TeamSelector({
 				side="right"
 				assemblingTeams={gameState === "assemblingTeams"}
 				avatars={avatars}
+				pityBonus={pityBonus?.right}
 			/>
 		</Stack>
 	);

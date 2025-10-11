@@ -4,6 +4,7 @@ export type Player = {
 	discordUsername: string | undefined;
 	elo: number;
 	presentInLobby: boolean;
+	loseStreak: number | null;
 };
 
 export type GameState = "assemblingTeams" | "matchInProgress";
@@ -34,6 +35,18 @@ export type EloEloState = {
 	reservePlayers: Player[];
 	gameState: GameState;
 	history: History;
+	pityBonus: PityBonus | null;
+};
+
+export type PityBonus = {
+	left: TeamPityBonus;
+	right: TeamPityBonus;
+};
+
+export type TeamPityBonus = {
+	pityBonus: number;
+	realElo: number;
+	pityElo: number;
 };
 
 export type PlayerAvatar = { username: string; avatarUrl: string | undefined };
