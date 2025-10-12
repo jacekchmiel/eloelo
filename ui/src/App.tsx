@@ -1,25 +1,16 @@
-import EventNoteIcon from "@mui/icons-material/EventNote";
-
-import RefreshIcon from "@mui/icons-material/Refresh";
 import {
-  AppBar,
   Box,
   Button,
   CssBaseline,
-  FormControl,
   Grid,
-  IconButton,
-  MenuItem,
-  Select,
-  type SelectChangeEvent,
   Stack,
-  Toolbar,
   Typography,
 } from "@mui/material";
 import { grey } from "@mui/material/colors";
 import { ThemeProvider, createTheme, styled } from "@mui/material/styles";
 import React from "react";
 import { connectToUiStream, invoke } from "./Api";
+import { EloEloAppBar } from "./AppBar";
 import { elapsedString } from "./Duration";
 import {
   FinishMatchModal,
@@ -28,7 +19,7 @@ import {
 import { HistoryView } from "./HistoryView";
 import { ReserveList } from "./ReserveList";
 import { TeamSelector } from "./TeamSelector";
-import { ColorModeContext, ThemeSwitcher } from "./ThemeSwitcher";
+import { ColorModeContext } from "./components/ThemeSwitcher";
 import {
   type DiscordPlayerInfo,
   type EloEloState,
@@ -50,39 +41,6 @@ import { useColorMode } from "./useColorMode";
 // 	}
 // };
 
-function GameSelector({
-  selectedGame,
-  availableGames,
-  disabled,
-}: {
-  selectedGame: string;
-  availableGames: string[];
-  disabled: boolean;
-}) {
-  const handleChange = async (event: SelectChangeEvent<string>) => {
-    await invoke("change_game", { name: event.target.value });
-  };
-
-  return (
-    <Box sx={{ width: "fit-content", minWidth: 120 }}>
-      <FormControl fullWidth>
-        <Select
-          disabled={disabled}
-          value={selectedGame}
-          onChange={handleChange}
-          sx={{ backgroundColor: "background.paper" }}
-        >
-          {availableGames.map((game) => (
-            <MenuItem value={game} key={game}>
-              {game}
-            </MenuItem>
-          ))}
-        </Select>
-      </FormControl>
-    </Box>
-  );
-}
-
 const FightText = styled(Typography)({
   animation: "shake 0.5s",
   animationIterationCount: "infinite",
@@ -101,48 +59,6 @@ const FightText = styled(Typography)({
   },
 });
 
-function EloEloHeader({
-  state,
-  setShowHistoryState,
-}: {
-  state: EloEloState;
-  setShowHistoryState: (mut: (prev: boolean) => boolean) => void;
-}) {
-  return (
-    <AppBar position="static">
-      <Toolbar
-        sx={{
-          paddingY: 1,
-          justifyContent: "space-between",
-          alignContent: "center",
-        }}
-      >
-        <GameSelector
-          availableGames={state.availableGames.map((g) => g.name)}
-          selectedGame={state.selectedGame}
-          disabled={state.gameState === "matchInProgress"}
-        />
-        {state.gameState === "matchInProgress" && (
-          <FightText variant="h3" color="error">
-            Fight!
-          </FightText>
-        )}
-        <Stack flexDirection="row" justifyContent="right">
-          <IconButton
-            onClick={async () => setShowHistoryState((prev: boolean) => !prev)}
-          >
-            <EventNoteIcon />
-          </IconButton>
-          <IconButton onClick={async () => await invoke("refresh_elo", {})}>
-            <RefreshIcon />
-          </IconButton>
-          <ThemeSwitcher />
-        </Stack>
-      </Toolbar>
-    </AppBar>
-  );
-}
-
 function EloElo({
   state,
   discordInfo,
@@ -151,7 +67,7 @@ function EloElo({
 
   return (
     <Stack spacing={2} flexGrow={1} maxWidth={1024}>
-      <EloEloHeader state={state} setShowHistoryState={setShowHistoryState} />
+      <EloEloAppBar state={state} setShowHistoryState={setShowHistoryState} />
       {showHistoryState ? (
         <HistoryView
           history={getHistoryForCurrentGame(state)}

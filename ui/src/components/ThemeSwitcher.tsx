@@ -17,11 +17,7 @@ export function ThemeSwitcher() {
   const colorMode = React.useContext(ColorModeContext);
 
   return (
-    <IconButton
-      sx={{ ml: 1 }}
-      onClick={colorMode.toggleColorMode}
-      color="inherit"
-    >
+    <IconButton onClick={colorMode.toggleColorMode} color="inherit">
       {theme.palette.mode === "dark" ? (
         <Brightness7Icon />
       ) : (

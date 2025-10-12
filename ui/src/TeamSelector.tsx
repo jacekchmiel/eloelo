@@ -11,7 +11,6 @@ import {
   ListItemText,
   Paper,
   Stack,
-  Typography,
 } from "@mui/material";
 import { invoke } from "./Api";
 import { CallPlayerButton } from "./components/CallPlayerButton";
