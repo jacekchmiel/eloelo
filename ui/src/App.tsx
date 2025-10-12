@@ -19,6 +19,7 @@ import {
 import { HistoryView } from "./HistoryView";
 import { ReserveList } from "./ReserveList";
 import { TeamSelector } from "./TeamSelector";
+import { DefaultModal } from "./components/DefaultModal";
 import { ColorModeContext } from "./components/ThemeSwitcher";
 import {
   type DiscordPlayerInfo,
@@ -26,6 +27,11 @@ import {
   extractAvatars,
 } from "./model";
 import { useColorMode } from "./useColorMode";
+import {
+  type GenericOptions,
+  OptionsView,
+  makeGenericOptions,
+} from "./views/OptionsView";
 
 // const invoke = async (command: string, args: object) => {
 // 	console.info({ command, args });
@@ -63,12 +69,23 @@ function EloElo({
   state,
   discordInfo,
 }: { state: EloEloState; discordInfo: DiscordPlayerInfo[] }) {
-  const [showHistoryState, setShowHistoryState] = React.useState(false);
+  const [showMatchHistory, setShowMatchHistory] = React.useState(false);
+  const [showSettings, setShowSettings] = React.useState(false);
+  const [optionValues, setOptionValues] = React.useState<GenericOptions>({});
+
+  React.useEffect(() => {
+    setOptionValues(makeGenericOptions(state.options));
+  }, [state.options]);
 
   return (
     <Stack spacing={2} flexGrow={1} maxWidth={1024}>
-      <EloEloAppBar state={state} setShowHistoryState={setShowHistoryState} />
-      {showHistoryState ? (
+      <EloEloAppBar
+        state={state}
+        setShowMatchHistory={setShowMatchHistory}
+        setShowSettings={setShowSettings}
+      />
+      <MainView state={state} discordInfo={discordInfo} />
+      <DefaultModal show={showMatchHistory} setShow={setShowMatchHistory}>
         <HistoryView
           history={getHistoryForCurrentGame(state)}
           avatars={extractAvatars(discordInfo)}
@@ -77,9 +94,14 @@ function EloElo({
             state.leftPlayers,
           )}
         />
-      ) : (
-        <MainView state={state} discordInfo={discordInfo} />
-      )}
+      </DefaultModal>
+      <DefaultModal show={showSettings} setShow={setShowSettings}>
+        <OptionsView
+          options={state.options}
+          values={optionValues}
+          setValues={setOptionValues}
+        />
+      </DefaultModal>
     </Stack>
   );
 }
@@ -246,6 +268,7 @@ const initialEloEloState: EloEloState = {
   gameState: "assemblingTeams",
   history: { entries: {} },
   pityBonus: undefined,
+  options: [],
 };
 
 export default function App() {

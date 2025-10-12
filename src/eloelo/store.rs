@@ -8,7 +8,6 @@ use itertools::Itertools;
 use log::{debug, info, warn};
 use serde::de::DeserializeOwned;
 use serde::{Deserialize, Serialize};
-use spawelo::SpaweloOptions;
 
 use super::config::Config;
 use super::elodisco::bot_state::BotState;
@@ -35,8 +34,8 @@ fn players_file_path() -> PathBuf {
     data_dir().join("players.yaml")
 }
 
-fn options_file_path<T: NamedOptions>() -> PathBuf {
-    data_dir().join(format!("{}_options.yaml", T::name()))
+fn options_file_path() -> PathBuf {
+    data_dir().join("options.yaml")
 }
 
 pub fn data_dir() -> PathBuf {
@@ -107,8 +106,8 @@ pub fn load_players() -> Result<PlayersConfig> {
     Ok(config)
 }
 
-pub fn load_options<T: DeserializeOwned + Default + NamedOptions>() -> Result<T> {
-    let p = options_file_path::<T>();
+pub fn load_options<T: DeserializeOwned + Default>() -> Result<T> {
+    let p = options_file_path();
     info!("Options file: {}", p.to_string_lossy());
     if !p.exists() {
         info!(
@@ -121,18 +120,8 @@ pub fn load_options<T: DeserializeOwned + Default + NamedOptions>() -> Result<T>
     Ok(serde_yaml::from_reader(config_file)?)
 }
 
-pub trait NamedOptions {
-    fn name() -> &'static str;
-}
-
-impl NamedOptions for SpaweloOptions {
-    fn name() -> &'static str {
-        "spawelo"
-    }
-}
-
-pub fn store_options<T: Serialize + NamedOptions>(v: &T) -> Result<()> {
-    let p = options_file_path::<T>();
+pub fn store_options<T: Serialize>(v: &T) -> Result<()> {
+    let p = options_file_path();
     ensure_dir_created(&p)?;
     let file = File::create(&p)?;
     Ok(serde_yaml::to_writer(file, v)?)

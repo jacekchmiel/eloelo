@@ -1,7 +1,8 @@
 use std::collections::HashSet;
 
 use serde::{Deserialize, Serialize};
-use spawelo::SpaweloOptions;
+
+use crate::eloelo::options::DescribedOptionsGroup;
 
 use super::config::Game;
 use eloelo_model::history::History;
@@ -88,5 +89,5 @@ pub struct UiState {
     pub game_state: GameState,
 
     pub history: History,
-    pub options: SpaweloOptions,
+    pub options: Vec<DescribedOptionsGroup>,
 }

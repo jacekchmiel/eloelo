@@ -1,9 +1,10 @@
 import React from "react";
 import type { EloEloState } from "./model";
 
-import EventNoteIcon from "@mui/icons-material/EventNote";
+import HistoryIcon from "@mui/icons-material/History";
 import MenuIcon from "@mui/icons-material/Menu";
 import RefreshIcon from "@mui/icons-material/Refresh";
+import SettingsIcon from "@mui/icons-material/Settings";
 import AppBar from "@mui/material/AppBar";
 import Box from "@mui/material/Box";
 import FormControl from "@mui/material/FormControl";
@@ -33,7 +34,6 @@ function GameSelector({
   };
 
   return (
-    // <Box sx={{ width: "fit-content", minWidth: 120 }}>
     <FormControl sx={{ m: 1, minWidth: 120 }} fullWidth size="small">
       <InputLabel>Game</InputLabel>
       <Select
@@ -49,30 +49,28 @@ function GameSelector({
         ))}
       </Select>
     </FormControl>
-    // </Box>
   );
 }
 
 export function EloEloAppBar({
   state,
-  setShowHistoryState,
+  setShowMatchHistory,
+  setShowSettings,
 }: {
   state: EloEloState;
-  setShowHistoryState: (mut: (prev: boolean) => boolean) => void;
+  setShowMatchHistory: (show: boolean) => void;
+  setShowSettings: (show: boolean) => void;
 }) {
   const [anchorEl, setAnchorEl] = React.useState<null | HTMLElement>(null);
   const isDrawerOpen = Boolean(anchorEl);
+
   const openDrawer = (event: React.MouseEvent<HTMLElement>) => {
     setAnchorEl(event.currentTarget);
   };
 
-  const closeMenu = () => {
-    setAnchorEl(null);
-  };
-
-  const closeMenuAnd = (action: () => void) => {
+  const closeDrawerAnd = (action: () => void) => {
     return () => {
-      closeMenu();
+      setAnchorEl(null);
       action();
     };
   };
@@ -83,25 +81,29 @@ export function EloEloAppBar({
       id="hamburger-menu"
       keepMounted
       open={isDrawerOpen}
-      onClose={closeMenu}
+      onClose={closeDrawerAnd(() => {})}
     >
-      <MenuItem
-        onClick={closeMenuAnd(async () =>
-          setShowHistoryState((prev: boolean) => !prev),
-        )}
-      >
+      <MenuItem onClick={closeDrawerAnd(async () => setShowMatchHistory(true))}>
         <ListItemIcon>
-          <EventNoteIcon />
+          <HistoryIcon />
         </ListItemIcon>
         <ListItemText>View Matches History</ListItemText>
       </MenuItem>
+
       <MenuItem
-        onClick={closeMenuAnd(async () => await invoke("refresh_elo", {}))}
+        onClick={closeDrawerAnd(async () => await invoke("refresh_elo", {}))}
       >
         <ListItemIcon>
           <RefreshIcon />
         </ListItemIcon>
         <ListItemText>Refresh Elo</ListItemText>
+      </MenuItem>
+
+      <MenuItem onClick={closeDrawerAnd(async () => setShowSettings(true))}>
+        <ListItemIcon>
+          <SettingsIcon />
+        </ListItemIcon>
+        <ListItemText>Settings</ListItemText>
       </MenuItem>
     </Menu>
   );

@@ -203,7 +203,7 @@ fn apply_pity_bonus(team_elo: i32, lose_streak: i32, options: &SpaweloOptions) -
         return (1.0, team_elo);
     }
     let pity_loses = lose_streak - min_loses + 1;
-    let pity_bonus_factor = options.pity_bouns_factor.powi(pity_loses);
+    let pity_bonus_factor = options.pity_bonus_factor.powi(pity_loses);
     let new_elo = team_elo as f32 * pity_bonus_factor;
     (pity_bonus_factor, new_elo as i32)
 }
@@ -290,7 +290,7 @@ mod test {
         let left = vec![player("j", 1000)];
         let right = vec![player("bixkog", 3000)];
         let options = SpaweloOptions {
-            pity_bouns_factor: 0.5,
+            pity_bonus_factor: 0.5,
             pity_bonus_min_loses: 1,
         };
         let lose_streaks = HashMap::from([(id("j"), 1)]);
@@ -308,7 +308,7 @@ mod test {
         let left = vec![player("j", 1000)];
         let right = vec![player("bixkog", 3000)];
         let options = SpaweloOptions {
-            pity_bouns_factor: 0.5,
+            pity_bonus_factor: 0.5,
             pity_bonus_min_loses: 1,
         };
         let lose_streaks = HashMap::from([(id("j"), 3)]);
@@ -330,7 +330,7 @@ mod test {
         let left = vec![player("j", 1000)];
         let right = vec![player("bixkog", 3000)];
         let options = SpaweloOptions {
-            pity_bouns_factor: 0.5,
+            pity_bonus_factor: 0.5,
             pity_bonus_min_loses: 2,
         };
         let lose_streaks = HashMap::from([(id("j"), 3)]);
@@ -349,7 +349,7 @@ mod test {
         let left = vec![player("j", 1000)];
         let right = vec![player("bixkog", 3000)];
         let options = SpaweloOptions {
-            pity_bouns_factor: 0.5,
+            pity_bonus_factor: 0.5,
             pity_bonus_min_loses: 2,
         };
         let lose_streaks = HashMap::from([(id("j"), 2)]);
@@ -368,7 +368,7 @@ mod test {
         let left = vec![player("j", 1000)];
         let right = vec![player("bixkog", 3000)];
         let options = SpaweloOptions {
-            pity_bouns_factor: 0.5,
+            pity_bonus_factor: 0.5,
             pity_bonus_min_loses: 0,
         };
         let lose_streaks = HashMap::from([(id("j"), 1)]);
