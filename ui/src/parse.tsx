@@ -1,58 +1,58 @@
 import type {
-	EloEloState,
-	Game,
-	GameState,
-	History,
-	HistoryEntry,
-	PityBonus,
-	Player,
+  EloEloState,
+  Game,
+  GameState,
+  History,
+  HistoryEntry,
+  PityBonus,
+  Player,
 } from "./model";
 
 type HistoryEntryTransport = {
-	winner: string[];
-	loser: string[];
-	timestamp: string;
+  winner: string[];
+  loser: string[];
+  timestamp: string;
 };
 
 type HistoryTransport = {
-	entries: { [key: string]: HistoryEntryTransport[] };
+  entries: { [key: string]: HistoryEntryTransport[] };
 };
 
 export type EloEloStateTransport = {
-	availableGames: Game[];
-	selectedGame: string;
-	leftPlayers: Player[];
-	rightPlayers: Player[];
-	reservePlayers: Player[];
-	gameState: GameState;
-	history: HistoryTransport;
-	pityBonus: PityBonus | undefined;
+  availableGames: Game[];
+  selectedGame: string;
+  leftPlayers: Player[];
+  rightPlayers: Player[];
+  reservePlayers: Player[];
+  gameState: GameState;
+  history: HistoryTransport;
+  pityBonus: PityBonus | undefined;
 };
 
 function parseHistoryEntry(historyEntry: HistoryEntryTransport): HistoryEntry {
-	const { timestamp, ...entry } = historyEntry;
-	return { timestamp: new Date(timestamp), ...entry };
+  const { timestamp, ...entry } = historyEntry;
+  return { timestamp: new Date(timestamp), ...entry };
 }
 
 function parseHistoryForSingleGame(
-	history: HistoryEntryTransport[],
+  history: HistoryEntryTransport[],
 ): HistoryEntry[] {
-	return history.map(parseHistoryEntry);
+  return history.map(parseHistoryEntry);
 }
 
 function parseHistory(historyTransport: HistoryTransport): History {
-	const entries = Object.fromEntries(
-		Object.entries(historyTransport.entries).map(([k, v]) => [
-			k,
-			parseHistoryForSingleGame(v),
-		]),
-	);
-	return { entries };
+  const entries = Object.fromEntries(
+    Object.entries(historyTransport.entries).map(([k, v]) => [
+      k,
+      parseHistoryForSingleGame(v),
+    ]),
+  );
+  return { entries };
 }
 
 export function parseEloEloState(
-	eloEloState: EloEloStateTransport,
+  eloEloState: EloEloStateTransport,
 ): EloEloState {
-	const { history, ...state } = eloEloState;
-	return { history: parseHistory(history), ...state };
+  const { history, ...state } = eloEloState;
+  return { history: parseHistory(history), ...state };
 }
