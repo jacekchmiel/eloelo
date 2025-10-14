@@ -101,6 +101,11 @@ impl Options for SpaweloOptions {
 
     fn to_described_options(&self) -> Vec<DescribedOption> {
         vec![
+            DescribedOption::with_bool(
+                self.pity_bonus_enabled,
+                "pity_bonus_enabled",
+                "Pity Bonus Enabled",
+            ),
             DescribedOption::with_int(
                 self.pity_bonus_min_loses,
                 "pity_bonus_min_loses",
@@ -156,6 +161,8 @@ mod tests {
         let options = SpaweloOptions {
             pity_bonus_factor: 0.5,
             pity_bonus_min_loses: 5,
+            pity_bonus_enabled: true,
+            ..Default::default()
         };
         let options_json = serde_json::to_value(options.to_described_options_group())?;
         let expected_json: Value = serde_json::from_str(
@@ -163,6 +170,12 @@ mod tests {
                 "name": "Spawelo Options",
                 "key": "spawelo",
                 "options": [
+                    {
+                        "key": "pity_bonus_enabled",
+                        "name": "Pity Bonus Enabled",
+                        "type": "boolean",
+                        "value": true
+                    },
                     {
                         "key": "pity_bonus_min_loses",
                         "name": "Pity Bonus Min Loses",

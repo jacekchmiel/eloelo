@@ -198,6 +198,9 @@ fn max_lose_streak_for_team(
 }
 
 fn apply_pity_bonus(team_elo: i32, lose_streak: i32, options: &SpaweloOptions) -> (f32, i32) {
+    if !options.pity_bonus_enabled {
+        return (1.0, team_elo);
+    }
     let min_loses = options.pity_bonus_min_loses.max(1);
     if lose_streak < min_loses {
         return (1.0, team_elo);
