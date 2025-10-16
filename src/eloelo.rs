@@ -267,7 +267,7 @@ impl EloElo {
         store::store_players(self.players.to_players_config()).print_err();
     }
 
-    fn move_player_to_other_team(&mut self, player_id: &PlayerId) {
+    fn transfer_player_id(&mut self, player_id: &PlayerId) {
         if let Some(player) = remove_player_id(&mut self.left_team.players, player_id) {
             self.right_team.players.push(player);
             return;
@@ -275,6 +275,10 @@ impl EloElo {
         if let Some(player) = remove_player_id(&mut self.right_team.players, player_id) {
             self.left_team.players.push(player);
         }
+    }
+
+    fn move_player_to_other_team(&mut self, player_id: &PlayerId) {
+        self.transfer_player_id(player_id);
         self.update_teams_elo();
     }
 
