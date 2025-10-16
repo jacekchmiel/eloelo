@@ -14,6 +14,7 @@ pub enum OptionValue {
 #[derive(Clone, Debug, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct DescribedOption {
+    /// Key used to construct response from UI. Must be a camelCase string matching corresponding option field name.
     pub key: String,
     pub name: String,
     #[serde(flatten)]
@@ -103,17 +104,17 @@ impl Options for SpaweloOptions {
         vec![
             DescribedOption::with_bool(
                 self.pity_bonus_enabled,
-                "pity_bonus_enabled",
+                "pityBonusEnabled",
                 "Pity Bonus Enabled",
             ),
             DescribedOption::with_int(
                 self.pity_bonus_min_loses,
-                "pity_bonus_min_loses",
+                "pityBonusMinLoses",
                 "Pity Bonus Min Loses",
             ),
             DescribedOption::with_decimal(
                 self.pity_bonus_factor,
-                "pity_bouns_factor",
+                "pityBonusFactor",
                 "Pity Bonus Factor",
             ),
         ]
@@ -171,19 +172,19 @@ mod tests {
                 "key": "spawelo",
                 "options": [
                     {
-                        "key": "pity_bonus_enabled",
+                        "key": "pityBonusEnabled",
                         "name": "Pity Bonus Enabled",
                         "type": "boolean",
                         "value": true
                     },
                     {
-                        "key": "pity_bonus_min_loses",
+                        "key": "pityBonusMinLoses",
                         "name": "Pity Bonus Min Loses",
                         "type": "integer",
                         "value": 5
                     },
                     {
-                        "key": "pity_bouns_factor",
+                        "key": "pityBounsFactor",
                         "name": "Pity Bonus Factor",
                         "type": "decimal",
                         "value": 0.5

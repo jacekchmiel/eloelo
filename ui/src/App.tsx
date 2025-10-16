@@ -104,6 +104,15 @@ function EloElo({
           options={state.options}
           values={optionValues}
           setValues={setOptionValues}
+          onSave={async () => {
+            setShowSettings(false);
+            console.log({ savingOptions: optionValues });
+            await invoke("options", optionValues);
+          }}
+          onCancel={() => {
+            setOptionValues(makeGenericOptions(state.options));
+            setShowSettings(false);
+          }}
         />
       </DefaultModal>
     </Stack>

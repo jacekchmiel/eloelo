@@ -27,10 +27,12 @@ export type History = {
   entries: { [key: string]: HistoryEntry[] };
 };
 
+export type OptionType = "integer" | "decimal" | "string" | "boolean";
+
 export type DescribedOption = {
   name: string;
   key: string;
-  type: "integer" | "decimal" | "string" | "boolean";
+  type: OptionType;
   value: number | string | boolean;
 };
 

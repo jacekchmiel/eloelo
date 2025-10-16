@@ -373,6 +373,7 @@ impl EloElo {
     }
 
     fn update_options(&mut self, options: EloEloOptions) {
+        info!("Update options: {:?}", options);
         self.options = options;
         store::store_options(&self.options).print_err();
     }

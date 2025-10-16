@@ -1,4 +1,6 @@
 import {
+  Button,
+  DialogActions,
   FormControlLabel,
   Stack,
   Switch,
@@ -6,7 +8,7 @@ import {
   Typography,
   styled,
 } from "@mui/material";
-import type { DescribedOption, OptionsGroup } from "../model";
+import type { DescribedOption, OptionType, OptionsGroup } from "../model";
 
 type Value = boolean | number | string;
 
@@ -17,7 +19,6 @@ export function makeGenericOptions(options: OptionsGroup[]): GenericOptions {
       Object.fromEntries(s.options.map((opt) => [opt.key, opt.value])),
     ]),
   );
-  console.log({ generic });
   return generic;
 }
 
@@ -37,21 +38,30 @@ const TextFieldNoSpinButtons = styled(TextField)({
   },
 });
 
+function castTextFieldValue(type: OptionType, value: string): Value {
+  switch (type) {
+    case "decimal":
+      return Number.parseFloat(value);
+    case "integer":
+      return Number.parseInt(value);
+    case "string":
+      return value;
+    default:
+      return "INVALID";
+  }
+}
+
 type OptionInputProps = {
   opt: DescribedOption;
   value: Value;
   setValue: (newValue: Value) => void;
 };
 
-function OptionInput({ opt, value, setValue }: OptionInputProps) {
-  if (opt.type === "boolean") {
-    return <FormControlLabel control={<Switch />} label={opt.name} />;
-  }
+function textInput({ opt, value, setValue }: OptionInputProps) {
   let fieldType = "text";
   if (opt.type === "decimal" || opt.type === "integer") {
     fieldType = "number";
   }
-  console.log({ fieldType, opt });
   return (
     <TextFieldNoSpinButtons
       key={opt.key}
@@ -60,48 +70,83 @@ function OptionInput({ opt, value, setValue }: OptionInputProps) {
       size="small"
       type={fieldType}
       value={value}
-      onChange={(event) => setValue(event.target.value)}
+      onChange={(event) =>
+        setValue(castTextFieldValue(opt.type, event.target.value))
+      }
     />
   );
+}
+
+function boolInput({ opt, value, setValue }: OptionInputProps) {
+  if (typeof value !== "boolean") {
+    return <>Invalid value type</>;
+  }
+  return (
+    <FormControlLabel
+      control={
+        <Switch
+          checked={value}
+          onChange={(event) => setValue(event.target.checked)}
+        />
+      }
+      label={opt.name}
+    />
+  );
+}
+
+function OptionInput(props: OptionInputProps) {
+  if (props.opt.type === "boolean") {
+    return boolInput(props);
+  }
+  return textInput(props);
 }
 
 export function OptionsView({
   options,
   values,
   setValues,
+  onSave,
+  onCancel,
 }: {
   options: OptionsGroup[];
   values: GenericOptions;
   setValues: (mod: (current: GenericOptions) => GenericOptions) => void;
+  onSave: () => void;
+  onCancel: () => void;
 }) {
-  console.log({ options, values, setValues });
   return (
-    <Stack spacing={2} minWidth={300}>
-      {options.map((group: OptionsGroup) => (
-        <>
-          <Typography variant="h6" key={group.key}>
-            {group.name}
-          </Typography>
-          {group.options.map((opt: DescribedOption) => (
-            <OptionInput
-              key={opt.key}
-              opt={opt}
-              value={values[group.key][opt.key]}
-              setValue={(value: Value) => {
-                setValues((current) => {
-                  return {
-                    ...current,
-                    [group.key]: {
-                      ...current[group.key],
-                      [opt.key]: value,
-                    },
-                  };
-                });
-              }}
-            />
-          ))}
-        </>
-      ))}
-    </Stack>
+    <>
+      <Stack spacing={2} minWidth={300}>
+        {options.map((group: OptionsGroup) => (
+          <>
+            <Typography variant="h6" key={group.key}>
+              {group.name}
+            </Typography>
+            {group.options.map((opt: DescribedOption) => (
+              <OptionInput
+                key={opt.key}
+                opt={opt}
+                value={values[group.key][opt.key]}
+                setValue={(value: Value) => {
+                  setValues((current) => {
+                    return {
+                      ...current,
+                      [group.key]: {
+                        ...current[group.key],
+                        [opt.key]: value,
+                      },
+                    };
+                  });
+                }}
+              />
+            ))}
+          </>
+        ))}
+      </Stack>
+      <DialogActions>
+        <Button onClick={onCancel}>Cancel</Button>
+        <Button onClick={onSave}>Save</Button>
+      </DialogActions>
+    </>
   );
 }
