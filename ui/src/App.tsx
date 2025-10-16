@@ -85,7 +85,11 @@ function EloElo({
         setShowSettings={setShowSettings}
       />
       <MainView state={state} discordInfo={discordInfo} />
-      <DefaultModal show={showMatchHistory} setShow={setShowMatchHistory}>
+      <DefaultModal
+        show={showMatchHistory}
+        setShow={setShowMatchHistory}
+        size="large"
+      >
         <HistoryView
           history={getHistoryForCurrentGame(state)}
           avatars={extractAvatars(discordInfo)}
