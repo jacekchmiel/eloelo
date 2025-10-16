@@ -533,9 +533,11 @@ dependencies = [
 name = "eloelo_model"
 version = "0.1.0"
 dependencies = [
+ "anyhow",
  "chrono",
  "log",
  "serde",
+ "serde_json",
  "thiserror 1.0.69",
 ]
 

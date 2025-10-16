@@ -1,3 +1,4 @@
+use eloelo_model::decimal::Decimal;
 use serde::{Deserialize, Serialize};
 use spawelo::SpaweloOptions;
 
@@ -7,7 +8,7 @@ use spawelo::SpaweloOptions;
 pub enum OptionValue {
     Boolean(bool),
     Integer(i64),
-    Decimal(f64),
+    Decimal(Decimal),
     Text(String),
 }
 
@@ -39,13 +40,14 @@ impl DescribedOption {
         }
     }
 
-    pub fn with_decimal(value: impl Into<f64>, key: &str, name: &str) -> DescribedOption {
+    pub fn with_decimal(value: Decimal, key: &str, name: &str) -> DescribedOption {
         DescribedOption {
             key: String::from(key),
             name: String::from(name),
-            value: OptionValue::Decimal(value.into()),
+            value: OptionValue::Decimal(value),
         }
     }
+
     #[allow(dead_code)]
     pub fn with_text(value: impl ToString, key: &str, name: &str) -> DescribedOption {
         DescribedOption {
@@ -113,7 +115,7 @@ impl Options for SpaweloOptions {
                 "Pity Bonus Min Loses",
             ),
             DescribedOption::with_decimal(
-                self.pity_bonus_factor,
+                self.pity_bonus_factor.clone(),
                 "pityBonusFactor",
                 "Pity Bonus Factor",
             ),
@@ -160,7 +162,7 @@ mod tests {
     #[test]
     fn serialize_spawelo_options() -> Result<()> {
         let options = SpaweloOptions {
-            pity_bonus_factor: 0.5,
+            pity_bonus_factor: Decimal::new("0.5"),
             pity_bonus_min_loses: 5,
             pity_bonus_enabled: true,
             ..Default::default()
@@ -184,10 +186,10 @@ mod tests {
                         "value": 5
                     },
                     {
-                        "key": "pityBounsFactor",
+                        "key": "pityBonusFactor",
                         "name": "Pity Bonus Factor",
                         "type": "decimal",
-                        "value": 0.5
+                        "value": "0.5"
                     }
                 ]
             }"#,
@@ -199,13 +201,13 @@ mod tests {
     #[test]
     fn deserialize_spawelo_options() -> Result<()> {
         let json_str = r#"{
-            "pityBonusFactor": 0.5,
+            "pityBonusFactor": "0.5",
             "pityBonusMinLoses": 5
         }"#;
         assert_eq!(
             serde_json::from_str::<SpaweloOptions>(json_str)?,
             SpaweloOptions {
-                pity_bonus_factor: 0.5,
+                pity_bonus_factor: Decimal::new("0.5"),
                 pity_bonus_min_loses: 5,
                 ..Default::default()
             }
@@ -216,12 +218,12 @@ mod tests {
     #[test]
     fn deserialize_partial_spawelo_options() -> Result<()> {
         let json_str = r#"{
-            "pityBonusFactor": 0.5
+            "pityBonusFactor": "0.5"
         }"#;
         assert_eq!(
             serde_json::from_str::<SpaweloOptions>(json_str)?,
             SpaweloOptions {
-                pity_bonus_factor: 0.5,
+                pity_bonus_factor: Decimal::new("0.5"),
                 ..Default::default()
             }
         );

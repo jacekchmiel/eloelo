@@ -41,7 +41,8 @@ const TextFieldNoSpinButtons = styled(TextField)({
 function castTextFieldValue(type: OptionType, value: string): Value {
   switch (type) {
     case "decimal":
-      return Number.parseFloat(value);
+      // decimal is passed as string
+      return value;
     case "integer":
       return Number.parseInt(value);
     case "string":
