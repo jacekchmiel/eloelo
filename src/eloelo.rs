@@ -6,6 +6,7 @@ use crate::utils::{duration_minutes, print_err, unwrap_or_def_verbose, ResultExt
 use anyhow::{Context, Result};
 use chrono::Local;
 use config::Config;
+use eloelo_model::decimal::Decimal;
 use eloelo_model::history::{History, HistoryEntry};
 use eloelo_model::player::{Player, PlayerDb, PlayersConfig};
 use eloelo_model::{BalancedTeam, GameId, GameState, PlayerId, Team, WinScale};
@@ -169,6 +170,13 @@ impl EloElo {
             game_state: self.game_state,
             history: self.history.clone(),
             options: self.options.to_described_options_group_vec(),
+            win_prediction: Decimal::with_precision(
+                spawelo::calculate_win_prediction(
+                    self.left_team.real_elo,
+                    self.right_team.real_elo,
+                ),
+                3,
+            ),
         }
     }
 

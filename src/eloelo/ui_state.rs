@@ -1,5 +1,6 @@
 use std::collections::HashSet;
 
+use eloelo_model::decimal::Decimal;
 use serde::{Deserialize, Serialize};
 
 use crate::eloelo::options::DescribedOptionsGroup;
@@ -83,6 +84,7 @@ pub struct UiState {
     pub left_players: Vec<UiPlayer>,
     pub right_players: Vec<UiPlayer>,
     pub reserve_players: Vec<UiPlayer>,
+    pub win_prediction: Decimal,
 
     pub pity_bonus: PityBonus,
 

@@ -52,6 +52,7 @@ export type EloEloState = {
   history: History;
   pityBonus: PityBonus | undefined;
   options: OptionsGroup[];
+  winPrediction: number;
 };
 
 export type PityBonus = {

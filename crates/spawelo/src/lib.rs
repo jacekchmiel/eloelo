@@ -267,6 +267,11 @@ fn calculate_team_real_elo(left_players: &[impl Borrow<PlayerWithElo>]) -> i32 {
     left_players.into_iter().map(|p| p.borrow().elo).sum()
 }
 
+/// Calculates win chance for lhs
+pub fn calculate_win_prediction(lhs_elo: i32, rhs_elo: i32) -> f64 {
+    win_probability(lhs_elo.into(), rhs_elo.into())
+}
+
 #[cfg(test)]
 mod test {
     use eloelo_model::decimal::Decimal;
@@ -389,5 +394,17 @@ mod test {
         assert_eq!(t2.pity_bonus_factor, 1.0);
         assert_eq!(t1.pity_elo, 500);
         assert_eq!(t2.pity_elo, 3000);
+    }
+
+    #[test]
+    fn win_prediction() {
+        assert_eq!(
+            Decimal::from(calculate_win_prediction(1000, 1000)).truncate_to_precision(2),
+            Decimal::new("0.5")
+        );
+        assert_eq!(
+            Decimal::from(calculate_win_prediction(1100, 1000)).truncate_to_precision(2),
+            Decimal::new("0.64")
+        );
     }
 }

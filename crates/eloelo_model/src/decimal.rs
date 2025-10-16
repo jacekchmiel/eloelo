@@ -1,15 +1,24 @@
 use serde::{Deserialize, Serialize};
 
-#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
+#[derive(Clone, Debug, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct Decimal(String);
 
 impl Decimal {
     /// Panics when literal does not represent a correct decimal.
     pub fn new(literal: &str) -> Self {
-        let v = Decimal(literal.into());
-        let _ = v.as_f64();
-        v
+        Decimal(literal.into())
+            .invariant_ensured()
+            .expect("Invalid decimal literal")
+    }
+
+    fn invariant_ensured(self) -> Option<Self> {
+        let v = self.as_f64();
+        if v.is_nan() || v.is_infinite() {
+            None
+        } else {
+            Some(self)
+        }
     }
 
     pub fn as_f64(&self) -> f64 {
@@ -34,27 +43,21 @@ impl Decimal {
     }
 }
 
-impl From<f64> for Decimal {
-    fn from(value: f64) -> Self {
-        Decimal(format!("{value}"))
-    }
-}
-
 impl Into<f64> for Decimal {
     fn into(self) -> f64 {
         self.as_f64()
     }
 }
 
-impl From<f32> for Decimal {
-    fn from(value: f32) -> Self {
-        Decimal(format!("{value}"))
-    }
-}
-
 impl Into<f32> for Decimal {
     fn into(self) -> f32 {
         self.as_f32()
+    }
+}
+
+impl PartialEq for Decimal {
+    fn eq(&self, other: &Self) -> bool {
+        self.as_f64() == other.as_f64()
     }
 }
 
@@ -86,5 +89,31 @@ mod tests {
             Decimal::new("21.37")
         );
         Ok(())
+    }
+
+    #[test]
+    fn eq() -> Result<()> {
+        assert_eq!(Decimal::new("0.1"), Decimal::new("0.1"));
+        assert_eq!(Decimal::new("0.1"), Decimal::new("0.10"));
+        assert_ne!(Decimal::new("0.1"), Decimal::new("0.11"));
+        Ok(())
+    }
+
+    #[test]
+    #[should_panic]
+    fn nan() {
+        let _d = Decimal::new("NaN");
+    }
+
+    #[test]
+    #[should_panic]
+    fn inf() {
+        let _d = Decimal::new("+inf");
+    }
+
+    #[test]
+    #[should_panic]
+    fn invalid_str() {
+        let _d = Decimal::new("whatever");
     }
 }
