@@ -1,10 +1,13 @@
 # TODO
 
 ## HIGH PRIORITY
+- [ ] S Pity bonus as an additive modifier
 - [ ] S Calculate lose streaks only from recent matches (w/setting)
+- [ ] S Ignore Fake matches for lose streaks
 - [ ] S Flag to disable autogrzybke
 - [ ] S Display length, advantage and fake on match view
 - [ ] M Add time decay for old matches
+- [x] S Display ELO advantage
 - [x] Do not assign the same hero twice in a row to a player
   - [x] Flag to opt-out of this rule
 - [x] Missing players in lobby
@@ -33,11 +36,13 @@
 
 - [ ] S Log all matches in separate, append-only file as backup
 
-- [ ] Interactive ELO calculation (progress, and live score changes)
+- [ ] M Interactive ELO calculation (progress, and live score changes)
+  - [ ] M backend infra for progress/wait (e.g. when blocked on Autogrzybke, ELO calc)
+  - [ ] S emit elo calc progress
+  - [ ] S live updates
 
-- [ ] M Settings UI - generated from rust struct (any in TS)
+- [x] M Settings UI - generated from rust struct (any in TS)
 - [ ] M Transmit logs to UI
-- [ ] M Display UI wait (e.g. when blocked on Autogrzybke, ELO calc)
 
 - [ ] L Randomize Heroes by type
 
