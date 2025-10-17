@@ -4,6 +4,7 @@ import type {
   GameState,
   History,
   HistoryEntry,
+  OptionsGroup,
   PityBonus,
   Player,
 } from "./model";
@@ -27,6 +28,8 @@ export type EloEloStateTransport = {
   gameState: GameState;
   history: HistoryTransport;
   pityBonus: PityBonus | undefined;
+  options: OptionsGroup[];
+  winPrediction: number;
 };
 
 function parseHistoryEntry(historyEntry: HistoryEntryTransport): HistoryEntry {

@@ -399,11 +399,11 @@ mod test {
     #[test]
     fn win_prediction() {
         assert_eq!(
-            Decimal::from(calculate_win_prediction(1000, 1000)).truncate_to_precision(2),
+            Decimal::with_precision(calculate_win_prediction(1000, 1000), 2),
             Decimal::new("0.5")
         );
         assert_eq!(
-            Decimal::from(calculate_win_prediction(1100, 1000)).truncate_to_precision(2),
+            Decimal::with_precision(calculate_win_prediction(1100, 1000), 2),
             Decimal::new("0.64")
         );
     }
