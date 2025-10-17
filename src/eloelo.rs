@@ -1,9 +1,12 @@
 use std::collections::{HashMap, HashSet};
 use std::time::Duration;
 
+use crate::eloelo::message_bus::MatchInfo;
+use crate::utils::{duration_minutes, print_err, unwrap_or_def_verbose, ResultExt as _};
 use anyhow::{Context, Result};
 use chrono::Local;
 use config::Config;
+use eloelo_model::decimal::Decimal;
 use eloelo_model::history::{History, HistoryEntry};
 use eloelo_model::player::{Player, PlayerDb, PlayersConfig};
 use eloelo_model::{BalancedTeam, GameId, GameState, PlayerId, Team, WinScale};
@@ -13,22 +16,21 @@ use log::{debug, error, info, warn};
 use message_bus::{
     Event, FinishMatch, MatchStart, MatchStartTeam, Message, MessageBus, RichMatchResult, UiCommand,
 };
+pub use options::EloEloOptions;
 use regex::Regex;
-use spawelo::{ml_elo, SpaweloOptions};
+use spawelo::ml_elo;
 use ui_state::{PityBonus, State, UiPlayer, UiState};
 
-use crate::eloelo::message_bus::MatchInfo;
-use crate::utils::{duration_minutes, print_err, unwrap_or_def_verbose, ResultExt as _};
-
-pub(crate) mod config;
+mod config;
 pub(crate) mod elodisco;
 mod fosiaudio;
 mod git_mirror;
 pub(crate) mod message_bus;
 pub(crate) mod ocr;
-pub(crate) mod silly_responder;
+mod options;
+mod silly_responder;
 pub(crate) mod store;
-pub(crate) mod ui_state;
+mod ui_state;
 
 pub struct EloElo {
     selected_game: GameId,
@@ -42,7 +44,7 @@ pub struct EloElo {
     players_config: PlayersConfig,
     message_bus: MessageBus,
     git_mirror: GitMirror,
-    options: SpaweloOptions,
+    options: EloEloOptions,
 }
 
 impl EloElo {
@@ -50,7 +52,7 @@ impl EloElo {
         state: Option<State>,
         config: Config,
         players_config: PlayersConfig,
-        options: SpaweloOptions,
+        options: EloEloOptions,
         message_bus: MessageBus,
     ) -> Self {
         let state = state.unwrap_or_else(|| State::new(config.default_game().clone()));
@@ -108,7 +110,7 @@ impl EloElo {
             UiCommand::ShuffleTeams => self.shuffle_teams(),
             UiCommand::RefreshElo => self.recalculate_elo_from_history(),
             UiCommand::FinishMatch(finish_match) => self.finish_match(finish_match).await,
-            UiCommand::UpdateOptions(spawelo_options) => self.update_options(spawelo_options),
+            UiCommand::UpdateOptions(options) => self.update_options(options),
             UiCommand::CloseApplication => {
                 if let Err(e) = self.store_state() {
                     error!("store_state failed: {}", e);
@@ -167,7 +169,14 @@ impl EloElo {
             pity_bonus: self.make_pity_bonus_data(&self.left_team, &self.right_team),
             game_state: self.game_state,
             history: self.history.clone(),
-            options: self.options,
+            options: self.options.to_described_options_group_vec(),
+            win_prediction: Decimal::with_precision(
+                spawelo::calculate_win_prediction(
+                    self.left_team.real_elo,
+                    self.right_team.real_elo,
+                ),
+                3,
+            ),
         }
     }
 
@@ -258,7 +267,7 @@ impl EloElo {
         store::store_players(self.players.to_players_config()).print_err();
     }
 
-    fn move_player_to_other_team(&mut self, player_id: &PlayerId) {
+    fn transfer_player_id(&mut self, player_id: &PlayerId) {
         if let Some(player) = remove_player_id(&mut self.left_team.players, player_id) {
             self.right_team.players.push(player);
             return;
@@ -266,6 +275,10 @@ impl EloElo {
         if let Some(player) = remove_player_id(&mut self.right_team.players, player_id) {
             self.left_team.players.push(player);
         }
+    }
+
+    fn move_player_to_other_team(&mut self, player_id: &PlayerId) {
+        self.transfer_player_id(player_id);
         self.update_teams_elo();
     }
 
@@ -285,7 +298,7 @@ impl EloElo {
             left,
             right,
             &self.lose_streaks_for_current_game(),
-            &self.options,
+            &self.options.spawelo,
         );
     }
 
@@ -371,8 +384,10 @@ impl EloElo {
         debug!("finish_match handled");
     }
 
-    fn update_options(&self, options: SpaweloOptions) {
-        store::store_options(&options).print_err();
+    fn update_options(&mut self, options: EloEloOptions) {
+        info!("Update options: {:?}", options);
+        self.options = options;
+        store::store_options(&self.options).print_err();
     }
 
     fn mk_finish_match_commit_message(
@@ -458,7 +473,7 @@ impl EloElo {
         let (left, right) = spawelo::shuffle_teams(
             left.into_iter().chain(right),
             &self.lose_streaks_for_current_game(),
-            &self.options,
+            &self.options.spawelo,
         );
 
         self.left_team = left;

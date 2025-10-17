@@ -1,25 +1,16 @@
-import EventNoteIcon from "@mui/icons-material/EventNote";
-
-import RefreshIcon from "@mui/icons-material/Refresh";
 import {
-  AppBar,
   Box,
   Button,
   CssBaseline,
-  FormControl,
   Grid,
-  IconButton,
-  MenuItem,
-  Select,
-  type SelectChangeEvent,
   Stack,
-  Toolbar,
   Typography,
 } from "@mui/material";
 import { grey } from "@mui/material/colors";
 import { ThemeProvider, createTheme, styled } from "@mui/material/styles";
 import React from "react";
 import { connectToUiStream, invoke } from "./Api";
+import { EloEloAppBar } from "./AppBar";
 import { elapsedString } from "./Duration";
 import {
   FinishMatchModal,
@@ -28,13 +19,19 @@ import {
 import { HistoryView } from "./HistoryView";
 import { ReserveList } from "./ReserveList";
 import { TeamSelector } from "./TeamSelector";
-import { ColorModeContext, ThemeSwitcher } from "./ThemeSwitcher";
+import { DefaultModal } from "./components/DefaultModal";
+import { ColorModeContext } from "./components/ThemeSwitcher";
 import {
   type DiscordPlayerInfo,
   type EloEloState,
   extractAvatars,
 } from "./model";
 import { useColorMode } from "./useColorMode";
+import {
+  type GenericOptions,
+  OptionsView,
+  makeGenericOptions,
+} from "./views/OptionsView";
 
 // const invoke = async (command: string, args: object) => {
 // 	console.info({ command, args });
@@ -49,39 +46,6 @@ import { useColorMode } from "./useColorMode";
 // 		console.error({ status, body });
 // 	}
 // };
-
-function GameSelector({
-  selectedGame,
-  availableGames,
-  disabled,
-}: {
-  selectedGame: string;
-  availableGames: string[];
-  disabled: boolean;
-}) {
-  const handleChange = async (event: SelectChangeEvent<string>) => {
-    await invoke("change_game", { name: event.target.value });
-  };
-
-  return (
-    <Box sx={{ width: "fit-content", minWidth: 120 }}>
-      <FormControl fullWidth>
-        <Select
-          disabled={disabled}
-          value={selectedGame}
-          onChange={handleChange}
-          sx={{ backgroundColor: "background.paper" }}
-        >
-          {availableGames.map((game) => (
-            <MenuItem value={game} key={game}>
-              {game}
-            </MenuItem>
-          ))}
-        </Select>
-      </FormControl>
-    </Box>
-  );
-}
 
 const FightText = styled(Typography)({
   animation: "shake 0.5s",
@@ -101,58 +65,31 @@ const FightText = styled(Typography)({
   },
 });
 
-function EloEloHeader({
-  state,
-  setShowHistoryState,
-}: {
-  state: EloEloState;
-  setShowHistoryState: (mut: (prev: boolean) => boolean) => void;
-}) {
-  return (
-    <AppBar position="static">
-      <Toolbar
-        sx={{
-          paddingY: 1,
-          justifyContent: "space-between",
-          alignContent: "center",
-        }}
-      >
-        <GameSelector
-          availableGames={state.availableGames.map((g) => g.name)}
-          selectedGame={state.selectedGame}
-          disabled={state.gameState === "matchInProgress"}
-        />
-        {state.gameState === "matchInProgress" && (
-          <FightText variant="h3" color="error">
-            Fight!
-          </FightText>
-        )}
-        <Stack flexDirection="row" justifyContent="right">
-          <IconButton
-            onClick={async () => setShowHistoryState((prev: boolean) => !prev)}
-          >
-            <EventNoteIcon />
-          </IconButton>
-          <IconButton onClick={async () => await invoke("refresh_elo", {})}>
-            <RefreshIcon />
-          </IconButton>
-          <ThemeSwitcher />
-        </Stack>
-      </Toolbar>
-    </AppBar>
-  );
-}
-
 function EloElo({
   state,
   discordInfo,
 }: { state: EloEloState; discordInfo: DiscordPlayerInfo[] }) {
-  const [showHistoryState, setShowHistoryState] = React.useState(false);
+  const [showMatchHistory, setShowMatchHistory] = React.useState(false);
+  const [showSettings, setShowSettings] = React.useState(false);
+  const [optionValues, setOptionValues] = React.useState<GenericOptions>({});
+
+  React.useEffect(() => {
+    setOptionValues(makeGenericOptions(state.options));
+  }, [state.options]);
 
   return (
     <Stack spacing={2} flexGrow={1} maxWidth={1024}>
-      <EloEloHeader state={state} setShowHistoryState={setShowHistoryState} />
-      {showHistoryState ? (
+      <EloEloAppBar
+        state={state}
+        setShowMatchHistory={setShowMatchHistory}
+        setShowSettings={setShowSettings}
+      />
+      <MainView state={state} discordInfo={discordInfo} />
+      <DefaultModal
+        show={showMatchHistory}
+        setShow={setShowMatchHistory}
+        size="large"
+      >
         <HistoryView
           history={getHistoryForCurrentGame(state)}
           avatars={extractAvatars(discordInfo)}
@@ -161,9 +98,23 @@ function EloElo({
             state.leftPlayers,
           )}
         />
-      ) : (
-        <MainView state={state} discordInfo={discordInfo} />
-      )}
+      </DefaultModal>
+      <DefaultModal show={showSettings} setShow={setShowSettings}>
+        <OptionsView
+          options={state.options}
+          values={optionValues}
+          setValues={setOptionValues}
+          onSave={async () => {
+            setShowSettings(false);
+            console.log({ savingOptions: optionValues });
+            await invoke("options", optionValues);
+          }}
+          onCancel={() => {
+            setOptionValues(makeGenericOptions(state.options));
+            setShowSettings(false);
+          }}
+        />
+      </DefaultModal>
     </Stack>
   );
 }
@@ -330,6 +281,7 @@ const initialEloEloState: EloEloState = {
   gameState: "assemblingTeams",
   history: { entries: {} },
   pityBonus: undefined,
+  options: [],
 };
 
 export default function App() {

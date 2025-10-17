@@ -15,12 +15,12 @@ use futures_util::StreamExt as _;
 use http::{HeaderMap, StatusCode};
 use log::{debug, info};
 use serde::{Deserialize, Serialize};
-use spawelo::SpaweloOptions;
 use tower_http::services::ServeDir;
 
 use crate::eloelo::message_bus::{
     Event, FinishMatch, ImageFormat, MatchInfo, Message, MessageBus, UiCommand,
 };
+use crate::eloelo::EloEloOptions;
 use crate::utils::ResultExt as _;
 
 struct AppState {
@@ -259,7 +259,7 @@ async fn call_player(
 
 async fn save_options(
     State(state): AppStateArg,
-    Json(body): Json<SpaweloOptions>,
+    Json(body): Json<EloEloOptions>,
 ) -> impl IntoResponse {
     state
         .message_bus

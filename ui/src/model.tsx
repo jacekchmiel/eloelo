@@ -27,6 +27,21 @@ export type History = {
   entries: { [key: string]: HistoryEntry[] };
 };
 
+export type OptionType = "integer" | "decimal" | "string" | "boolean";
+
+export type DescribedOption = {
+  name: string;
+  key: string;
+  type: OptionType;
+  value: number | string | boolean;
+};
+
+export type OptionsGroup = {
+  name: string;
+  key: string;
+  options: DescribedOption[];
+};
+
 export type EloEloState = {
   availableGames: Game[];
   selectedGame: string;
@@ -36,6 +51,8 @@ export type EloEloState = {
   gameState: GameState;
   history: History;
   pityBonus: PityBonus | undefined;
+  options: OptionsGroup[];
+  winPrediction?: number;
 };
 
 export type PityBonus = {

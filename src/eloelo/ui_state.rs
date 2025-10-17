@@ -1,7 +1,9 @@
 use std::collections::HashSet;
 
+use eloelo_model::decimal::Decimal;
 use serde::{Deserialize, Serialize};
-use spawelo::SpaweloOptions;
+
+use crate::eloelo::options::DescribedOptionsGroup;
 
 use super::config::Game;
 use eloelo_model::history::History;
@@ -82,11 +84,12 @@ pub struct UiState {
     pub left_players: Vec<UiPlayer>,
     pub right_players: Vec<UiPlayer>,
     pub reserve_players: Vec<UiPlayer>,
+    pub win_prediction: Decimal,
 
     pub pity_bonus: PityBonus,
 
     pub game_state: GameState,
 
     pub history: History,
-    pub options: SpaweloOptions,
+    pub options: Vec<DescribedOptionsGroup>,
 }

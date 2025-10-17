@@ -174,6 +174,63 @@ const cmp = (a: number, b: number): number => {
   return 0;
 };
 
+const diffFormatter = new Intl.NumberFormat(undefined, {
+  // This option forces the '+' sign for positive numbers
+  signDisplay: "always",
+  // These ensure only an integer is displayed
+  maximumFractionDigits: 0,
+  minimumFractionDigits: 0,
+});
+
+function WinChanceText({ winChance }: { winChance?: number }) {
+  if (winChance == null) {
+    return <Typography>??%</Typography>;
+  }
+  let winChanceColor = "success.main";
+  if (winChance < 0.499) {
+    winChanceColor = "error.main";
+  } else if (winChance > 0.501) {
+    winChanceColor = "success.main";
+  }
+  const winChanceText = `${(winChance * 100).toFixed(1)}%`;
+
+  return (
+    <List sx={{ p: 0, flexGrow: 1 }}>
+      <ListItem sx={{ py: 0 }}>
+        <ListItemText
+          sx={{ my: 0 }}
+          primaryTypographyProps={{
+            fontSize: 20,
+            color: winChanceColor,
+            align: "right",
+          }}
+          primary={winChanceText}
+        />
+      </ListItem>
+    </List>
+  );
+}
+
+function eloScoreText(elo: number, eloDiff: number) {
+  let color = "info.main";
+  if (eloDiff > 0) {
+    color = "success.main";
+  } else if (eloDiff < 0) {
+    color = "error.main";
+  }
+  return (
+    <>
+      <Typography
+        component="span"
+        sx={{ mr: 1 }}
+      >{`ELO ${elo.toFixed(0)}`}</Typography>
+      <Typography fontSize={14} component="span" sx={{ color }}>
+        {diffFormatter.format(eloDiff)}
+      </Typography>
+    </>
+  );
+}
+
 function TeamRoster({
   name,
   players,
@@ -182,6 +239,8 @@ function TeamRoster({
   avatars,
   pityBonus,
   maxLoseStreak,
+  winChance,
+  eloDiff,
 }: {
   name: string;
   players: Player[];
@@ -190,6 +249,8 @@ function TeamRoster({
   avatars: Avatars;
   pityBonus: TeamPityBonus | undefined;
   maxLoseStreak: number;
+  winChance?: number;
+  eloDiff: number;
 }) {
   const eloSum = players.map((p) => p.elo).reduce((s, v) => s + v, 0);
   if (pityBonus && eloSum !== pityBonus.realElo) {
@@ -199,28 +260,35 @@ function TeamRoster({
   }
   const pityElo = pityBonus?.pityElo;
   const bonus = pityBonus && (pityBonus.pityBonus * 100).toFixed();
+  const showWinChance = winChance != null;
+
   return (
     <Paper sx={{ width: "100%", maxWidth: "500px" }}>
       <Stack sx={{ p: 2 }}>
-        <List>
-          <ListItem sx={{ py: 0 }}>
-            <ListItemText
-              sx={{ my: 0 }}
-              primaryTypographyProps={{ fontSize: 20 }}
-              primary={name}
-            />
-          </ListItem>
-          <ListItem sx={{ pt: 0 }}>
-            <ListItemText
-              sx={{ mt: 0, ml: 2 }}
-              primary={`ELO ${eloSum.toFixed(0)}`}
-              secondary={
-                pityBonus?.pityBonus !== 0
-                  ? `${pityElo} with -${bonus}% pity bonus included`
-                  : "No pity bonus"
-              }
-            />
-          </ListItem>
+        <Stack direction="row" sx={{ p: 0 }}>
+          <List sx={{ p: 0, flexGrow: 1 }}>
+            <ListItem sx={{ py: 0 }}>
+              <ListItemText
+                sx={{ my: 0 }}
+                primaryTypographyProps={{ fontSize: 20 }}
+                primary={name}
+              />
+            </ListItem>
+            <ListItem sx={{ pt: 0 }}>
+              <ListItemText
+                sx={{ mt: 0, ml: 2 }}
+                primary={eloScoreText(eloSum, eloDiff)}
+                secondary={
+                  pityBonus?.pityBonus !== 0
+                    ? `${pityElo} with -${bonus}% pity bonus included`
+                    : "No pity bonus"
+                }
+              />
+            </ListItem>
+          </List>
+          {showWinChance && <WinChanceText winChance={winChance} />}
+        </Stack>
+        <List sx={{ p: 0 }}>
           {players
             .sort((a, b) => cmp(a.elo, b.elo) * -1)
             .map((player) => {
@@ -249,7 +317,8 @@ type TeamSelectorProps = {
   availableGames: Game[];
   gameState: GameState;
   avatars: Avatars;
-  pityBonus: PityBonus | undefined;
+  pityBonus?: PityBonus;
+  winPrediction?: number;
 };
 
 export function TeamSelector({
@@ -260,6 +329,7 @@ export function TeamSelector({
   gameState,
   avatars,
   pityBonus,
+  winPrediction,
 }: TeamSelectorProps) {
   const selectedGameData = availableGames.find(
     (v: Game): boolean => v.name === selectedGame,
@@ -281,6 +351,14 @@ export function TeamSelector({
       .filter(Boolean) as number[]),
   );
 
+  let rightTeamWinChance = undefined;
+  if (winPrediction != null) {
+    rightTeamWinChance = 1 - winPrediction;
+  }
+  const leftElo = leftPlayers.map((p) => p.elo).reduce((s, v) => s + v, 0);
+  const rightElo = rightPlayers.map((p) => p.elo).reduce((s, v) => s + v, 0);
+  const eloDiff = leftElo - rightElo;
+
   return (
     <Stack direction="row" spacing={2} justifyContent="center">
       <TeamRoster
@@ -291,6 +369,8 @@ export function TeamSelector({
         avatars={avatars}
         pityBonus={pityBonus?.left}
         maxLoseStreak={maxLoseStreak}
+        winChance={winPrediction}
+        eloDiff={eloDiff}
       />
       <TeamRoster
         name={rightTeam}
@@ -300,6 +380,8 @@ export function TeamSelector({
         avatars={avatars}
         pityBonus={pityBonus?.right}
         maxLoseStreak={maxLoseStreak}
+        winChance={rightTeamWinChance}
+        eloDiff={-eloDiff}
       />
     </Stack>
   );

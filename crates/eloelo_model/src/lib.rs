@@ -3,6 +3,7 @@ use std::fmt::Display;
 use serde::{Deserialize, Serialize};
 use thiserror::Error;
 
+pub mod decimal;
 pub mod history;
 pub mod player;
 

@@ -198,12 +198,15 @@ fn max_lose_streak_for_team(
 }
 
 fn apply_pity_bonus(team_elo: i32, lose_streak: i32, options: &SpaweloOptions) -> (f32, i32) {
+    if !options.pity_bonus_enabled {
+        return (1.0, team_elo);
+    }
     let min_loses = options.pity_bonus_min_loses.max(1);
     if lose_streak < min_loses {
         return (1.0, team_elo);
     }
     let pity_loses = lose_streak - min_loses + 1;
-    let pity_bonus_factor = options.pity_bouns_factor.powi(pity_loses);
+    let pity_bonus_factor = options.pity_bonus_factor.as_f32().powi(pity_loses);
     let new_elo = team_elo as f32 * pity_bonus_factor;
     (pity_bonus_factor, new_elo as i32)
 }
@@ -264,8 +267,15 @@ fn calculate_team_real_elo(left_players: &[impl Borrow<PlayerWithElo>]) -> i32 {
     left_players.into_iter().map(|p| p.borrow().elo).sum()
 }
 
+/// Calculates win chance for lhs
+pub fn calculate_win_prediction(lhs_elo: i32, rhs_elo: i32) -> f64 {
+    win_probability(lhs_elo.into(), rhs_elo.into())
+}
+
 #[cfg(test)]
 mod test {
+    use eloelo_model::decimal::Decimal;
+
     use super::*;
 
     #[test]
@@ -290,8 +300,9 @@ mod test {
         let left = vec![player("j", 1000)];
         let right = vec![player("bixkog", 3000)];
         let options = SpaweloOptions {
-            pity_bouns_factor: 0.5,
+            pity_bonus_factor: Decimal::new("0.5"),
             pity_bonus_min_loses: 1,
+            ..Default::default()
         };
         let lose_streaks = HashMap::from([(id("j"), 1)]);
         let (t1, t2) = calculate_teams_elo_internal(&left, &right, &lose_streaks, &options);
@@ -308,8 +319,9 @@ mod test {
         let left = vec![player("j", 1000)];
         let right = vec![player("bixkog", 3000)];
         let options = SpaweloOptions {
-            pity_bouns_factor: 0.5,
+            pity_bonus_factor: Decimal::new("0.5"),
             pity_bonus_min_loses: 1,
+            ..Default::default()
         };
         let lose_streaks = HashMap::from([(id("j"), 3)]);
         let (t1, t2) = calculate_teams_elo_internal(&left, &right, &lose_streaks, &options);
@@ -330,8 +342,9 @@ mod test {
         let left = vec![player("j", 1000)];
         let right = vec![player("bixkog", 3000)];
         let options = SpaweloOptions {
-            pity_bouns_factor: 0.5,
+            pity_bonus_factor: Decimal::new("0.5"),
             pity_bonus_min_loses: 2,
+            ..Default::default()
         };
         let lose_streaks = HashMap::from([(id("j"), 3)]);
         let (t1, t2) = calculate_teams_elo_internal(&left, &right, &lose_streaks, &options);
@@ -349,8 +362,9 @@ mod test {
         let left = vec![player("j", 1000)];
         let right = vec![player("bixkog", 3000)];
         let options = SpaweloOptions {
-            pity_bouns_factor: 0.5,
+            pity_bonus_factor: Decimal::new("0.5"),
             pity_bonus_min_loses: 2,
+            ..Default::default()
         };
         let lose_streaks = HashMap::from([(id("j"), 2)]);
         let (t1, t2) = calculate_teams_elo_internal(&left, &right, &lose_streaks, &options);
@@ -368,8 +382,9 @@ mod test {
         let left = vec![player("j", 1000)];
         let right = vec![player("bixkog", 3000)];
         let options = SpaweloOptions {
-            pity_bouns_factor: 0.5,
+            pity_bonus_factor: Decimal::new("0.5"),
             pity_bonus_min_loses: 0,
+            ..Default::default()
         };
         let lose_streaks = HashMap::from([(id("j"), 1)]);
         let (t1, t2) = calculate_teams_elo_internal(&left, &right, &lose_streaks, &options);
@@ -379,5 +394,17 @@ mod test {
         assert_eq!(t2.pity_bonus_factor, 1.0);
         assert_eq!(t1.pity_elo, 500);
         assert_eq!(t2.pity_elo, 3000);
+    }
+
+    #[test]
+    fn win_prediction() {
+        assert_eq!(
+            Decimal::with_precision(calculate_win_prediction(1000, 1000), 2),
+            Decimal::new("0.5")
+        );
+        assert_eq!(
+            Decimal::with_precision(calculate_win_prediction(1100, 1000), 2),
+            Decimal::new("0.64")
+        );
     }
 }
