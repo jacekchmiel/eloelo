@@ -61,7 +61,8 @@ export type PityBonus = {
 };
 
 export type TeamPityBonus = {
-  pityBonus: number;
+  pityBonusMul: number;
+  pityBonusAdd: number;
   realElo: number;
   pityElo: number;
 };
