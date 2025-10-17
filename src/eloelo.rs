@@ -225,7 +225,7 @@ impl EloElo {
     }
 
     fn build_ui_players(&self, players: &[PlayerId], default_elo: i32) -> Vec<UiPlayer> {
-        let lose_streaks = self.lose_streaks_for_current_game();
+        let lose_streaks = self.lose_streaks_for_current_lobby();
         players
             .iter()
             .cloned()
@@ -297,7 +297,7 @@ impl EloElo {
         (self.left_team, self.right_team) = spawelo::calculate_teams_elo(
             left,
             right,
-            &self.lose_streaks_for_current_game(),
+            &&self.lose_streaks_for_current_lobby(),
             &self.options.spawelo,
         );
     }
@@ -472,7 +472,7 @@ impl EloElo {
 
         let (left, right) = spawelo::shuffle_teams(
             left.into_iter().chain(right),
-            &self.lose_streaks_for_current_game(),
+            &self.lose_streaks_for_current_lobby(),
             &self.options.spawelo,
         );
 
@@ -480,8 +480,10 @@ impl EloElo {
         self.right_team = right;
     }
 
-    fn lose_streaks_for_current_game(&self) -> HashMap<PlayerId, i32> {
-        self.history.calculate_lose_streaks(&self.selected_game)
+    fn lose_streaks_for_current_lobby(&self) -> HashMap<PlayerId, i32> {
+        dbg!(self
+            .history
+            .calculate_lose_streaks(&self.selected_game, self.players_in_team()))
     }
 
     fn recalculate_elo_from_history(&mut self) {

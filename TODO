@@ -1,13 +1,13 @@
 # TODO
 
 ## HIGH PRIORITY
-- [ ] S Pity bonus as an additive modifier
 - [ ] S Calculate lose streaks only from recent matches (w/setting)
 - [ ] S Ignore Fake matches for lose streaks
 - [ ] S Flag to disable autogrzybke
 - [ ] S Display length, advantage and fake on match view
 - [ ] M Add time decay for old matches
 - [ ] S Players ban - set of players that cannot be in the same team (in options)
+- [x] S Pity bonus as an additive modifier
 - [x] S Display ELO advantage
 - [x] Do not assign the same hero twice in a row to a player
   - [x] Flag to opt-out of this rule
