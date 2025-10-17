@@ -231,6 +231,16 @@ function eloScoreText(elo: number, eloDiff: number) {
   );
 }
 
+function mulPityBonus(b: TeamPityBonus | undefined): number {
+  const mul = b?.pityBonusMul;
+  return mul !== undefined ? mul : 0;
+}
+
+function addPityBonus(b: TeamPityBonus | undefined): number {
+  const add = b?.pityBonusAdd;
+  return add !== undefined ? add : 0;
+}
+
 function TeamRoster({
   name,
   players,
@@ -259,8 +269,19 @@ function TeamRoster({
     );
   }
   const pityElo = pityBonus?.pityElo;
-  const bonus = pityBonus && (pityBonus.pityBonus * 100).toFixed();
+  const bonusMulPercent = pityBonus && (pityBonus.pityBonusMul * 100).toFixed();
+  const bonusAdd = pityBonus?.pityBonusAdd;
   const showWinChance = winChance != null;
+
+  console.log({ bonusMulPercent, bonusAdd });
+  let pityDescr = "No pity bonus";
+  if (bonusMulPercent !== "0" && bonusAdd) {
+    pityDescr = `${pityElo} with ${bonusMulPercent}% and ${diffFormatter.format(bonusAdd)} pity bonus`;
+  } else if (bonusMulPercent !== "0") {
+    pityDescr = `${pityElo} with ${bonusMulPercent}% pity bonus`;
+  } else if (bonusAdd) {
+    pityDescr = `${pityElo} with ${diffFormatter.format(bonusAdd)} pity bonus`;
+  }
 
   return (
     <Paper sx={{ width: "100%", maxWidth: "500px" }}>
@@ -278,11 +299,7 @@ function TeamRoster({
               <ListItemText
                 sx={{ mt: 0, ml: 2 }}
                 primary={eloScoreText(eloSum, eloDiff)}
-                secondary={
-                  pityBonus?.pityBonus !== 0
-                    ? `${pityElo} with -${bonus}% pity bonus included`
-                    : "No pity bonus"
-                }
+                secondary={pityDescr}
               />
             </ListItem>
           </List>

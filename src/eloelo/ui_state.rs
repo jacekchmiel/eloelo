@@ -61,14 +61,18 @@ pub struct PityBonus {
 pub struct TeamPityBonus {
     pub real_elo: i32,
     pub pity_elo: i32,
-    pub pity_bonus: f32,
+    #[serde(default)]
+    pub pity_bonus_mul: f64,
+    #[serde(default)]
+    pub pity_bonus_add: i32,
 }
 
 impl From<&BalancedTeam> for TeamPityBonus {
     fn from(value: &BalancedTeam) -> Self {
         TeamPityBonus {
             pity_elo: value.pity_elo,
-            pity_bonus: value.pity_bonus,
+            pity_bonus_mul: value.pity_bonus_mul,
+            pity_bonus_add: value.pity_bonus_add,
             real_elo: value.real_elo,
         }
     }

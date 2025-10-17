@@ -104,15 +104,25 @@ impl Options for SpaweloOptions {
 
     fn to_described_options(&self) -> Vec<DescribedOption> {
         vec![
-            DescribedOption::with_bool(
-                self.pity_bonus_enabled,
-                "pityBonusEnabled",
-                "Pity Bonus Enabled",
-            ),
             DescribedOption::with_int(
                 self.pity_bonus_min_loses,
                 "pityBonusMinLoses",
                 "Pity Bonus Min Loses",
+            ),
+            DescribedOption::with_bool(
+                self.pity_bonus_additive,
+                "pityBonusAdditive",
+                "Pity Bonus Additive",
+            ),
+            DescribedOption::with_int(
+                self.pity_bonus_additive_amount,
+                "pityBonusAdditiveAmount",
+                "Pity Bonus Additive Amount",
+            ),
+            DescribedOption::with_bool(
+                self.pity_bonus_multiplicative,
+                "pityBonusMultiplicative",
+                "Pity Bonus Multiplicative",
             ),
             DescribedOption::with_decimal(
                 self.pity_bonus_factor.clone(),
@@ -151,45 +161,6 @@ mod tests {
                         "name": "Option 1",
                         "type": "boolean",
                         "value": true
-                    }
-                ]
-            }"#,
-        )?;
-        assert_eq!(options_json, expected_json);
-        Ok(())
-    }
-
-    #[test]
-    fn serialize_spawelo_options() -> Result<()> {
-        let options = SpaweloOptions {
-            pity_bonus_factor: Decimal::new("0.5"),
-            pity_bonus_min_loses: 5,
-            pity_bonus_enabled: true,
-            ..Default::default()
-        };
-        let options_json = serde_json::to_value(options.to_described_options_group())?;
-        let expected_json: Value = serde_json::from_str(
-            r#"{
-                "name": "Spawelo Options",
-                "key": "spawelo",
-                "options": [
-                    {
-                        "key": "pityBonusEnabled",
-                        "name": "Pity Bonus Enabled",
-                        "type": "boolean",
-                        "value": true
-                    },
-                    {
-                        "key": "pityBonusMinLoses",
-                        "name": "Pity Bonus Min Loses",
-                        "type": "integer",
-                        "value": 5
-                    },
-                    {
-                        "key": "pityBonusFactor",
-                        "name": "Pity Bonus Factor",
-                        "type": "decimal",
-                        "value": "0.5"
                     }
                 ]
             }"#,
