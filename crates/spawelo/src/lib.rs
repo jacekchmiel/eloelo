@@ -204,26 +204,23 @@ fn apply_pity_bonus(
 ) -> (f64, i32, i32) {
     let min_loses = options.pity_bonus_min_loses.max(1);
     if lose_streak < min_loses {
-        return (1.0, 0, team_elo);
+        return (0.0, 0, team_elo);
     }
     let pity_loses = lose_streak - min_loses + 1;
 
-    let mut pity_bonus_multiplicative_mod: f64 = 1.0;
+    let mut mul_mod: f64 = 0.0;
     if options.pity_bonus_multiplicative {
-        pity_bonus_multiplicative_mod = options.pity_bonus_factor.as_f64().powi(pity_loses);
-        team_elo = (team_elo as f64 * pity_bonus_multiplicative_mod) as i32;
+        let mm = (1.0 + options.pity_bonus_factor.as_f64()).powi(pity_loses);
+        team_elo = (team_elo as f64 * mm) as i32;
+        mul_mod = mm - 1.0;
     }
-    let mut pity_bonus_additive_mod = 0;
+    let mut add_mod = 0;
     if options.pity_bonus_additive {
-        pity_bonus_additive_mod = pity_loses * options.pity_bonus_additive_amount;
+        add_mod = pity_loses * options.pity_bonus_additive_amount;
         team_elo = team_elo + pity_loses * options.pity_bonus_additive_amount;
     }
     // let new_elo = team_elo as f32 * pity_bonus_factor;
-    (
-        pity_bonus_multiplicative_mod,
-        pity_bonus_additive_mod,
-        team_elo,
-    )
+    (mul_mod, add_mod, team_elo)
 }
 
 pub fn calculate_teams_elo(
@@ -244,7 +241,7 @@ pub fn calculate_teams_elo(
 fn build_balanced_team(players: Vec<impl Into<PlayerId>>, info: TeamEloInfo) -> BalancedTeam {
     let players = BalancedTeam {
         players: players.into_iter().map(|p| p.into()).collect(),
-        pity_bonus_mul: 1.0 - info.pity_bonus_mul,
+        pity_bonus_mul: info.pity_bonus_mul,
         pity_bonus_add: info.pity_bonus_add,
         pity_elo: info.pity_elo,
         real_elo: info.real_elo,
@@ -319,7 +316,7 @@ mod test {
         let left = vec![player("j", 1000)];
         let right = vec![player("bixkog", 3000)];
         let options = SpaweloOptions {
-            pity_bonus_factor: Decimal::new("0.5"),
+            pity_bonus_factor: Decimal::new("-0.5"),
             pity_bonus_min_loses: 1,
             pity_bonus_multiplicative: true,
             pity_bonus_additive: false,
@@ -329,8 +326,8 @@ mod test {
         let (t1, t2) = calculate_teams_elo_internal(&left, &right, &lose_streaks, &options);
         assert_eq!(t1.real_elo, 1000);
         assert_eq!(t2.real_elo, 3000);
-        assert_eq!(t1.pity_bonus_mul, 0.5);
-        assert_eq!(t2.pity_bonus_mul, 1.0);
+        assert_eq!(t1.pity_bonus_mul, -0.5);
+        assert_eq!(t2.pity_bonus_mul, 0.0);
         assert_eq!(t1.pity_elo, 500);
         assert_eq!(t2.pity_elo, 3000);
     }
@@ -340,7 +337,7 @@ mod test {
         let left = vec![player("j", 1000)];
         let right = vec![player("bixkog", 3000)];
         let options = SpaweloOptions {
-            pity_bonus_factor: Decimal::new("0.5"),
+            pity_bonus_factor: Decimal::new("-0.5"),
             pity_bonus_min_loses: 1,
             pity_bonus_multiplicative: true,
             pity_bonus_additive: false,
@@ -350,8 +347,8 @@ mod test {
         let (t1, t2) = calculate_teams_elo_internal(&left, &right, &lose_streaks, &options);
         assert_eq!(t1.real_elo, 1000);
         assert_eq!(t2.real_elo, 3000);
-        assert_eq!(t1.pity_bonus_mul, 0.125);
-        assert_eq!(t2.pity_bonus_mul, 1.0);
+        assert_eq!(t1.pity_bonus_mul, -0.875);
+        assert_eq!(t2.pity_bonus_mul, 0.0);
         assert_eq!(t1.pity_elo, 125);
         assert_eq!(t2.pity_elo, 3000);
     }
@@ -365,7 +362,7 @@ mod test {
         let left = vec![player("j", 1000)];
         let right = vec![player("bixkog", 3000)];
         let options = SpaweloOptions {
-            pity_bonus_factor: Decimal::new("0.5"),
+            pity_bonus_factor: Decimal::new("-0.5"),
             pity_bonus_min_loses: 2,
             pity_bonus_multiplicative: true,
             pity_bonus_additive: false,
@@ -375,8 +372,8 @@ mod test {
         let (t1, t2) = calculate_teams_elo_internal(&left, &right, &lose_streaks, &options);
         assert_eq!(t1.real_elo, 1000);
         assert_eq!(t2.real_elo, 3000);
-        assert_eq!(t1.pity_bonus_mul, 0.25);
-        assert_eq!(t2.pity_bonus_mul, 1.0);
+        assert_eq!(t1.pity_bonus_mul, -0.75);
+        assert_eq!(t2.pity_bonus_mul, 0.0);
         assert_eq!(t1.pity_elo, 250);
         assert_eq!(t2.pity_elo, 3000);
     }
@@ -387,7 +384,7 @@ mod test {
         let left = vec![player("j", 1000)];
         let right = vec![player("bixkog", 3000)];
         let options = SpaweloOptions {
-            pity_bonus_factor: Decimal::new("0.5"),
+            pity_bonus_factor: Decimal::new("-0.5"),
             pity_bonus_min_loses: 2,
             pity_bonus_multiplicative: true,
             pity_bonus_additive: false,
@@ -397,8 +394,8 @@ mod test {
         let (t1, t2) = calculate_teams_elo_internal(&left, &right, &lose_streaks, &options);
         assert_eq!(t1.real_elo, 1000);
         assert_eq!(t2.real_elo, 3000);
-        assert_eq!(t1.pity_bonus_mul, 0.5);
-        assert_eq!(t2.pity_bonus_mul, 1.0);
+        assert_eq!(t1.pity_bonus_mul, -0.5);
+        assert_eq!(t2.pity_bonus_mul, 0.0);
         assert_eq!(t1.pity_elo, 500);
         assert_eq!(t2.pity_elo, 3000);
     }
@@ -409,7 +406,7 @@ mod test {
         let left = vec![player("j", 1000)];
         let right = vec![player("bixkog", 3000)];
         let options = SpaweloOptions {
-            pity_bonus_factor: Decimal::new("0.5"),
+            pity_bonus_factor: Decimal::new("-0.5"),
             pity_bonus_min_loses: 0,
             pity_bonus_multiplicative: true,
             pity_bonus_additive: false,
@@ -419,8 +416,8 @@ mod test {
         let (t1, t2) = calculate_teams_elo_internal(&left, &right, &lose_streaks, &options);
         assert_eq!(t1.real_elo, 1000);
         assert_eq!(t2.real_elo, 3000);
-        assert_eq!(t1.pity_bonus_mul, 0.5);
-        assert_eq!(t2.pity_bonus_mul, 1.0);
+        assert_eq!(t1.pity_bonus_mul, -0.5);
+        assert_eq!(t2.pity_bonus_mul, 0.0);
         assert_eq!(t1.pity_elo, 500);
         assert_eq!(t2.pity_elo, 3000);
     }

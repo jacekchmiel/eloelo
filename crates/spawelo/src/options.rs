@@ -17,7 +17,7 @@ impl Default for SpaweloOptions {
         Self {
             pity_bonus_additive: true,
             pity_bonus_multiplicative: false,
-            pity_bonus_factor: Decimal::with_precision(0.98, 2),
+            pity_bonus_factor: Decimal::with_precision(-0.02, 2),
             pity_bonus_min_loses: 2,
             pity_bonus_additive_amount: 100,
         }
