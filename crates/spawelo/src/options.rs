@@ -10,6 +10,7 @@ pub struct SpaweloOptions {
     pub pity_bonus_factor: Decimal,
     pub pity_bonus_min_loses: i32,
     pub pity_bonus_additive_amount: i32,
+    pub lose_streak_max_days: i32,
 }
 
 impl Default for SpaweloOptions {
@@ -20,6 +21,7 @@ impl Default for SpaweloOptions {
             pity_bonus_factor: Decimal::with_precision(-0.02, 2),
             pity_bonus_min_loses: 2,
             pity_bonus_additive_amount: 100,
+            lose_streak_max_days: 30,
         }
     }
 }
