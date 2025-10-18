@@ -74,8 +74,8 @@ impl History {
             return Default::default();
         };
 
-        let deadline = max_days
-            .map(|max_days| Local::now() - Duration::from_secs(max_days * 24 * 60 * 60));
+        let deadline =
+            max_days.map(|max_days| Local::now() - Duration::from_secs(max_days * 24 * 60 * 60));
         let match_date_eligible = |e: &&HistoryEntry| match deadline {
             Some(deadline) => e.timestamp > deadline,
             None => true,
@@ -135,11 +135,15 @@ mod tests {
         let players = ["bixkog", "spawek", "j", "hypys", "bania"]
             .into_iter()
             .map(PlayerId::from);
-        let streaks = history.calculate_lose_streaks(&game_id, players);
+        let streaks = history.calculate_lose_streaks(&game_id, players.clone(), None);
         assert_eq!(streaks.get(&PlayerId::from("j")).copied(), Some(3));
         assert_eq!(streaks.get(&PlayerId::from("hypys")).copied(), Some(2));
         assert_eq!(streaks.get(&PlayerId::from("bania")).copied(), Some(1));
         assert_eq!(streaks.get(&PlayerId::from("spawek")).copied(), Some(0));
         assert_eq!(streaks.get(&PlayerId::from("bixkog")).copied(), Some(0));
+
+        // No streaks with max days
+        let streaks = history.calculate_lose_streaks(&game_id, players, Some(1));
+        assert_eq!(streaks.get(&PlayerId::from("j")).copied(), Some(0));
     }
 }
