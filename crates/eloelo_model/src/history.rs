@@ -67,10 +67,18 @@ impl History {
         &self,
         game: &GameId,
         players: impl Iterator<Item = impl Borrow<PlayerId>>,
+        max_days: Option<u64>,
     ) -> HashMap<PlayerId, i32> {
         let Some(entries) = self.entries.get(game) else {
             error!("Missing history entries to calculate lose streaks for requested game: {game}");
             return Default::default();
+        };
+
+        let deadline = max_days
+            .map(|max_days| Local::now() - Duration::from_secs(max_days * 24 * 60 * 60));
+        let match_date_eligible = |e: &&HistoryEntry| match deadline {
+            Some(deadline) => e.timestamp > deadline,
+            None => true,
         };
 
         let rev_entries = entries.iter().rev().filter(|e| !e.fake);
@@ -80,6 +88,7 @@ impl History {
                     p.borrow().clone(),
                     rev_entries
                         .clone()
+                        .take_while(match_date_eligible)
                         .take_while(|e| !e.winner.contains(p.borrow()))
                         .filter(|e| e.loser.contains(p.borrow()))
                         .count() as i32,

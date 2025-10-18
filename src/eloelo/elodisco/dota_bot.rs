@@ -535,8 +535,6 @@ mod tests {
             .get(&player)
             .unwrap()
             .clone();
-        dbg!(&first_assignment);
-        dbg!(&second_assignment);
         assert!(no_overlaps_between(&first_assignment, &second_assignment));
     }
 

@@ -481,9 +481,13 @@ impl EloElo {
     }
 
     fn lose_streaks_for_current_lobby(&self) -> HashMap<PlayerId, i32> {
-        dbg!(self
-            .history
-            .calculate_lose_streaks(&self.selected_game, self.players_in_team()))
+        let max_days = if self.options.spawelo.lose_streak_max_days > 0 {
+            Some(self.options.spawelo.lose_streak_max_days as u64)
+        } else {
+            None
+        };
+        self.history
+            .calculate_lose_streaks(&self.selected_game, self.players_in_team(), max_days)
     }
 
     fn recalculate_elo_from_history(&mut self) {
