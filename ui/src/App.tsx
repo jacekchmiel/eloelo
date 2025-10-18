@@ -82,6 +82,15 @@ function EloElo({
         setShowMatchHistory={setShowMatchHistory}
         setShowSettings={setShowSettings}
       />
+      {state.gameState === "matchInProgress" && (
+        <FightText
+          variant="h3"
+          color="error"
+          sx={{ position: "absolute", top: ".25%", left: "45%" }}
+        >
+          Fight!
+        </FightText>
+      )}
       <MainView state={state} discordInfo={discordInfo} />
       <DefaultModal
         show={showMatchHistory}
