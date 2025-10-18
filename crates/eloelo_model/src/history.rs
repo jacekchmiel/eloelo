@@ -1,5 +1,5 @@
-use std::collections::HashMap;
 use std::time::Duration;
+use std::{borrow::Borrow, collections::HashMap};
 
 use chrono::{DateTime, Local};
 use log::error;
@@ -63,25 +63,37 @@ impl HistoryEntry {
 }
 
 impl History {
-    pub fn calculate_lose_streaks(&self, game: &GameId) -> HashMap<PlayerId, i32> {
+    pub fn calculate_lose_streaks(
+        &self,
+        game: &GameId,
+        players: impl Iterator<Item = impl Borrow<PlayerId>>,
+        max_days: Option<u64>,
+    ) -> HashMap<PlayerId, i32> {
         let Some(entries) = self.entries.get(game) else {
             error!("Missing history entries to calculate lose streaks for requested game: {game}");
             return Default::default();
         };
 
-        let mut streaks: HashMap<&PlayerId, i32> = HashMap::new();
-        for e in entries {
-            for id in &e.winner {
-                *streaks.entry(id).or_default() = 0;
-            }
-            for id in &e.loser {
-                *streaks.entry(id).or_default() += 1;
-            }
-        }
+        let deadline =
+            max_days.map(|max_days| Local::now() - Duration::from_secs(max_days * 24 * 60 * 60));
+        let match_date_eligible = |e: &&HistoryEntry| match deadline {
+            Some(deadline) => e.timestamp > deadline,
+            None => true,
+        };
 
-        streaks
-            .into_iter()
-            .map(|(id, cnt)| (id.clone(), cnt))
+        let rev_entries = entries.iter().rev().filter(|e| !e.fake);
+        players
+            .map(|p| {
+                (
+                    p.borrow().clone(),
+                    rev_entries
+                        .clone()
+                        .take_while(match_date_eligible)
+                        .take_while(|e| !e.winner.contains(p.borrow()))
+                        .filter(|e| e.loser.contains(p.borrow()))
+                        .count() as i32,
+                )
+            })
             .collect()
     }
 }
@@ -120,11 +132,18 @@ mod tests {
                 ],
             )]),
         };
-        let streaks = history.calculate_lose_streaks(&game_id);
+        let players = ["bixkog", "spawek", "j", "hypys", "bania"]
+            .into_iter()
+            .map(PlayerId::from);
+        let streaks = history.calculate_lose_streaks(&game_id, players.clone(), None);
         assert_eq!(streaks.get(&PlayerId::from("j")).copied(), Some(3));
         assert_eq!(streaks.get(&PlayerId::from("hypys")).copied(), Some(2));
         assert_eq!(streaks.get(&PlayerId::from("bania")).copied(), Some(1));
         assert_eq!(streaks.get(&PlayerId::from("spawek")).copied(), Some(0));
         assert_eq!(streaks.get(&PlayerId::from("bixkog")).copied(), Some(0));
+
+        // No streaks with max days
+        let streaks = history.calculate_lose_streaks(&game_id, players, Some(1));
+        assert_eq!(streaks.get(&PlayerId::from("j")).copied(), Some(0));
     }
 }

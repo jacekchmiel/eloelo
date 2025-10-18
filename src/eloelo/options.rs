@@ -105,6 +105,11 @@ impl Options for SpaweloOptions {
     fn to_described_options(&self) -> Vec<DescribedOption> {
         vec![
             DescribedOption::with_int(
+                self.lose_streak_max_days,
+                "loseStreakMaxDays",
+                "Lose Streak Max Days",
+            ),
+            DescribedOption::with_int(
                 self.pity_bonus_min_loses,
                 "pityBonusMinLoses",
                 "Pity Bonus Min Loses",
