@@ -1,8 +1,18 @@
+import ArrowDropDownIcon from "@mui/icons-material/ArrowDropDown";
+import CancelIcon from "@mui/icons-material/Cancel";
+import EmojiEventsIcon from "@mui/icons-material/EmojiEvents";
+import SendIcon from "@mui/icons-material/Send";
+import ShuffleIcon from "@mui/icons-material/Shuffle";
 import {
   Box,
   Button,
+  ButtonGroup,
+  ClickAwayListener,
   CssBaseline,
   Grid,
+  Grow,
+  Paper,
+  Popper,
   Stack,
   Typography,
 } from "@mui/material";
@@ -24,6 +34,8 @@ import { ColorModeContext } from "./components/ThemeSwitcher";
 import {
   type DiscordPlayerInfo,
   type EloEloState,
+  type GameState,
+  type Team,
   extractAvatars,
 } from "./model";
 import { useColorMode } from "./useColorMode";
@@ -32,20 +44,6 @@ import {
   OptionsView,
   makeGenericOptions,
 } from "./views/OptionsView";
-
-// const invoke = async (command: string, args: object) => {
-// 	console.info({ command, args });
-// 	const url = `${location.href}api/v1/${command}`;
-// 	const response = await fetch(url, {
-// 		method: "POST",
-// 		body: JSON.stringify(args),
-// 	});
-// 	const body = await response.json();
-// 	if (!response.ok) {
-// 		const status = response.status;
-// 		console.error({ status, body });
-// 	}
-// };
 
 const FightText = styled(Typography)({
   animation: "shake 0.5s",
@@ -106,7 +104,6 @@ function EloElo({
           setValues={setOptionValues}
           onSave={async () => {
             setShowSettings(false);
-            console.log({ savingOptions: optionValues });
             await invoke("options", optionValues);
           }}
           onCancel={() => {
@@ -116,6 +113,208 @@ function EloElo({
         />
       </DefaultModal>
     </Stack>
+  );
+}
+
+function StartMatchSplitButton({
+  onStartMatch,
+  onAddFake,
+}: { onStartMatch: () => void; onAddFake: () => void }) {
+  const options = ["Add Fake"];
+  const [open, setOpen] = React.useState(false);
+  const anchorRef = React.useRef<HTMLDivElement>(null);
+
+  const handleToggle = () => {
+    setOpen((prevOpen) => !prevOpen);
+  };
+
+  const handleClose = (event: Event) => {
+    if (anchorRef.current?.contains(event.target as HTMLElement)) {
+      return;
+    }
+
+    setOpen(false);
+  };
+
+  return (
+    <>
+      <ButtonGroup variant="contained" ref={anchorRef}>
+        <Button onClick={onStartMatch} endIcon={<SendIcon />}>
+          Start Match
+        </Button>
+        <Button size="small" onClick={handleToggle}>
+          <ArrowDropDownIcon />
+        </Button>
+      </ButtonGroup>
+      <Popper
+        sx={{
+          zIndex: 1,
+          width: anchorRef.current ? anchorRef.current.clientWidth : "auto",
+        }}
+        open={open}
+        anchorEl={anchorRef.current}
+        transition
+        disablePortal
+      >
+        {({ TransitionProps, placement }) => (
+          <Grow
+            {...TransitionProps}
+            style={{
+              transformOrigin:
+                placement === "bottom" ? "center top" : "center bottom",
+            }}
+          >
+            <Paper>
+              <ClickAwayListener onClickAway={handleClose}>
+                <Stack>
+                  <Button
+                    variant="contained"
+                    color="error"
+                    key="add-fake"
+                    onClick={onAddFake}
+                  >
+                    Add Fake
+                  </Button>
+                </Stack>
+              </ClickAwayListener>
+            </Paper>
+          </Grow>
+        )}
+      </Popper>
+    </>
+  );
+}
+
+function AssemblingTeamsActions({
+  onShuffleTeams,
+  onStartMatch,
+  onAddFake,
+}: {
+  onStartMatch: () => void;
+  onAddFake: () => void;
+  onShuffleTeams: () => void;
+}) {
+  return (
+    <Grid container>
+      <Grid item xs={6} sx={{ pr: 1 }}>
+        <Stack direction="row" justifyContent={"right"}>
+          <Button
+            onClick={onShuffleTeams}
+            variant={"outlined"}
+            startIcon={<ShuffleIcon />}
+          >
+            Shuffle Teams
+          </Button>
+        </Stack>
+      </Grid>
+      <Grid item xs={6} sx={{ pl: 1 }}>
+        <Stack direction="row" justifyContent={"left"}>
+          <StartMatchSplitButton {...{ onStartMatch, onAddFake }} />
+        </Stack>
+      </Grid>
+    </Grid>
+  );
+}
+
+function MatchInProgressActions({
+  onFinishMatch,
+  onCancelMatch,
+}: { onFinishMatch: (winner: Team) => void; onCancelMatch: () => void }) {
+  return (
+    <Grid container>
+      <Grid item xs={3} />
+      <Grid item xs={6}>
+        <Stack direction="row" justifyContent="center">
+          <ButtonGroup variant="contained">
+            <Button
+              startIcon={<EmojiEventsIcon />}
+              onClick={() => onFinishMatch("left")}
+            >
+              Left Team Won
+            </Button>
+            <Button
+              endIcon={<EmojiEventsIcon />}
+              onClick={() => onFinishMatch("right")}
+            >
+              Right Team Won
+            </Button>
+          </ButtonGroup>
+        </Stack>
+      </Grid>
+      <Grid item xs={3}>
+        <Stack direction="row" justifyContent="right">
+          <Button
+            color="error"
+            onClick={onCancelMatch}
+            variant="contained"
+            endIcon={<CancelIcon />}
+          >
+            Cancel
+          </Button>
+        </Stack>
+      </Grid>
+    </Grid>
+  );
+}
+
+function MatchActionCluster({
+  gameState,
+  onStartMatch,
+  onAddFake,
+  onShuffleTeams,
+  onFinishMatch,
+  onCancelMatch,
+}: {
+  gameState: GameState;
+  onStartMatch: () => void;
+  onAddFake: () => void;
+  onShuffleTeams: () => void;
+  onFinishMatch: (winner: Team) => void;
+  onCancelMatch: () => void;
+}) {
+  console.log({ gameState });
+  return (
+    <>
+      {gameState === "assemblingTeams" && (
+        <AssemblingTeamsActions
+          {...{ onStartMatch, onAddFake, onShuffleTeams }}
+        />
+      )}
+      {gameState === "matchInProgress" && (
+        <MatchInProgressActions {...{ onFinishMatch, onCancelMatch }} />
+      )}
+    </>
+  );
+}
+
+function LobbyActionCluster() {
+  return (
+    <Grid item xs={12}>
+      <Stack direction="row" justifyContent="center">
+        <h3>Lobby</h3>
+        <Button
+          onClick={async () => {
+            await invoke("call_to_lobby", {});
+          }}
+        >
+          Call
+        </Button>
+        <Button
+          onClick={async () => {
+            await invoke("clear_lobby", {});
+          }}
+        >
+          Clear
+        </Button>
+        <Button
+          onClick={async () => {
+            await invoke("fill_lobby", {});
+          }}
+        >
+          Fill
+        </Button>
+      </Stack>
+    </Grid>
   );
 }
 
@@ -145,114 +344,33 @@ function MainView({
   return (
     <>
       <TeamSelector {...state} avatars={avatars} />
+      <MatchActionCluster
+        gameState={state.gameState}
+        onShuffleTeams={async () => {
+          await invoke("shuffle_teams", {});
+        }}
+        onStartMatch={async () => {
+          await invoke("start_match", {});
+          setStartTimestamp(new Date());
+        }}
+        onAddFake={() =>
+          setFinishMatchModalState({
+            fake: true,
+            show: true,
+            duration: "45m",
+          })
+        }
+        onCancelMatch={async () => await invoke("finish_match", {})}
+        onFinishMatch={(winner: Team) => {
+          setFinishMatchModalState({
+            winner,
+            show: true,
+            duration: elapsedString(startTimestamp, new Date()),
+          });
+        }}
+      />
+      <LobbyActionCluster />
 
-      <Grid container>
-        {state.gameState === "assemblingTeams" && (
-          <>
-            <Grid item xs={6}>
-              <Stack direction="row" justifyContent="right">
-                <Button
-                  onClick={async () => {
-                    await invoke("start_match", {});
-                    setStartTimestamp(new Date());
-                  }}
-                >
-                  Start Match
-                </Button>
-              </Stack>
-            </Grid>
-            <Grid item xs={6}>
-              <Stack direction="row" justifyContent="left">
-                <Button
-                  onClick={async () => {
-                    await invoke("shuffle_teams", {});
-                  }}
-                >
-                  Shuffle Teams
-                </Button>
-                <Button
-                  color="error"
-                  onClick={async () => {
-                    setFinishMatchModalState({
-                      fake: true,
-                      show: true,
-                      duration: "45m",
-                    });
-                  }}
-                >
-                  Add Fake
-                </Button>
-              </Stack>
-            </Grid>
-          </>
-        )}
-        {state.gameState === "matchInProgress" && (
-          <>
-            <Grid item xs={6}>
-              <Stack direction="row" justifyContent="right">
-                <Button
-                  onClick={() => {
-                    setFinishMatchModalState({
-                      winner: "left",
-                      show: true,
-                      duration: elapsedString(startTimestamp, new Date()),
-                    });
-                  }}
-                >
-                  Left Team Won
-                </Button>
-              </Stack>
-            </Grid>
-            <Grid item xs={6}>
-              <Stack direction="row" justifyContent="space-between">
-                <Button
-                  onClick={() => {
-                    setFinishMatchModalState({
-                      winner: "right",
-                      show: true,
-                      duration: elapsedString(startTimestamp, new Date()),
-                    });
-                  }}
-                >
-                  Right Team Won
-                </Button>
-                <Button
-                  color="error"
-                  onClick={async () => await invoke("finish_match", {})}
-                >
-                  Cancel
-                </Button>
-              </Stack>
-            </Grid>
-          </>
-        )}
-      </Grid>
-      <Grid item xs={12}>
-        <Stack direction="row" justifyContent="center">
-          <h3>Lobby</h3>
-          <Button
-            onClick={async () => {
-              await invoke("call_to_lobby", {});
-            }}
-          >
-            Call
-          </Button>
-          <Button
-            onClick={async () => {
-              await invoke("clear_lobby", {});
-            }}
-          >
-            Clear
-          </Button>
-          <Button
-            onClick={async () => {
-              await invoke("fill_lobby", {});
-            }}
-          >
-            Fill
-          </Button>
-        </Stack>
-      </Grid>
       <ReserveList
         players={state.reservePlayers}
         assemblingTeams={state.gameState === "assemblingTeams"}
