@@ -1,24 +1,22 @@
-import ArrowDropDownIcon from "@mui/icons-material/ArrowDropDown";
+import CampaignIcon from "@mui/icons-material/Campaign";
 import CancelIcon from "@mui/icons-material/Cancel";
 import EmojiEventsIcon from "@mui/icons-material/EmojiEvents";
+import PersonIcon from "@mui/icons-material/Person";
+import PersonOffIcon from "@mui/icons-material/PersonOff";
 import SendIcon from "@mui/icons-material/Send";
 import ShuffleIcon from "@mui/icons-material/Shuffle";
 import {
   Box,
   Button,
   ButtonGroup,
-  ClickAwayListener,
   CssBaseline,
   Grid,
-  Grow,
-  Paper,
-  Popper,
   Stack,
   Typography,
 } from "@mui/material";
 import { grey } from "@mui/material/colors";
 import { ThemeProvider, createTheme, styled } from "@mui/material/styles";
-import React from "react";
+import React, {} from "react";
 import { connectToUiStream, invoke } from "./Api";
 import { EloEloAppBar } from "./AppBar";
 import { elapsedString } from "./Duration";
@@ -30,6 +28,7 @@ import { HistoryView } from "./HistoryView";
 import { ReserveList } from "./ReserveList";
 import { TeamSelector } from "./TeamSelector";
 import { DefaultModal } from "./components/DefaultModal";
+import { SplitButton } from "./components/SplitButton";
 import { ColorModeContext } from "./components/ThemeSwitcher";
 import {
   type DiscordPlayerInfo,
@@ -129,68 +128,24 @@ function StartMatchSplitButton({
   onStartMatch,
   onAddFake,
 }: { onStartMatch: () => void; onAddFake: () => void }) {
-  const options = ["Add Fake"];
-  const [open, setOpen] = React.useState(false);
-  const anchorRef = React.useRef<HTMLDivElement>(null);
-
-  const handleToggle = () => {
-    setOpen((prevOpen) => !prevOpen);
-  };
-
-  const handleClose = (event: Event) => {
-    if (anchorRef.current?.contains(event.target as HTMLElement)) {
-      return;
-    }
-
-    setOpen(false);
-  };
-
+  const addFakeButton = (
+    <Button
+      variant="contained"
+      color="error"
+      key="add-fake"
+      onClick={onAddFake}
+    >
+      Add Fake
+    </Button>
+  );
   return (
-    <>
-      <ButtonGroup variant="contained" ref={anchorRef}>
-        <Button onClick={onStartMatch} endIcon={<SendIcon />}>
-          Start Match
-        </Button>
-        <Button size="small" onClick={handleToggle}>
-          <ArrowDropDownIcon />
-        </Button>
-      </ButtonGroup>
-      <Popper
-        sx={{
-          zIndex: 1,
-          width: anchorRef.current ? anchorRef.current.clientWidth : "auto",
-        }}
-        open={open}
-        anchorEl={anchorRef.current}
-        transition
-        disablePortal
-      >
-        {({ TransitionProps, placement }) => (
-          <Grow
-            {...TransitionProps}
-            style={{
-              transformOrigin:
-                placement === "bottom" ? "center top" : "center bottom",
-            }}
-          >
-            <Paper>
-              <ClickAwayListener onClickAway={handleClose}>
-                <Stack>
-                  <Button
-                    variant="contained"
-                    color="error"
-                    key="add-fake"
-                    onClick={onAddFake}
-                  >
-                    Add Fake
-                  </Button>
-                </Stack>
-              </ClickAwayListener>
-            </Paper>
-          </Grow>
-        )}
-      </Popper>
-    </>
+    <SplitButton
+      label={"Start Match"}
+      endIcon={<SendIcon />}
+      onClick={onStartMatch}
+    >
+      {addFakeButton}
+    </SplitButton>
   );
 }
 
@@ -205,8 +160,12 @@ function AssemblingTeamsActions({
 }) {
   return (
     <Grid container>
-      <Grid item xs={6} sx={{ pr: 1 }}>
-        <Stack direction="row" justifyContent={"right"}>
+      <Grid item xs={3}>
+        <LobbyCallSplitButton />
+      </Grid>
+
+      <Grid item xs={6}>
+        <Stack direction="row" justifyContent={"center"}>
           <Button
             onClick={onShuffleTeams}
             variant={"outlined"}
@@ -216,8 +175,9 @@ function AssemblingTeamsActions({
           </Button>
         </Stack>
       </Grid>
-      <Grid item xs={6} sx={{ pl: 1 }}>
-        <Stack direction="row" justifyContent={"left"}>
+
+      <Grid item xs={3}>
+        <Stack direction="row" justifyContent={"right"}>
           <StartMatchSplitButton {...{ onStartMatch, onAddFake }} />
         </Stack>
       </Grid>
@@ -231,7 +191,9 @@ function MatchInProgressActions({
 }: { onFinishMatch: (winner: Team) => void; onCancelMatch: () => void }) {
   return (
     <Grid container>
-      <Grid item xs={3} />
+      <Grid item xs={3}>
+        <LobbyCallSplitButton />
+      </Grid>
       <Grid item xs={6}>
         <Stack direction="row" justifyContent="center">
           <ButtonGroup variant="contained">
@@ -296,34 +258,38 @@ function MatchActionCluster({
   );
 }
 
-function LobbyActionCluster() {
+function LobbyCallSplitButton() {
+  const clearButton = (
+    <Button
+      endIcon={<PersonOffIcon color="error" />}
+      onClick={async () => {
+        await invoke("clear_lobby", {});
+      }}
+    >
+      Clear Lobby
+    </Button>
+  );
+  const fillButton = (
+    <Button
+      endIcon={<PersonIcon color="success" />}
+      onClick={async () => {
+        await invoke("fill_lobby", {});
+      }}
+    >
+      Fill Lobby
+    </Button>
+  );
   return (
-    <Grid item xs={12}>
-      <Stack direction="row" justifyContent="center">
-        <h3>Lobby</h3>
-        <Button
-          onClick={async () => {
-            await invoke("call_to_lobby", {});
-          }}
-        >
-          Call
-        </Button>
-        <Button
-          onClick={async () => {
-            await invoke("clear_lobby", {});
-          }}
-        >
-          Clear
-        </Button>
-        <Button
-          onClick={async () => {
-            await invoke("fill_lobby", {});
-          }}
-        >
-          Fill
-        </Button>
-      </Stack>
-    </Grid>
+    <SplitButton
+      label={"Call Lobby"}
+      endIcon={<CampaignIcon />}
+      onClick={async () => {
+        await invoke("call_to_lobby", {});
+      }}
+    >
+      {clearButton}
+      {fillButton}
+    </SplitButton>
   );
 }
 
@@ -378,7 +344,6 @@ function MainView({
           });
         }}
       />
-      <LobbyActionCluster />
 
       <ReserveList
         players={state.reservePlayers}
