@@ -143,11 +143,13 @@ export function OptionsView({
             ))}
           </>
         ))}
+        <DialogActions>
+          <Button onClick={onCancel}>Cancel</Button>
+          <Button variant="contained" onClick={onSave}>
+            Save
+          </Button>
+        </DialogActions>
       </Stack>
-      <DialogActions>
-        <Button onClick={onCancel}>Cancel</Button>
-        <Button onClick={onSave}>Save</Button>
-      </DialogActions>
     </>
   );
 }

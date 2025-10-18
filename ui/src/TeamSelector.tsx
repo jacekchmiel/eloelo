@@ -273,7 +273,6 @@ function TeamRoster({
   const bonusAdd = pityBonus?.pityBonusAdd;
   const showWinChance = winChance != null;
 
-  console.log({ bonusMulPercent, bonusAdd });
   let pityDescr = "No pity bonus";
   if (bonusMulPercent !== "0" && bonusAdd) {
     pityDescr = `${pityElo} with ${bonusMulPercent}% and ${diffFormatter.format(bonusAdd)} pity bonus`;
