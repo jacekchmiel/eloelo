@@ -3,7 +3,7 @@ import CancelIcon from "@mui/icons-material/Cancel";
 import EmojiEventsIcon from "@mui/icons-material/EmojiEvents";
 import PersonIcon from "@mui/icons-material/Person";
 import PersonOffIcon from "@mui/icons-material/PersonOff";
-import SendIcon from "@mui/icons-material/Send";
+import RocketLaunchIcon from "@mui/icons-material/RocketLaunch";
 import ShuffleIcon from "@mui/icons-material/Shuffle";
 import {
   Box,
@@ -141,7 +141,7 @@ function StartMatchSplitButton({
   return (
     <SplitButton
       label={"Start Match"}
-      endIcon={<SendIcon />}
+      endIcon={<RocketLaunchIcon />}
       onClick={onStartMatch}
     >
       {addFakeButton}
@@ -243,7 +243,6 @@ function MatchActionCluster({
   onFinishMatch: (winner: Team) => void;
   onCancelMatch: () => void;
 }) {
-  console.log({ gameState });
   return (
     <>
       {gameState === "assemblingTeams" && (

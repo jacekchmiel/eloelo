@@ -22,7 +22,6 @@ export function SplitButton({
   children,
   ...props
 }: PropsWithChildren<SplitButtonProps>) {
-  console.log(props);
   const [open, setOpen] = React.useState(false);
   const anchorRef = React.useRef<HTMLDivElement>(null);
 
