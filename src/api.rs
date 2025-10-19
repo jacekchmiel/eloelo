@@ -267,6 +267,23 @@ async fn save_options(
     EmptyResponse
 }
 
+#[derive(Serialize, Deserialize)]
+struct ShuffleTemperatureBody {
+    value: i32,
+}
+
+async fn set_shuffle_temperature(
+    State(state): AppStateArg,
+    Json(body): Json<ShuffleTemperatureBody>,
+) -> impl IntoResponse {
+    state
+        .message_bus
+        .send(Message::UiCommand(UiCommand::SetShuffleTemperature(
+            body.value,
+        )));
+    EmptyResponse
+}
+
 async fn process_dota_screenshot(
     State(state): AppStateArg,
     headers: HeaderMap,
@@ -359,7 +376,8 @@ pub async fn serve(message_bus: MessageBus, static_serving_dir: PathBuf, addr: S
                 .route("/clear_lobby", post(clear_lobby))
                 .route("/fill_lobby", post(fill_lobby))
                 .route("/call_player", post(call_player))
-                .route("/options", post(save_options)),
+                .route("/options", post(save_options))
+                .route("/shuffle_temperature", post(set_shuffle_temperature)),
         )
         .route("/api/v1/dota_screenshot", post(process_dota_screenshot))
         .with_state(shared_state)

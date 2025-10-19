@@ -202,6 +202,7 @@ pub enum UiCommand {
     FinishMatch(FinishMatch),
     AddLobbyScreenshotData(Vec<String>),
     UpdateOptions(EloEloOptions),
+    SetShuffleTemperature(i32),
     CloseApplication,
 }
 

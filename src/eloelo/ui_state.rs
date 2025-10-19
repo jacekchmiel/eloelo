@@ -24,6 +24,9 @@ pub struct State {
 
     #[serde(default)]
     pub lobby: HashSet<PlayerId>,
+
+    #[serde(default)]
+    pub shuffle_temperature: i32,
 }
 
 impl State {
@@ -34,6 +37,7 @@ impl State {
             right_team: Default::default(),
             game_state: Default::default(),
             lobby: Default::default(),
+            shuffle_temperature: Default::default(),
         }
     }
 }
@@ -89,6 +93,7 @@ pub struct UiState {
     pub right_players: Vec<UiPlayer>,
     pub reserve_players: Vec<UiPlayer>,
     pub win_prediction: Decimal,
+    pub shuffle_temperature: i32,
 
     pub pity_bonus: PityBonus,
 

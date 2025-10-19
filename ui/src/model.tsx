@@ -53,6 +53,7 @@ export type EloEloState = {
   pityBonus: PityBonus | undefined;
   options: OptionsGroup[];
   winPrediction?: number;
+  shuffleTemperature: number;
 };
 
 export type PityBonus = {

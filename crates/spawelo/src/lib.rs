@@ -8,6 +8,7 @@ use eloelo_model::{BalancedTeam, PlayerId};
 
 use itertools::Itertools;
 use log::{debug, info};
+use rand::prelude::*;
 
 mod options;
 
@@ -144,6 +145,7 @@ fn win_probability(winner_elo: f64, loser_elo: f64) -> f64 {
 pub fn shuffle_teams(
     players: impl IntoIterator<Item = PlayerWithElo>,
     lose_streaks: &HashMap<PlayerId, i32>,
+    temperature: i32,
     options: &SpaweloOptions,
 ) -> (BalancedTeam, BalancedTeam) {
     let players: Vec<_> = players.into_iter().collect();
@@ -160,12 +162,24 @@ pub fn shuffle_teams(
         info: Default::default(),
     };
 
+    let mut rng = rand::rng();
+    dbg!(temperature);
+
+    let mut apply_temperature = |elo: i32| {
+        if temperature > 0 {
+            elo + rng.random_range(0..temperature)
+        } else {
+            elo
+        }
+    };
+
     for team in players.iter().combinations(team_size) {
         let other_team: Vec<_> = players.iter().filter(|p| !team.contains(&p)).collect();
         let (team_info, other_info) =
             calculate_teams_elo_internal(&team, &other_team, lose_streaks, options);
 
-        let diff = (team_info.pity_elo - other_info.pity_elo).abs();
+        let diff =
+            (apply_temperature(team_info.pity_elo) - apply_temperature(other_info.pity_elo)).abs();
         if diff < best_choice.diff {
             best_choice.diff = diff;
             best_choice.teams.0 = team.iter().map(|p| &p.id).collect();
