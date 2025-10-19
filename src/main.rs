@@ -1,7 +1,7 @@
 use anyhow::{Context, Result};
 use eloelo::message_bus::{Message, MessageBus, UiCommand};
 use eloelo::{elodisco, ocr, store, EloElo};
-use log::{debug, error, info};
+use log::{debug, error, info, warn};
 use serenity::futures;
 use std::future::Future;
 use std::pin::Pin;
@@ -45,6 +45,9 @@ async fn terminate_on_signal() -> Result<()> {
 async fn main() {
     logging::init();
     let config = unwrap_or_def_verbose(store::load_config());
+    if config.test_mode {
+        warn!("Running in test mode.");
+    }
     let players_config = unwrap_or_def_verbose(store::load_players());
     let state = unwrap_or_def_verbose(store::load_state());
     let bot_state = unwrap_or_def_verbose(store::load_bot_state());
