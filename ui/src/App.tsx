@@ -11,6 +11,7 @@ import {
   ButtonGroup,
   CssBaseline,
   Grid,
+  Slider,
   Stack,
   Typography,
 } from "@mui/material";
@@ -292,6 +293,26 @@ function LobbyCallSplitButton() {
   );
 }
 
+function ShuffleTemperatureSelector() {
+  return (
+    <Grid container>
+      <Grid item xs={5} />
+      <Grid item xs={2}>
+        <Slider
+          defaultValue={0}
+          valueLabelDisplay="auto"
+          step={10}
+          min={0}
+          max={100}
+          onChangeCommitted={async (_event, value) => {
+            await invoke("shuffle_temperature", { value });
+          }}
+        />
+      </Grid>
+    </Grid>
+  );
+}
+
 function MainView({
   state,
   discordInfo,
@@ -343,6 +364,7 @@ function MainView({
           });
         }}
       />
+      <ShuffleTemperatureSelector />
 
       <ReserveList
         players={state.reservePlayers}
@@ -373,6 +395,7 @@ const initialEloEloState: EloEloState = {
   history: { entries: {} },
   pityBonus: undefined,
   options: [],
+  shuffleTemperature: 0,
 };
 
 export default function App() {

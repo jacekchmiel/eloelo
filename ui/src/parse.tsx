@@ -30,6 +30,7 @@ export type EloEloStateTransport = {
   pityBonus: PityBonus | undefined;
   options: OptionsGroup[];
   winPrediction: number;
+  shuffleTemperature: number;
 };
 
 function parseHistoryEntry(historyEntry: HistoryEntryTransport): HistoryEntry {

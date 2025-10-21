@@ -45,6 +45,7 @@ pub struct EloElo {
     message_bus: MessageBus,
     git_mirror: GitMirror,
     options: EloEloOptions,
+    shuffle_temperature: i32,
 }
 
 impl EloElo {
@@ -79,6 +80,7 @@ impl EloElo {
             message_bus,
             git_mirror,
             options,
+            shuffle_temperature: state.shuffle_temperature,
         };
         elo.recalculate_elo_from_history();
         elo
@@ -111,6 +113,7 @@ impl EloElo {
             UiCommand::RefreshElo => self.recalculate_elo_from_history(),
             UiCommand::FinishMatch(finish_match) => self.finish_match(finish_match).await,
             UiCommand::UpdateOptions(options) => self.update_options(options),
+            UiCommand::SetShuffleTemperature(temperature) => self.shuffle_temperature = temperature,
             UiCommand::CloseApplication => {
                 if let Err(e) = self.store_state() {
                     error!("store_state failed: {}", e);
@@ -151,6 +154,7 @@ impl EloElo {
             right_team: self.right_team.clone(),
             game_state: self.game_state,
             lobby: self.lobby.clone(),
+            shuffle_temperature: self.shuffle_temperature,
         };
         store::store_state(&state)?;
         store::store_options(&self.options)?;
@@ -177,6 +181,7 @@ impl EloElo {
                 ),
                 3,
             ),
+            shuffle_temperature: self.shuffle_temperature,
         }
     }
 
@@ -473,6 +478,7 @@ impl EloElo {
         let (left, right) = spawelo::shuffle_teams(
             left.into_iter().chain(right),
             &self.lose_streaks_for_current_lobby(),
+            self.shuffle_temperature,
             &self.options.spawelo,
         );
 
