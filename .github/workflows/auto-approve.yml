@@ -4,37 +4,38 @@ on:
   pull_request:
     types: [opened, synchronize, reopened]
     branches:
-      - main # Adjust this to your protected branch name
+      - main
 
 jobs:
   auto_approve:
-    # This job only runs if the PR author is YOU
-    # Remember to replace 'jacekchmiel' with your actual username if it's different
     if: github.actor == 'jacekchmiel'
 
     runs-on: ubuntu-latest
     permissions:
       contents: read
-      pull-requests: write # Required for the token to have authority to post the approval
+      pull-requests: write
 
     steps:
-      - name: Generate App Installation Token
+      - name: Generate Token
         id: generate_token
         uses: tibdex/github-app-token@v2
         with:
-          # Use your stored secrets to authenticate the App
           app_id: ${{ secrets.APP_ID }}
           private_key: ${{ secrets.PRIVATE_KEY }}
 
-      - name: Auto-Approve PR
+      - name: Approve PR
         uses: actions/github-script@v7
         with:
           github-token: ${{ steps.generate_token.outputs.token }}
           script: |
-            const { owner, repo, pull_number } = context.issue;
+            const { owner, repo, number: pull_number } = context.issue;
 
-            // This check is technically redundant now because of the IF statement on the job,
-            // but it's a safe redundancy. Ensure 'jacekchmiel' matches the IF and your username.
+            // Check if pull_number is valid
+            if (!pull_number) {
+              console.error('Error: Could not retrieve Pull Request number.');
+              return;
+            }
+
             if (context.payload.pull_request.user.login === 'jacekchmiel') {
               github.rest.pulls.createReview({
                 owner,
