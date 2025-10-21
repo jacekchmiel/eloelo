@@ -4,7 +4,7 @@
 - [ ] S Flag to disable autogrzybke
 - [ ] S Display length, advantage and fake on match view
 - [ ] M Add time decay for old matches
-- [ ] S Shuffle temperature
+- [x] S Shuffle temperature
 - [x] S Calculate lose streaks only from recent matches (w/setting)
 - [x] S Ignore Fake matches for lose streaks
 - [x] S Pity bonus as an additive modifier
