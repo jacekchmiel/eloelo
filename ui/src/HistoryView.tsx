@@ -11,6 +11,7 @@ import {
   Tooltip,
 } from "@mui/material";
 import React from "react";
+import { elapsedSecondsString } from "./Duration";
 import type { Avatars, HistoryEntry, Player } from "./model";
 
 export function HistoryView({
@@ -48,17 +49,36 @@ export function HistoryView({
         <TableHead>
           <TableRow>
             <TableCell>Time</TableCell>
+            <TableCell>Scale</TableCell>
+            <TableCell>Duration</TableCell>
+            <TableCell>Fake</TableCell>
             <TableCell>Winner</TableCell>
             <TableCell>Loser</TableCell>
           </TableRow>
         </TableHead>
         <TableBody>
           {history.map((row) => (
-            <TableRow key={row.timestamp.toISOString()}>
-              <TableCell>{row.timestamp.toLocaleString()}</TableCell>
+            <TableRow key={row.entry.timestamp.toISOString()}>
+              <TableCell>{row.entry.timestamp.toLocaleString()}</TableCell>
+              <TableCell
+                sx={{
+                  color:
+                    row.entry.scale === "pwnage"
+                      ? "error.dark"
+                      : row.entry.scale === "advantage"
+                        ? "warning.dark"
+                        : "info.dark",
+                }}
+              >
+                {row.entry.scale}
+              </TableCell>
+              <TableCell>{elapsedSecondsString(row.entry.duration)}</TableCell>
+              <TableCell sx={{ fontWeight: "bold", color: "error.main" }}>
+                {row.entry.fake ? "FAKE" : ""}
+              </TableCell>
               <TableCell>
                 <TeamCell
-                  players={getPlayersByIds(row.winner, players)}
+                  players={getPlayersByIds(row.entry.winner, players)}
                   avatars={avatars}
                   highlight={highlightState}
                   onAvatarClick={onAvatarClick}
@@ -66,7 +86,7 @@ export function HistoryView({
               </TableCell>
               <TableCell>
                 <TeamCell
-                  players={getPlayersByIds(row.loser, players)}
+                  players={getPlayersByIds(row.entry.loser, players)}
                   avatars={avatars}
                   highlight={highlightState}
                   onAvatarClick={onAvatarClick}

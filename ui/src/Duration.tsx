@@ -45,7 +45,11 @@ export function isValidDurationString(duration: string | undefined): boolean {
 
 export function elapsedString(start: Date, end: Date): string {
   const milliseconds = end.valueOf() - start.valueOf();
-  const minutes = Math.floor(milliseconds / 1000 / 60);
+  return elapsedSecondsString(milliseconds / 1000);
+}
+
+export function elapsedSecondsString(seconds: number): string {
+  const minutes = Math.floor(seconds / 60);
   if (minutes > 60) {
     const hours = Math.floor(minutes / 60);
     const minutes_rest = minutes % 60;

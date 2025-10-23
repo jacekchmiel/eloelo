@@ -1,8 +1,8 @@
 # TODO
 
 ## HIGH PRIORITY
-- [ ] S Flag to disable autogrzybke
-- [ ] S Display length, advantage and fake on match view
+- [x] S Flag to disable autogrzybke
+- [ ] S Display length, elo, advantage and fake on match view
 - [ ] M Add time decay for old matches
 - [x] S Shuffle temperature
 - [x] S Calculate lose streaks only from recent matches (w/setting)

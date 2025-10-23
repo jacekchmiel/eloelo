@@ -141,7 +141,6 @@ fn win_probability(winner_elo: f64, loser_elo: f64) -> f64 {
     1.0 / (1.0 + 10.0f64.powf(-elo_diff / 400.0))
 }
 
-// TODO: Propagate applied lose streak info to returned values
 pub fn shuffle_teams(
     players: impl IntoIterator<Item = PlayerWithElo>,
     lose_streaks: &HashMap<PlayerId, i32>,
@@ -293,7 +292,7 @@ fn calculate_teams_elo_internal(
     (l, r)
 }
 
-fn calculate_team_real_elo(left_players: &[impl Borrow<PlayerWithElo>]) -> i32 {
+pub fn calculate_team_real_elo(left_players: &[impl Borrow<PlayerWithElo>]) -> i32 {
     left_players.into_iter().map(|p| p.borrow().elo).sum()
 }
 
