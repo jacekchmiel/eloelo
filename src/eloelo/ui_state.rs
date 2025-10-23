@@ -1,9 +1,8 @@
 use std::collections::HashSet;
 
 use eloelo_model::decimal::Decimal;
+use eloelo_model::options::DescribedOptionsGroup;
 use serde::{Deserialize, Serialize};
-
-use crate::eloelo::options::DescribedOptionsGroup;
 
 use super::config::Game;
 use eloelo_model::history::History;

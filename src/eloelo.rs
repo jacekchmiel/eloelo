@@ -2,6 +2,7 @@ use std::collections::{HashMap, HashSet};
 use std::time::Duration;
 
 use crate::eloelo::message_bus::MatchInfo;
+use crate::eloelo::options::EloEloOptions;
 use crate::utils::{duration_minutes, print_err, unwrap_or_def_verbose, ResultExt as _};
 use anyhow::{Context, Result};
 use chrono::Local;
@@ -16,7 +17,6 @@ use log::{debug, error, info, warn};
 use message_bus::{
     Event, FinishMatch, MatchStart, MatchStartTeam, Message, MessageBus, RichMatchResult, UiCommand,
 };
-pub use options::EloEloOptions;
 use regex::Regex;
 use spawelo::ml_elo;
 use ui_state::{PityBonus, State, UiPlayer, UiState};
@@ -27,7 +27,7 @@ mod fosiaudio;
 mod git_mirror;
 pub(crate) mod message_bus;
 pub(crate) mod ocr;
-mod options;
+pub mod options;
 mod silly_responder;
 pub(crate) mod store;
 mod ui_state;

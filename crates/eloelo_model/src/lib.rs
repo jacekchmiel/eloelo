@@ -5,6 +5,7 @@ use thiserror::Error;
 
 pub mod decimal;
 pub mod history;
+pub mod options;
 pub mod player;
 
 #[derive(Clone, Copy, Debug, Default, Serialize, Deserialize, PartialEq)]

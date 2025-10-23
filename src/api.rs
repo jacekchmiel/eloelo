@@ -20,7 +20,7 @@ use tower_http::services::ServeDir;
 use crate::eloelo::message_bus::{
     Event, FinishMatch, ImageFormat, MatchInfo, Message, MessageBus, UiCommand,
 };
-use crate::eloelo::EloEloOptions;
+use crate::eloelo::options::EloEloOptions;
 use crate::utils::ResultExt as _;
 
 struct AppState {
