@@ -11,7 +11,7 @@ use tokio::sync::broadcast::error::RecvError;
 use tokio::sync::broadcast::{Receiver, Sender};
 use tokio_stream::wrappers::BroadcastStream;
 
-use crate::eloelo::EloEloOptions;
+use crate::eloelo::options::EloEloOptions;
 
 use super::ui_state::UiState;
 

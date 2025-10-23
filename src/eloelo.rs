@@ -1,7 +1,9 @@
 use std::collections::{HashMap, HashSet};
 use std::time::Duration;
 
+use crate::eloelo::fosiaudio::FosiaudioClient;
 use crate::eloelo::message_bus::MatchInfo;
+use crate::eloelo::options::EloEloOptions;
 use crate::utils::{duration_minutes, print_err, unwrap_or_def_verbose, ResultExt as _};
 use anyhow::{Context, Result};
 use chrono::Local;
@@ -16,7 +18,6 @@ use log::{debug, error, info, warn};
 use message_bus::{
     Event, FinishMatch, MatchStart, MatchStartTeam, Message, MessageBus, RichMatchResult, UiCommand,
 };
-pub use options::EloEloOptions;
 use regex::Regex;
 use spawelo::ml_elo;
 use ui_state::{PityBonus, State, UiPlayer, UiState};
@@ -27,7 +28,7 @@ mod fosiaudio;
 mod git_mirror;
 pub(crate) mod message_bus;
 pub(crate) mod ocr;
-mod options;
+pub mod options;
 mod silly_responder;
 pub(crate) mod store;
 mod ui_state;
@@ -529,17 +530,6 @@ impl EloElo {
         self.lobby.remove(player_id);
     }
 
-    async fn call_to_lobby(&self) {
-        let _ = fosiaudio::call_missing_players(
-            &self.config.fosiaudio_host,
-            self.players_missing_from_lobby(),
-            Duration::from_millis(self.config.fosiaudio_timeout_ms),
-        )
-        .await
-        .context("Call to lobby failed")
-        .print_err();
-    }
-
     fn players_missing_from_lobby(&self) -> impl Iterator<Item = &Player> {
         self.left_team
             .players
@@ -608,35 +598,53 @@ impl EloElo {
         self.lobby.clear();
     }
 
+    fn build_fosiaudio_client(&self) -> FosiaudioClient {
+        FosiaudioClient::new(&self.config.fosiaudio_host)
+            .with_timeout(Duration::from_millis(self.config.fosiaudio_timeout_ms))
+            .with_enabled(self.options.general.enable_autogrzybke)
+    }
+
+    async fn call_to_lobby(&self) {
+        let missing_players: Vec<_> = self.players_missing_from_lobby().cloned().collect();
+        let fosiaudio = self.build_fosiaudio_client();
+        tokio::spawn(async move {
+            fosiaudio
+                .call_missing_players(&missing_players)
+                .await
+                .context("Call to lobby failed")
+                .print_err();
+        });
+    }
+
     async fn call_player(&self, player_id: &PlayerId) {
-        let Some(player) = self.players.get(player_id) else {
+        let Some(player) = self.players.get(player_id).cloned() else {
             return;
         };
-        //TODO: move to background
-        let _ = fosiaudio::call_single_player(
-            &self.config.fosiaudio_host,
-            player,
-            Duration::from_millis(self.config.fosiaudio_timeout_ms),
-        )
-        .await
-        .context("Call to lobby failed")
-        .print_err();
+        let fosiaudio = self.build_fosiaudio_client();
+        tokio::spawn(async move {
+            fosiaudio
+                .call_single_player(&player)
+                .await
+                .context("Call to lobby failed")
+                .print_err();
+        });
+    }
+
+    async fn play_winner_theme(&self, winner: Team) {
+        let winner_team_name = self.get_team_name(winner);
+        let fosiaudio = self.build_fosiaudio_client();
+
+        tokio::spawn(async move {
+            fosiaudio
+                .announce_winner(&winner_team_name)
+                .await
+                .print_err();
+        });
     }
 
     fn everybody_in_lobby(&self) -> bool {
         let expected: HashSet<_> = self.players_in_team().cloned().collect();
         expected == self.lobby
-    }
-
-    async fn play_winner_theme(&self, winner: Team) {
-        let winner_team_name = self.get_team_name(winner);
-        fosiaudio::announce_winner(
-            &self.config.fosiaudio_host,
-            &winner_team_name,
-            Duration::from_millis(self.config.fosiaudio_timeout_ms),
-        )
-        .await
-        .print_err(); // TODO: proper error propagation
     }
 
     fn send_match_result(&self, info: MatchInfo) {

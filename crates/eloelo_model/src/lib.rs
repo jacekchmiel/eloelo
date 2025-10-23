@@ -5,6 +5,7 @@ use thiserror::Error;
 
 pub mod decimal;
 pub mod history;
+pub mod options;
 pub mod player;
 
 #[derive(Clone, Copy, Debug, Default, Serialize, Deserialize, PartialEq)]
@@ -155,10 +156,15 @@ impl TryFrom<String> for WinScale {
 
 #[derive(Debug, Clone, Default, PartialEq, Serialize, Deserialize)]
 pub struct BalancedTeam {
+    #[serde(default)]
     pub players: Vec<PlayerId>,
+    #[serde(default)]
     pub pity_bonus_mul: f64,
+    #[serde(default)]
     pub pity_bonus_add: i32,
+    #[serde(default)]
     pub pity_elo: i32,
+    #[serde(default)]
     pub real_elo: i32,
 }
 
