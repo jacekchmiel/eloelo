@@ -32,9 +32,6 @@ pub struct Config {
     #[serde(default)]
     pub discord_test_mode_players: HashSet<PlayerId>,
 
-    #[serde(default)]
-    pub max_elo_history: usize,
-
     #[serde(default = "default_history_git_mirror")]
     pub history_git_mirror: PathBuf,
 
@@ -94,7 +91,6 @@ impl Default for Config {
             discord_bot_token: Default::default(),
             discord_server_name: Default::default(),
             discord_channel_name: Default::default(),
-            max_elo_history: 0,
             history_git_mirror: default_history_git_mirror(),
             dota_screenshot_dir: None,
             fosiaudio_host: default_fosiaudio_host(),

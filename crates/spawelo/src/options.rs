@@ -59,12 +59,14 @@ impl Options for PityBonusOptions {
 #[serde(default)]
 pub struct MlEloOptions {
     pub fake_match_max_days: i32,
+    pub max_elo_history: i32,
 }
 
 impl Default for MlEloOptions {
     fn default() -> Self {
         Self {
             fake_match_max_days: 99999,
+            max_elo_history: 0,
         }
     }
 }
@@ -79,11 +81,18 @@ impl Options for MlEloOptions {
     }
 
     fn to_described_options(&self) -> Vec<DescribedOption> {
-        vec![DescribedOption::with_int(
-            self.fake_match_max_days,
-            "fakeMatchMaxDays",
-            "Fake Match Max Age [Days]",
-        )]
+        vec![
+            DescribedOption::with_int(
+                self.fake_match_max_days,
+                "fakeMatchMaxDays",
+                "Fake Match Max Age [Days]",
+            ),
+            DescribedOption::with_int(
+                self.max_elo_history,
+                "maxEloHistory",
+                "Max Elo History [Matches]",
+            ),
+        ]
     }
 }
 #[derive(Clone, Debug, Default, PartialEq, Deserialize, Serialize)]

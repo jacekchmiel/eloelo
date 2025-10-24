@@ -449,18 +449,19 @@ impl EloElo {
     }
 
     fn history_for_elo_calc(&self, game: &GameId) -> Vec<HistoryEntry> {
-        let n = if self.config.max_elo_history == 0 {
+        let n = if self.options.spawelo.ml_elo.max_elo_history <= 0 {
             usize::MAX
         } else {
-            self.config.max_elo_history // TODO: move to options
+            self.options.spawelo.ml_elo.max_elo_history as usize
         };
         let not_fake_or_recent_enough = {
-            let max_days = if dbg!(self.options.spawelo.ml_elo.fake_match_max_days) > 0 {
-                self.options.spawelo.ml_elo.fake_match_max_days as u64
+            let fake_deadline = if self.options.spawelo.ml_elo.fake_match_max_days > 0 {
+                Local::now()
+                    - Duration::from_secs(self.options.spawelo.ml_elo.fake_match_max_days as u64)
             } else {
-                i32::MAX as u64
+                // Make sure all fake matches will be outdated on invalid max_days
+                Local::now() + Duration::from_secs(3600)
             };
-            let fake_deadline = dbg!(Local::now() - Duration::from_secs(max_days * 24 * 3600));
             move |e: &&HistoryEntry| {
                 if !e.fake {
                     return true;
@@ -476,7 +477,11 @@ impl EloElo {
             .into_iter()
             .flatten()
             .filter(not_fake_or_recent_enough)
+            .rev()
             .take(n)
+            .collect::<Vec<_>>()
+            .into_iter()
+            .rev()
             .cloned()
             .collect();
 

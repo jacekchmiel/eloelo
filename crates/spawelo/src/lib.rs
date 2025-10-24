@@ -164,7 +164,6 @@ pub fn shuffle_teams(
     };
 
     let mut rng = rand::rng();
-    dbg!(temperature);
 
     let mut apply_temperature = |elo: i32| {
         if temperature > 0 {
