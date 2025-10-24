@@ -31,7 +31,7 @@ impl Default for PityBonusOptions {
 
 impl Options for PityBonusOptions {
     fn key() -> String {
-        "pity_bonus".into()
+        "pityBonus".into()
     }
 
     fn name() -> String {
@@ -64,14 +64,14 @@ pub struct MlEloOptions {
 impl Default for MlEloOptions {
     fn default() -> Self {
         Self {
-            fake_match_max_days: 9999,
+            fake_match_max_days: 99999,
         }
     }
 }
 
 impl Options for MlEloOptions {
     fn key() -> String {
-        "ml_elo".into()
+        "mlElo".into()
     }
 
     fn name() -> String {

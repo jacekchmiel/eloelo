@@ -12,7 +12,7 @@ use rand::prelude::*;
 
 mod options;
 
-pub use options::{PityBonusOptions, SpaweloOptions};
+pub use options::{MlEloOptions, PityBonusOptions, SpaweloOptions};
 
 // Learning rate is set to very high level to make the computation faster. Learning is not really 100% finished after 1000 iterations, but it gives good results, and blazing fast with this setting
 const LEARNING_RATE: f64 = 5000.0;
@@ -31,7 +31,7 @@ fn print_debug(i: usize, history: &[HistoryEntry], elo: &HashMap<PlayerId, f64>,
     }
 }
 
-pub fn ml_elo(history: &[HistoryEntry]) -> HashMap<PlayerId, f64> {
+pub fn ml_elo(history: &[HistoryEntry], _options: &MlEloOptions) -> HashMap<PlayerId, f64> {
     let mut elo: HashMap<PlayerId, f64> = history
         .iter()
         .flat_map(|e| e.all_players())
@@ -59,21 +59,23 @@ pub fn ml_elo(history: &[HistoryEntry]) -> HashMap<PlayerId, f64> {
         }
     }
 
-    log_elo(&elo);
-    log_probabilities(&elo, history);
+    // log_elo(&elo);
+    // log_probabilities(&elo, history);
     info!("ELO calculations took {:?}", start.elapsed());
 
     elo
 }
 
+#[allow(dead_code)]
 fn log_elo(elo: &HashMap<PlayerId, f64>) {
     let mut elo: Vec<_> = elo.into_iter().collect();
     elo.sort_by_key(|p| (*p.1 * 1000.0) as i64);
     debug!("Computed elo: {:?}", elo);
 }
 
+#[allow(dead_code)]
 fn log_probabilities(elo: &HashMap<PlayerId, f64>, history: &[HistoryEntry]) {
-    for entry in history {
+    for entry in history.into_iter().rev().take(5).rev() {
         let winner_elo: f64 = entry.winner.iter().map(|p| elo.get(p).unwrap()).sum();
         let loser_elo: f64 = entry.loser.iter().map(|p| elo.get(p).unwrap()).sum();
 
