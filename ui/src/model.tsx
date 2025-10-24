@@ -18,9 +18,19 @@ export type Game = {
 };
 
 export type HistoryEntry = {
-  timestamp: Date;
-  winner: string[];
-  loser: string[];
+  entry: {
+    timestamp: Date;
+    winner: string[];
+    loser: string[];
+    duration: number;
+    scale: WinScale;
+    fake: boolean;
+  };
+  metadata: {
+    winnerElo: number;
+    loserElo: number;
+    winnerChance: number;
+  };
 };
 
 export type History = {

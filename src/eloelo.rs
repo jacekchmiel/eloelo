@@ -4,6 +4,7 @@ use std::time::Duration;
 use crate::eloelo::fosiaudio::FosiaudioClient;
 use crate::eloelo::message_bus::MatchInfo;
 use crate::eloelo::options::EloEloOptions;
+use crate::eloelo::ui_state::{MatchMetadata, UiHistory, UiHistoryEntry};
 use crate::utils::{duration_minutes, print_err, unwrap_or_def_verbose, ResultExt as _};
 use anyhow::{Context, Result};
 use chrono::Local;
@@ -173,7 +174,7 @@ impl EloElo {
             reserve_players: self.build_ui_players(reserve_players, default_elo),
             pity_bonus: self.make_pity_bonus_data(&self.left_team, &self.right_team),
             game_state: self.game_state,
-            history: self.history.clone(),
+            history: self.build_ui_history(),
             options: self.options.to_described_options_group_vec(),
             win_prediction: Decimal::with_precision(
                 spawelo::calculate_win_prediction(
@@ -431,7 +432,6 @@ impl EloElo {
 
     fn update_elo(&mut self) {
         let updates = ml_elo(self.history_for_elo_calc());
-
         for (player, new_elo) in updates.iter() {
             self.players
                 .set_rank(player, &self.selected_game, *new_elo as i32);
@@ -446,7 +446,7 @@ impl EloElo {
     }
 
     fn history_for_elo_calc(&self) -> &[HistoryEntry] {
-        let n = self.config.max_elo_history;
+        let n = self.config.max_elo_history; // TODO: move to options
         debug!("Selected game: {}, Max history: {}", self.selected_game, n);
         match self.history.entries.get(&self.selected_game) {
             Some(history) => {
@@ -510,11 +510,7 @@ impl EloElo {
                 self.players.remove_rank(&player, &self.selected_game);
             }
         } else {
-            let elo = ml_elo(self.history_for_elo_calc());
-            for (player, new_elo) in elo.iter() {
-                self.players
-                    .set_rank(player, &self.selected_game, *new_elo as i32);
-            }
+            self.update_elo();
         }
     }
 
@@ -707,6 +703,54 @@ impl EloElo {
         PityBonus {
             left: left_team.into(),
             right: right_team.into(),
+        }
+    }
+
+    fn build_ui_history(&self) -> ui_state::UiHistory {
+        let entries = self
+            .history
+            .entries
+            .iter()
+            .map(|(game, entries)| {
+                (
+                    game.clone(),
+                    entries
+                        .into_iter()
+                        .cloned()
+                        .map(|entry| UiHistoryEntry {
+                            metadata: self.build_ui_history_entry_metadata(&entry),
+                            entry,
+                        })
+                        .collect(),
+                )
+            })
+            .collect();
+        UiHistory { entries }
+    }
+
+    fn build_ui_history_entry_metadata(&self, entry: &HistoryEntry) -> MatchMetadata {
+        let winner: Vec<_> = self
+            .players
+            .get_ranked_owned(
+                &entry.winner,
+                &self.selected_game,
+                self.default_elo_for_current_game(),
+            )
+            .collect();
+        let loser: Vec<_> = self
+            .players
+            .get_ranked_owned(
+                &entry.loser,
+                &self.selected_game,
+                self.default_elo_for_current_game(),
+            )
+            .collect();
+        let winner_elo = spawelo::calculate_team_real_elo(&winner);
+        let loser_elo = spawelo::calculate_team_real_elo(&loser);
+        MatchMetadata {
+            winner_elo,
+            loser_elo,
+            winner_chance: spawelo::calculate_win_prediction(winner_elo, loser_elo),
         }
     }
 }
