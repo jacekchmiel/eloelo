@@ -45,7 +45,8 @@ impl EloEloOptions {
     pub fn to_described_options_group_vec(&self) -> Vec<DescribedOptionsGroup> {
         vec![
             self.general.to_described_options_group(),
-            self.spawelo.to_described_options_group(),
+            self.spawelo.ml_elo.to_described_options_group(),
+            self.spawelo.pity_bonus.to_described_options_group(),
         ]
     }
 }

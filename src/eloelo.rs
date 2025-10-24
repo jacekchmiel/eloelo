@@ -488,8 +488,9 @@ impl EloElo {
     }
 
     fn lose_streaks_for_current_lobby(&self) -> HashMap<PlayerId, i32> {
-        let max_days = if self.options.spawelo.lose_streak_max_days > 0 {
-            Some(self.options.spawelo.lose_streak_max_days as u64)
+        let lose_streak_max_days = self.options.spawelo.pity_bonus.lose_streak_max_days;
+        let max_days = if lose_streak_max_days > 0 {
+            Some(lose_streak_max_days as u64)
         } else {
             None
         };
