@@ -5,7 +5,7 @@ use eloelo_model::options::DescribedOptionsGroup;
 use serde::{Deserialize, Serialize};
 
 use super::config::Game;
-use eloelo_model::history::{History, HistoryEntry};
+use eloelo_model::history::HistoryEntry;
 use eloelo_model::{BalancedTeam, GameId, GameState, PlayerId};
 
 #[derive(Clone, PartialEq, Debug, Serialize, Deserialize)]
@@ -82,17 +82,20 @@ impl From<&BalancedTeam> for TeamPityBonus {
 }
 
 #[derive(Debug, Default, Clone, PartialEq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
 pub struct UiHistory {
     pub entries: HashMap<GameId, Vec<UiHistoryEntry>>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
+#[serde(rename_all = "camelCase")]
 pub struct UiHistoryEntry {
     pub entry: HistoryEntry,
     pub metadata: MatchMetadata,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
+#[serde(rename_all = "camelCase")]
 pub struct MatchMetadata {
     pub winner_elo: i32,
     pub loser_elo: i32,
