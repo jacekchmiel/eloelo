@@ -4,7 +4,7 @@ use std::time::Instant;
 
 use eloelo_model::history::HistoryEntry;
 use eloelo_model::player::{Player, PlayerWithElo};
-use eloelo_model::{BalancedTeam, PlayerId};
+use eloelo_model::{BalancedTeam, PlayerId, WinScale};
 
 use itertools::Itertools;
 use log::{debug, info};
@@ -18,8 +18,14 @@ pub use options::{MlEloOptions, PityBonusOptions, SpaweloOptions};
 const LEARNING_RATE: f64 = 5000.0;
 const ML_ITERATIONS: usize = 5_000;
 
-fn print_debug(i: usize, history: &[HistoryEntry], elo: &HashMap<PlayerId, f64>, elo_sum: f64) {
-    let loss = loss(history, &elo);
+fn print_debug(
+    i: usize,
+    history: &[HistoryEntry],
+    elo: &HashMap<PlayerId, f64>,
+    elo_sum: f64,
+    options: &MlEloOptions,
+) {
+    let loss = loss(history, &elo, options);
     if i % 1000 == 0 || i == ML_ITERATIONS - 1 {
         debug!(
             "{}/{}, loss: {:.4}, elo_sum: {}",
@@ -31,7 +37,7 @@ fn print_debug(i: usize, history: &[HistoryEntry], elo: &HashMap<PlayerId, f64>,
     }
 }
 
-pub fn ml_elo(history: &[HistoryEntry], _options: &MlEloOptions) -> HashMap<PlayerId, f64> {
+pub fn ml_elo(history: &[HistoryEntry], options: &MlEloOptions) -> HashMap<PlayerId, f64> {
     let mut elo: HashMap<PlayerId, f64> = history
         .iter()
         .flat_map(|e| e.all_players())
@@ -51,9 +57,9 @@ pub fn ml_elo(history: &[HistoryEntry], _options: &MlEloOptions) -> HashMap<Play
     let start: Instant = Instant::now();
     for i in 0..ML_ITERATIONS {
         let elo_sum: f64 = elo.values().sum();
-        print_debug(i, history, &elo, elo_sum);
+        print_debug(i, history, &elo, elo_sum, options);
 
-        let derivative: HashMap<PlayerId, f64> = backpropagation(history, &elo);
+        let derivative: HashMap<PlayerId, f64> = backpropagation(history, &elo, options);
         for (player, diff) in derivative {
             *elo.entry(player).or_default() += diff * LEARNING_RATE;
         }
@@ -74,13 +80,17 @@ fn log_elo(elo: &HashMap<PlayerId, f64>) {
 }
 
 #[allow(dead_code)]
-fn log_probabilities(elo: &HashMap<PlayerId, f64>, history: &[HistoryEntry]) {
+fn log_probabilities(
+    elo: &HashMap<PlayerId, f64>,
+    history: &[HistoryEntry],
+    options: &MlEloOptions,
+) {
     for entry in history.into_iter().rev().take(5).rev() {
         let winner_elo: f64 = entry.winner.iter().map(|p| elo.get(p).unwrap()).sum();
         let loser_elo: f64 = entry.loser.iter().map(|p| elo.get(p).unwrap()).sum();
 
         let predicted_probability = win_probability(winner_elo, loser_elo);
-        let real_probability = entry.advantage_factor();
+        let real_probability = advantage_factor(entry.scale, options);
         debug!(
             "Winner: {}, Loser: {}, Real probability: {:.4}, Predicted probability: {:.4}",
             winner_elo, loser_elo, real_probability, predicted_probability,
@@ -89,14 +99,14 @@ fn log_probabilities(elo: &HashMap<PlayerId, f64>, history: &[HistoryEntry]) {
 }
 
 // L2 loss
-fn loss(history: &[HistoryEntry], elo: &HashMap<PlayerId, f64>) -> f64 {
+fn loss(history: &[HistoryEntry], elo: &HashMap<PlayerId, f64>, options: &MlEloOptions) -> f64 {
     let mut loss = 0.0;
     for entry in history {
         let winner_elo: f64 = entry.winner.iter().map(|p| elo.get(p).unwrap()).sum();
         let loser_elo: f64 = entry.loser.iter().map(|p| elo.get(p).unwrap()).sum();
 
         let computed_probability = win_probability(winner_elo, loser_elo);
-        let real_probablity = entry.advantage_factor();
+        let real_probablity = advantage_factor(entry.scale, options);
 
         loss += (real_probablity - computed_probability).powf(2.0);
     }
@@ -104,9 +114,18 @@ fn loss(history: &[HistoryEntry], elo: &HashMap<PlayerId, f64>) -> f64 {
     loss
 }
 
+fn advantage_factor(scale: WinScale, options: &MlEloOptions) -> f64 {
+    match scale {
+        WinScale::Even => options.even_match_target_probability.as_f64(),
+        WinScale::Advantage => options.advantage_match_target_probability.as_f64(),
+        WinScale::Pwnage => options.pwnage_match_target_probability.as_f64(),
+    }
+}
+
 fn backpropagation(
     history: &[HistoryEntry],
     elo: &HashMap<PlayerId, f64>,
+    options: &MlEloOptions,
 ) -> HashMap<PlayerId, f64> {
     let mut derivative = HashMap::new();
     for entry in history {
@@ -115,7 +134,7 @@ fn backpropagation(
         let elo_diff = winner_elo - loser_elo;
 
         let computed_probability = win_probability(winner_elo, loser_elo);
-        let real_probability = entry.advantage_factor();
+        let real_probability = advantage_factor(entry.scale, options);
 
         // ((x-c)^2)' = 2*(x-c)
         // L2 loss

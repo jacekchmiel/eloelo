@@ -60,6 +60,9 @@ impl Options for PityBonusOptions {
 pub struct MlEloOptions {
     pub fake_match_max_days: i32,
     pub max_elo_history: i32,
+    pub even_match_target_probability: Decimal,
+    pub advantage_match_target_probability: Decimal,
+    pub pwnage_match_target_probability: Decimal,
 }
 
 impl Default for MlEloOptions {
@@ -67,6 +70,9 @@ impl Default for MlEloOptions {
         Self {
             fake_match_max_days: 99999,
             max_elo_history: 0,
+            even_match_target_probability: Decimal::new("0.75"),
+            advantage_match_target_probability: Decimal::new("0.85"),
+            pwnage_match_target_probability: Decimal::new("0.95"),
         }
     }
 }
@@ -91,6 +97,21 @@ impl Options for MlEloOptions {
                 self.max_elo_history,
                 "maxEloHistory",
                 "Max Elo History [Matches]",
+            ),
+            DescribedOption::with_decimal(
+                self.even_match_target_probability.clone(),
+                "evenMatchTargetProbability",
+                "Even Match Target Probability",
+            ),
+            DescribedOption::with_decimal(
+                self.advantage_match_target_probability.clone(),
+                "advantageMatchTargetProbability",
+                "Advantage Match Target Probability",
+            ),
+            DescribedOption::with_decimal(
+                self.pwnage_match_target_probability.clone(),
+                "pwnageMatchTargetProbability",
+                "Pwnage Match Target Probability",
             ),
         ]
     }
