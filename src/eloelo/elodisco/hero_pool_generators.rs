@@ -129,10 +129,6 @@ impl HeroTag {
         .collect()
     }
 
-    pub fn as_str(&self) -> &str {
-        &self.0
-    }
-
     pub fn next_tag(tag_id: usize) -> HeroTag {
         vec![
             HeroTag("Core".to_string()),
@@ -361,8 +357,7 @@ mod tests {
     use std::collections::{HashMap, HashSet};
 
     use eloelo_model::player::DiscordUsername;
-    use itertools::{all, Itertools};
-    use serde_yaml::value::Tag;
+    use itertools::Itertools;
 
     use crate::eloelo::elodisco::{
         dota_bot::Hero,
