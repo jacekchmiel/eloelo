@@ -431,7 +431,10 @@ impl EloElo {
     }
 
     fn update_elo(&mut self) {
-        let updates = ml_elo(self.history_for_elo_calc());
+        let updates = ml_elo(
+            &self.history_for_elo_calc(&self.selected_game),
+            &self.options.spawelo.ml_elo,
+        );
         for (player, new_elo) in updates.iter() {
             self.players
                 .set_rank(player, &self.selected_game, *new_elo as i32);
@@ -445,24 +448,49 @@ impl EloElo {
             .or_default()
     }
 
-    fn history_for_elo_calc(&self) -> &[HistoryEntry] {
-        let n = self.config.max_elo_history; // TODO: move to options
-        debug!("Selected game: {}, Max history: {}", self.selected_game, n);
-        match self.history.entries.get(&self.selected_game) {
-            Some(history) => {
-                debug!("Entries count: {}", history.len());
-                if n > 0 && history.len() > n {
-                    &history[history.len() - n..]
-                } else {
-                    &history
+    fn history_for_elo_calc(&self, game: &GameId) -> Vec<HistoryEntry> {
+        let n = if self.options.spawelo.ml_elo.max_elo_history <= 0 {
+            usize::MAX
+        } else {
+            self.options.spawelo.ml_elo.max_elo_history as usize
+        };
+        let not_fake_or_recent_enough = {
+            let fake_deadline = if self.options.spawelo.ml_elo.fake_match_max_days > 0 {
+                Local::now()
+                    - Duration::from_secs(self.options.spawelo.ml_elo.fake_match_max_days as u64)
+            } else {
+                // Make sure all fake matches will be outdated on invalid max_days
+                Local::now() + Duration::from_secs(3600)
+            };
+            move |e: &&HistoryEntry| {
+                if !e.fake {
+                    return true;
                 }
+                e.timestamp >= fake_deadline
             }
-            None => {
-                warn!("No history entries found");
-                &[]
-            }
+        };
+
+        let history: Vec<HistoryEntry> = self
+            .history
+            .entries
+            .get(game)
+            .into_iter()
+            .flatten()
+            .filter(not_fake_or_recent_enough)
+            .rev()
+            .take(n)
+            .collect::<Vec<_>>()
+            .into_iter()
+            .rev()
+            .cloned()
+            .collect();
+
+        if history.len() == 0 {
+            warn!("No history entries");
         }
+        history
     }
+
     fn shuffle_teams(&mut self) {
         let default_elo = self.default_elo_for_current_game();
         let left = self.players.get_ranked_owned(
@@ -488,8 +516,9 @@ impl EloElo {
     }
 
     fn lose_streaks_for_current_lobby(&self) -> HashMap<PlayerId, i32> {
-        let max_days = if self.options.spawelo.lose_streak_max_days > 0 {
-            Some(self.options.spawelo.lose_streak_max_days as u64)
+        let lose_streak_max_days = self.options.spawelo.pity_bonus.lose_streak_max_days;
+        let max_days = if lose_streak_max_days > 0 {
+            Some(lose_streak_max_days as u64)
         } else {
             None
         };
@@ -503,7 +532,7 @@ impl EloElo {
 
         info!("Recalculating {} elo from history", &self.selected_game);
 
-        let history = self.history_for_elo_calc();
+        let history = self.history_for_elo_calc(&self.selected_game);
         if history.is_empty() {
             let all_players: Vec<_> = self.players.all().map(|p| p.id.clone()).collect();
             for player in all_players {
@@ -710,13 +739,13 @@ impl EloElo {
         let entries = self
             .history
             .entries
-            .iter()
-            .map(|(game, entries)| {
+            .keys()
+            .map(|game| {
+                let entries = self.history_for_elo_calc(game);
                 (
                     game.clone(),
                     entries
                         .into_iter()
-                        .cloned()
                         .map(|entry| UiHistoryEntry {
                             metadata: self.build_ui_history_entry_metadata(&entry),
                             entry,

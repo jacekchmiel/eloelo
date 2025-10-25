@@ -4,7 +4,7 @@ use std::time::Instant;
 
 use eloelo_model::history::HistoryEntry;
 use eloelo_model::player::{Player, PlayerWithElo};
-use eloelo_model::{BalancedTeam, PlayerId};
+use eloelo_model::{BalancedTeam, PlayerId, WinScale};
 
 use itertools::Itertools;
 use log::{debug, info};
@@ -12,14 +12,20 @@ use rand::prelude::*;
 
 mod options;
 
-pub use options::SpaweloOptions;
+pub use options::{MlEloOptions, PityBonusOptions, SpaweloOptions};
 
 // Learning rate is set to very high level to make the computation faster. Learning is not really 100% finished after 1000 iterations, but it gives good results, and blazing fast with this setting
 const LEARNING_RATE: f64 = 5000.0;
 const ML_ITERATIONS: usize = 5_000;
 
-fn print_debug(i: usize, history: &[HistoryEntry], elo: &HashMap<PlayerId, f64>, elo_sum: f64) {
-    let loss = loss(history, &elo);
+fn print_debug(
+    i: usize,
+    history: &[HistoryEntry],
+    elo: &HashMap<PlayerId, f64>,
+    elo_sum: f64,
+    options: &MlEloOptions,
+) {
+    let loss = loss(history, &elo, options);
     if i % 1000 == 0 || i == ML_ITERATIONS - 1 {
         debug!(
             "{}/{}, loss: {:.4}, elo_sum: {}",
@@ -31,7 +37,7 @@ fn print_debug(i: usize, history: &[HistoryEntry], elo: &HashMap<PlayerId, f64>,
     }
 }
 
-pub fn ml_elo(history: &[HistoryEntry]) -> HashMap<PlayerId, f64> {
+pub fn ml_elo(history: &[HistoryEntry], options: &MlEloOptions) -> HashMap<PlayerId, f64> {
     let mut elo: HashMap<PlayerId, f64> = history
         .iter()
         .flat_map(|e| e.all_players())
@@ -51,34 +57,40 @@ pub fn ml_elo(history: &[HistoryEntry]) -> HashMap<PlayerId, f64> {
     let start: Instant = Instant::now();
     for i in 0..ML_ITERATIONS {
         let elo_sum: f64 = elo.values().sum();
-        print_debug(i, history, &elo, elo_sum);
+        print_debug(i, history, &elo, elo_sum, options);
 
-        let derivative: HashMap<PlayerId, f64> = backpropagation(history, &elo);
+        let derivative: HashMap<PlayerId, f64> = backpropagation(history, &elo, options);
         for (player, diff) in derivative {
             *elo.entry(player).or_default() += diff * LEARNING_RATE;
         }
     }
 
-    log_elo(&elo);
-    log_probabilities(&elo, history);
+    // log_elo(&elo);
+    // log_probabilities(&elo, history);
     info!("ELO calculations took {:?}", start.elapsed());
 
     elo
 }
 
+#[allow(dead_code)]
 fn log_elo(elo: &HashMap<PlayerId, f64>) {
     let mut elo: Vec<_> = elo.into_iter().collect();
     elo.sort_by_key(|p| (*p.1 * 1000.0) as i64);
     debug!("Computed elo: {:?}", elo);
 }
 
-fn log_probabilities(elo: &HashMap<PlayerId, f64>, history: &[HistoryEntry]) {
-    for entry in history {
+#[allow(dead_code)]
+fn log_probabilities(
+    elo: &HashMap<PlayerId, f64>,
+    history: &[HistoryEntry],
+    options: &MlEloOptions,
+) {
+    for entry in history.into_iter().rev().take(5).rev() {
         let winner_elo: f64 = entry.winner.iter().map(|p| elo.get(p).unwrap()).sum();
         let loser_elo: f64 = entry.loser.iter().map(|p| elo.get(p).unwrap()).sum();
 
         let predicted_probability = win_probability(winner_elo, loser_elo);
-        let real_probability = entry.advantage_factor();
+        let real_probability = advantage_factor(entry.scale, options);
         debug!(
             "Winner: {}, Loser: {}, Real probability: {:.4}, Predicted probability: {:.4}",
             winner_elo, loser_elo, real_probability, predicted_probability,
@@ -87,14 +99,14 @@ fn log_probabilities(elo: &HashMap<PlayerId, f64>, history: &[HistoryEntry]) {
 }
 
 // L2 loss
-fn loss(history: &[HistoryEntry], elo: &HashMap<PlayerId, f64>) -> f64 {
+fn loss(history: &[HistoryEntry], elo: &HashMap<PlayerId, f64>, options: &MlEloOptions) -> f64 {
     let mut loss = 0.0;
     for entry in history {
         let winner_elo: f64 = entry.winner.iter().map(|p| elo.get(p).unwrap()).sum();
         let loser_elo: f64 = entry.loser.iter().map(|p| elo.get(p).unwrap()).sum();
 
         let computed_probability = win_probability(winner_elo, loser_elo);
-        let real_probablity = entry.advantage_factor();
+        let real_probablity = advantage_factor(entry.scale, options);
 
         loss += (real_probablity - computed_probability).powf(2.0);
     }
@@ -102,9 +114,18 @@ fn loss(history: &[HistoryEntry], elo: &HashMap<PlayerId, f64>) -> f64 {
     loss
 }
 
+fn advantage_factor(scale: WinScale, options: &MlEloOptions) -> f64 {
+    match scale {
+        WinScale::Even => options.even_match_target_probability.as_f64(),
+        WinScale::Advantage => options.advantage_match_target_probability.as_f64(),
+        WinScale::Pwnage => options.pwnage_match_target_probability.as_f64(),
+    }
+}
+
 fn backpropagation(
     history: &[HistoryEntry],
     elo: &HashMap<PlayerId, f64>,
+    options: &MlEloOptions,
 ) -> HashMap<PlayerId, f64> {
     let mut derivative = HashMap::new();
     for entry in history {
@@ -113,7 +134,7 @@ fn backpropagation(
         let elo_diff = winner_elo - loser_elo;
 
         let computed_probability = win_probability(winner_elo, loser_elo);
-        let real_probability = entry.advantage_factor();
+        let real_probability = advantage_factor(entry.scale, options);
 
         // ((x-c)^2)' = 2*(x-c)
         // L2 loss
@@ -162,7 +183,6 @@ pub fn shuffle_teams(
     };
 
     let mut rng = rand::rng();
-    dbg!(temperature);
 
     let mut apply_temperature = |elo: i32| {
         if temperature > 0 {
@@ -215,22 +235,22 @@ fn apply_pity_bonus(
     lose_streak: i32,
     options: &SpaweloOptions,
 ) -> (f64, i32, i32) {
-    let min_loses = options.pity_bonus_min_loses.max(1);
+    let min_loses = options.pity_bonus.min_loses.max(1);
     if lose_streak < min_loses {
         return (0.0, 0, team_elo);
     }
     let pity_loses = lose_streak - min_loses + 1;
 
     let mut mul_mod: f64 = 0.0;
-    if options.pity_bonus_multiplicative {
-        let mm = (1.0 + options.pity_bonus_factor.as_f64()).powi(pity_loses);
+    if options.pity_bonus.multiplicative {
+        let mm = (1.0 + options.pity_bonus.factor.as_f64()).powi(pity_loses);
         team_elo = (team_elo as f64 * mm) as i32;
         mul_mod = mm - 1.0;
     }
     let mut add_mod = 0;
-    if options.pity_bonus_additive {
-        add_mod = pity_loses * options.pity_bonus_additive_amount;
-        team_elo = team_elo + pity_loses * options.pity_bonus_additive_amount;
+    if options.pity_bonus.additive {
+        add_mod = pity_loses * options.pity_bonus.additive_amount;
+        team_elo = team_elo + pity_loses * options.pity_bonus.additive_amount;
     }
     // let new_elo = team_elo as f32 * pity_bonus_factor;
     (mul_mod, add_mod, team_elo)
@@ -305,6 +325,8 @@ pub fn calculate_win_prediction(lhs_elo: i32, rhs_elo: i32) -> f64 {
 mod test {
     use eloelo_model::decimal::Decimal;
 
+    use crate::options::PityBonusOptions;
+
     use super::*;
 
     #[test]
@@ -329,11 +351,14 @@ mod test {
         let left = vec![player("j", 1000)];
         let right = vec![player("bixkog", 3000)];
         let options = SpaweloOptions {
-            pity_bonus_factor: Decimal::new("-0.5"),
-            pity_bonus_min_loses: 1,
-            pity_bonus_multiplicative: true,
-            pity_bonus_additive: false,
-            ..Default::default()
+            pity_bonus: PityBonusOptions {
+                factor: Decimal::new("-0.5"),
+                min_loses: 1,
+                multiplicative: true,
+                additive: false,
+                ..Default::default()
+            },
+            ml_elo: Default::default(),
         };
         let lose_streaks = HashMap::from([(id("j"), 1)]);
         let (t1, t2) = calculate_teams_elo_internal(&left, &right, &lose_streaks, &options);
@@ -350,11 +375,14 @@ mod test {
         let left = vec![player("j", 1000)];
         let right = vec![player("bixkog", 3000)];
         let options = SpaweloOptions {
-            pity_bonus_factor: Decimal::new("-0.5"),
-            pity_bonus_min_loses: 1,
-            pity_bonus_multiplicative: true,
-            pity_bonus_additive: false,
-            ..Default::default()
+            pity_bonus: PityBonusOptions {
+                factor: Decimal::new("-0.5"),
+                min_loses: 1,
+                multiplicative: true,
+                additive: false,
+                ..Default::default()
+            },
+            ml_elo: Default::default(),
         };
         let lose_streaks = HashMap::from([(id("j"), 3)]);
         let (t1, t2) = calculate_teams_elo_internal(&left, &right, &lose_streaks, &options);
@@ -375,11 +403,14 @@ mod test {
         let left = vec![player("j", 1000)];
         let right = vec![player("bixkog", 3000)];
         let options = SpaweloOptions {
-            pity_bonus_factor: Decimal::new("-0.5"),
-            pity_bonus_min_loses: 2,
-            pity_bonus_multiplicative: true,
-            pity_bonus_additive: false,
-            ..Default::default()
+            pity_bonus: PityBonusOptions {
+                factor: Decimal::new("-0.5"),
+                min_loses: 2,
+                multiplicative: true,
+                additive: false,
+                ..Default::default()
+            },
+            ml_elo: Default::default(),
         };
         let lose_streaks = HashMap::from([(id("j"), 3)]);
         let (t1, t2) = calculate_teams_elo_internal(&left, &right, &lose_streaks, &options);
@@ -397,11 +428,14 @@ mod test {
         let left = vec![player("j", 1000)];
         let right = vec![player("bixkog", 3000)];
         let options = SpaweloOptions {
-            pity_bonus_factor: Decimal::new("-0.5"),
-            pity_bonus_min_loses: 2,
-            pity_bonus_multiplicative: true,
-            pity_bonus_additive: false,
-            ..Default::default()
+            pity_bonus: PityBonusOptions {
+                factor: Decimal::new("-0.5"),
+                min_loses: 2,
+                multiplicative: true,
+                additive: false,
+                ..Default::default()
+            },
+            ml_elo: Default::default(),
         };
         let lose_streaks = HashMap::from([(id("j"), 2)]);
         let (t1, t2) = calculate_teams_elo_internal(&left, &right, &lose_streaks, &options);
@@ -419,11 +453,14 @@ mod test {
         let left = vec![player("j", 1000)];
         let right = vec![player("bixkog", 3000)];
         let options = SpaweloOptions {
-            pity_bonus_factor: Decimal::new("-0.5"),
-            pity_bonus_min_loses: 0,
-            pity_bonus_multiplicative: true,
-            pity_bonus_additive: false,
-            ..Default::default()
+            pity_bonus: PityBonusOptions {
+                factor: Decimal::new("-0.5"),
+                min_loses: 0,
+                multiplicative: true,
+                additive: false,
+                ..Default::default()
+            },
+            ml_elo: Default::default(),
         };
         let lose_streaks = HashMap::from([(id("j"), 1)]);
         let (t1, t2) = calculate_teams_elo_internal(&left, &right, &lose_streaks, &options);

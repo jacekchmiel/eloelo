@@ -52,14 +52,6 @@ impl HistoryEntry {
     pub fn all_players(&self) -> impl Iterator<Item = &PlayerId> {
         self.winner.iter().chain(self.loser.iter())
     }
-
-    pub fn advantage_factor(&self) -> f64 {
-        match self.scale {
-            WinScale::Even => 0.75,
-            WinScale::Advantage => 0.85,
-            WinScale::Pwnage => 0.95,
-        }
-    }
 }
 
 impl History {

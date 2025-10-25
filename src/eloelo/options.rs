@@ -1,8 +1,8 @@
 use eloelo_model::options::{DescribedOption, DescribedOptionsGroup, Options};
 use serde::{Deserialize, Serialize};
-use spawelo::SpaweloOptions;
+use spawelo::{MlEloOptions, PityBonusOptions, SpaweloOptions};
 
-#[derive(Clone, Debug, Serialize, Deserialize)]
+#[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct GeneralOptions {
     pub enable_autogrzybke: bool,
@@ -45,7 +45,29 @@ impl EloEloOptions {
     pub fn to_described_options_group_vec(&self) -> Vec<DescribedOptionsGroup> {
         vec![
             self.general.to_described_options_group(),
-            self.spawelo.to_described_options_group(),
+            self.spawelo.ml_elo.to_described_options_group(),
+            self.spawelo.pity_bonus.to_described_options_group(),
         ]
+    }
+}
+
+#[derive(Clone, Debug, Default, PartialEq, Deserialize, Serialize)]
+#[serde(rename_all = "camelCase")]
+#[serde(default)]
+pub struct EloEloOptionsTransport {
+    pub ml_elo: MlEloOptions,
+    pub pity_bonus: PityBonusOptions,
+    pub general: GeneralOptions,
+}
+
+impl Into<EloEloOptions> for EloEloOptionsTransport {
+    fn into(self) -> EloEloOptions {
+        EloEloOptions {
+            general: self.general,
+            spawelo: SpaweloOptions {
+                ml_elo: self.ml_elo,
+                pity_bonus: self.pity_bonus,
+            },
+        }
     }
 }

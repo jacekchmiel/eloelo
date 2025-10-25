@@ -20,7 +20,7 @@ use tower_http::services::ServeDir;
 use crate::eloelo::message_bus::{
     Event, FinishMatch, ImageFormat, MatchInfo, Message, MessageBus, UiCommand,
 };
-use crate::eloelo::options::EloEloOptions;
+use crate::eloelo::options::EloEloOptionsTransport;
 use crate::utils::ResultExt as _;
 
 struct AppState {
@@ -259,11 +259,11 @@ async fn call_player(
 
 async fn save_options(
     State(state): AppStateArg,
-    Json(body): Json<EloEloOptions>,
+    Json(body): Json<EloEloOptionsTransport>,
 ) -> impl IntoResponse {
     state
         .message_bus
-        .send(Message::UiCommand(UiCommand::UpdateOptions(body)));
+        .send(Message::UiCommand(UiCommand::UpdateOptions(body.into())));
     EmptyResponse
 }
 
