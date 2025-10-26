@@ -1,4 +1,5 @@
 import argparse
+from concurrent.futures import ThreadPoolExecutor
 from copy import deepcopy
 import dataclasses as dc
 from pathlib import Path
@@ -27,7 +28,7 @@ NUM_MATCHES = 50
 MAX_EPOCHS = 10
 MUTATE_PROBABILITY_SIGMA = 0.1
 EPOCH_SURVIVORS = 10
-EPOCH_OFFSPRINGS = 10
+EPOCH_OFFSPRINGS = 40
 
 
 def camelcase_keys(obj: dict[str, Any]) -> dict[str, Any]:
@@ -405,12 +406,24 @@ class EvolutionOptimizer:
         evaluated_candidates.sort(key=lambda x: x[1])
         return evaluated_candidates[: self.k]
 
+    def _parallel_evaluate(self, offsprings):
+        # Use a ThreadPoolExecutor with a recommended number of workers
+        with ThreadPoolExecutor() as executor:
+            # executor.map applies the function to every item in the iterable
+            results = executor.map(self.evaluate, offsprings)
+
+        # The map returns results in the order the inputs were submitted
+        # Recombine the offsprings with their results
+        return [(s, result) for s, result in zip(offsprings, results)]
+
     def run_epoch(
         self, evaluated_epoch_seed: Sequence[Tuple[Vec, Vec]]
     ) -> list[(Vec, Vec)]:
         offsprings = self._create_offsprings(evaluated_epoch_seed, EPOCH_OFFSPRINGS)
-        offsprings = [(s, self.evaluate(s)) for s in offsprings]
-        return self._select_best_specimens(offsprings + evaluated_epoch_seed)
+        evaluated_offsprings = self._parallel_evaluate(offsprings)
+        return self._select_best_specimens(
+            list(evaluated_offsprings) + evaluated_epoch_seed
+        )
 
 
 def options_to_vec(options: MlEloOptions) -> EvolutionOptimizer.Vec:
