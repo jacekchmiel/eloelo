@@ -1,4 +1,5 @@
 import argparse
+from copy import deepcopy
 import dataclasses as dc
 from pathlib import Path
 import subprocess
@@ -16,12 +17,41 @@ log = logging.getLogger("elo_sim")
 NUM_PLAYERS = 10
 ELO_MIN = 500
 ELO_MAX = 2500
-RANDOM_SEED = 42
+DEFAULT_SEED = 42
 NUM_MATCHES = 100
+MAX_ITERATIONS = 300
+PROBABILITY_MUTATION_MAX = 0.1
 
 # Current assumptions:
 #  - Equal teams
 #  - Skill doesn't change
+
+
+def camelcase_keys(obj: dict[str, Any]) -> dict[str, Any]:
+    def snake_to_camel(snake_str: str) -> str:
+        if not snake_str:
+            return ""
+        components = snake_str.split("_")
+        return components[0].lower() + "".join(c.title() for c in components[1:])
+
+    return {snake_to_camel(k): v for k, v in obj.items()}
+
+
+def mutate_options(options: "MlEloOptions") -> "MlEloOptions":
+    mutated = deepcopy(options)
+    # For each probability option mutate it by +/- PROBABILITY_MUTATION_MAX.
+    # Do not go lower than 0.5 or higher than 1.0
+    for prob_field in (
+        "advantage_match_target_probability",
+        "even_match_target_probability",
+        "pwnage_match_target_probability",
+    ):
+        mutation = random.uniform(-PROBABILITY_MUTATION_MAX, PROBABILITY_MUTATION_MAX)
+        old_value = getattr(mutated, prob_field)
+        new_value = max(0.5, min(1.0, old_value + mutation))
+        setattr(mutated, prob_field, new_value)
+
+    return mutated
 
 
 @dc.dataclass
@@ -31,6 +61,16 @@ class MlEloOptions:
     even_match_target_probability: float = 0.75
     advantage_match_target_probability: float = 0.85
     pwnage_match_target_probability: float = 0.95
+
+    def as_dict(self):
+        return camelcase_keys(dc.asdict(self))
+
+    def serialize(self):
+        options = self.as_dict()
+        for k, v in options.items():
+            if isinstance(v, float):
+                options[k] = f"{v:.4f}"
+        return json.dumps(options, indent=2)
 
 
 def generate_players(seed: int):
@@ -95,7 +135,7 @@ def generate_match_history(players, num_matches):
     return history
 
 
-def execute_spawelo_cli(history_json_string: str, options_file: Path):
+def _execute_spawelo_cli(history_json_string: str, options_file: Path):
     command = [
         "cargo",
         "run",
@@ -115,6 +155,7 @@ def execute_spawelo_cli(history_json_string: str, options_file: Path):
             text=True,
             input=history_json_string,  # Pass JSON string as stdin
         )
+        print(result.stderr)
         return result.stdout
     except subprocess.CalledProcessError as e:
         print(f"An error occurred while running the simulation command: {e}")
@@ -127,14 +168,15 @@ def execute_spawelo_cli(history_json_string: str, options_file: Path):
         return None
 
 
-def run_simulation(match_history, options: Optional[MlEloOptions] = None):
+def run_spawelo(match_history, options: Optional[MlEloOptions] = None):
     """Runs the simulation using the CLI command with the given history and options."""
     history_json_string = json.dumps(match_history, indent=2)
     options = options or MlEloOptions()
 
     with tempfile.NamedTemporaryFile(mode="w", delete=False, suffix=".json") as f:
-        json.dump(dc.asdict(options), f, indent=2)
-        return execute_spawelo_cli(history_json_string, options_file=f.name)
+        f.write(options.serialize())
+        f.flush()
+        return _execute_spawelo_cli(history_json_string, options_file=f.name)
 
 
 @dc.dataclass
@@ -215,7 +257,14 @@ class Table:
         return [row.to_dict() for row in self.rows]
 
 
-def print_output(table: Table):
+def print_options(options: MlEloOptions, *, newline: bool = False):
+    for opt, val in options.as_dict().items():
+        print(f"  {opt}: {val}")
+    if newline:
+        print("")
+
+
+def print_output(table: Table, *, newline: bool = False):
     average_diff = table.average_diff
     mae_of_ranks = table.mae_of_ranks
     table = table.to_dicts()
@@ -262,42 +311,27 @@ def print_output(table: Table):
     print("-" * len(header))
     print(f"Average Diff: {average_diff:.2f}")
     print(f"MAE of Ranks: {mae_of_ranks:.2f}")
+    if newline:
+        print("")
 
 
-def main() -> None:
-    parser = argparse.ArgumentParser(
-        description="Simulate ELO calculations based on a generated match history."
-    )
-    parser.add_argument(
-        "--seed",
-        type=int,
-        help="Random seed for player and match generation.",
-        default=RANDOM_SEED,
-    )
-    parser.add_argument("-v", "--verbose", action="store_true", help="Verbose output.")
-    args = parser.parse_args()
-
-    if args.verbose:
-        logging.basicConfig(level=logging.DEBUG)
-    else:
-        logging.basicConfig(level=logging.WARN)
-
-    players = generate_players(args.seed)
-    match_history = generate_match_history(players, NUM_MATCHES)
-
-    # Example of using default options
-    options = MlEloOptions()
-    spawelo_output = run_simulation(match_history, options)
-
-    if not spawelo_output:
-        raise RuntimeError("No spawelo ouptut")
-
+def parse_spawelo_cli_output(spawelo_output: str) -> dict[str, int]:
     calculated_elos = {}
     for line in spawelo_output.strip().split("\n"):
         parts = line.strip().split()
         if len(parts) == 2:
             player_name, elo_str = parts
             calculated_elos[player_name] = int(elo_str)
+    return calculated_elos
+
+
+def calculate_elo(players, match_history, options):
+    spawelo_output = run_spawelo(match_history, options)
+
+    if not spawelo_output:
+        raise RuntimeError("No spawelo ouptut")
+
+    calculated_elos = parse_spawelo_cli_output(spawelo_output)
 
     table = Table()
     for player in players:
@@ -312,7 +346,75 @@ def main() -> None:
     table.rank_rows()
     table.rows.sort(key=lambda x: x.real_elo_rank)
 
-    print_output(table)
+    return table
+
+
+def main() -> None:
+    parser = argparse.ArgumentParser(
+        description="Simulate ELO calculations based on a generated match history."
+    )
+    parser.add_argument(
+        "--seed",
+        type=int,
+        help="Random seed for player and match generation.",
+        default=DEFAULT_SEED,
+    )
+    parser.add_argument(
+        "--mode",
+        choices=("optimize", "simulate"),
+        help="Simulate: run single simulation; Optimize: try to find best options for spawelo",
+        default="simulate",
+    )
+    parser.add_argument("-v", "--verbose", action="store_true", help="Verbose output.")
+    args = parser.parse_args()
+
+    if args.verbose:
+        logging.basicConfig(level=logging.DEBUG)
+    else:
+        logging.basicConfig(level=logging.WARN)
+
+    players = generate_players(args.seed)
+    match_history = generate_match_history(players, NUM_MATCHES)
+
+    if args.mode == "simulate":
+        options = MlEloOptions()
+        print_output(calculate_elo(players, match_history, options))
+        return
+
+    if args.mode == "optimize":
+        best_options = MlEloOptions()
+        best_output = calculate_elo(players, match_history, best_options)
+        print("Initial output:")
+        print_output(best_output)
+
+        for i in range(MAX_ITERATIONS):
+            print(f"ITERATION #{i+1}")
+
+            options = mutate_options(best_options)
+            print_options(best_options, newline=True)
+
+            output = calculate_elo(players, match_history, options)
+            print_output(output, newline=True)
+
+            if (output.mae_of_ranks, output.average_diff) < (
+                best_output.mae_of_ranks,
+                best_output.average_diff,
+            ):
+                best_output = output
+                best_options = options
+                print("New best found:")
+                print("  previous: ", (output.mae_of_ranks, output.average_diff))
+                print(
+                    "   current: ", (best_output.mae_of_ranks, best_output.average_diff)
+                )
+                print("")
+
+        print("\n========================================")
+        print("======== Result ========================")
+        print("========================================\n")
+        print_output(best_output, newline=True)
+        print("Options:")
+        print_options(best_options, newline=True)
 
 
 if __name__ == "__main__":
