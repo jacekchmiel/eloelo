@@ -274,7 +274,13 @@ def main() -> None:
         help="Random seed for player and match generation.",
         default=RANDOM_SEED,
     )
+    parser.add_argument("-v", "--verbose", action="store_true", help="Verbose output.")
     args = parser.parse_args()
+
+    if args.verbose:
+        logging.basicConfig(level=logging.DEBUG)
+    else:
+        logging.basicConfig(level=logging.WARN)
 
     players = generate_players(args.seed)
     match_history = generate_match_history(players, NUM_MATCHES)
@@ -310,5 +316,4 @@ def main() -> None:
 
 
 if __name__ == "__main__":
-    logging.basicConfig(level=logging.DEBUG)
     main()
