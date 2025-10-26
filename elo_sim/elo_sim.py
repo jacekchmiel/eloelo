@@ -7,24 +7,27 @@ import random
 import json
 import tempfile
 from datetime import datetime, timedelta, timezone
-from typing import Any, Optional
+from typing import Any, Callable, Optional, Sequence, Tuple, Union
 import logging
 
 log = logging.getLogger("elo_sim")
 
-
-# Constants
-NUM_PLAYERS = 10
-ELO_MIN = 500
-ELO_MAX = 2500
-DEFAULT_SEED = 42
-NUM_MATCHES = 100
-MAX_ITERATIONS = 100
-PROBABILITY_SIGMA = 0.1
-
 # Current assumptions:
 #  - Equal teams
 #  - Skill doesn't change
+
+# Simulation Options
+DEFAULT_SEED = 42
+NUM_PLAYERS = 10
+ELO_MIN = 500
+ELO_MAX = 4000
+NUM_MATCHES = 50
+
+# Evolution algorithm options
+MAX_EPOCHS = 10
+MUTATE_PROBABILITY_SIGMA = 0.1
+EPOCH_SURVIVORS = 10
+EPOCH_OFFSPRINGS = 10
 
 
 def camelcase_keys(obj: dict[str, Any]) -> dict[str, Any]:
@@ -48,7 +51,7 @@ def mutate_options(options: "MlEloOptions") -> "MlEloOptions":
     ):
 
         mean = 0
-        std_dev = PROBABILITY_SIGMA
+        std_dev = MUTATE_PROBABILITY_SIGMA
         mutation = random.gauss(mu=mean, sigma=std_dev)
 
         old_value = getattr(mutated, prob_field)
@@ -168,7 +171,7 @@ def _execute_spawelo_cli(history_json_string: str, options_file: Path):
             text=True,
             input=history_json_string,  # Pass JSON string as stdin
         )
-        print(result.stderr)
+        # print(result.stderr)
         return result.stdout
     except subprocess.CalledProcessError as e:
         print(f"An error occurred while running the simulation command: {e}")
@@ -197,9 +200,12 @@ class Row:
     player_name: str
     real_elo: int
     calculated_elo: int
-    diff: int
     real_elo_rank: Optional[int] = None
     calculated_elo_rank: Optional[int] = None
+
+    @property
+    def diff(self) -> int:
+        return self.calculated_elo - self.real_elo
 
     @property
     def real_elo_str(self) -> str:
@@ -270,7 +276,7 @@ class Table:
         return [row.to_dict() for row in self.rows]
 
 
-def print_options(options: MlEloOptions, *, newline: bool = False):
+def print_options(options: MlEloOptions, *, newline: bool = True):
     for opt, val in options.as_dict().items():
         print(f"  {opt}: {val}")
     if newline:
@@ -352,14 +358,79 @@ def calculate_elo(players, match_history, options):
         real_elo = player["elo"]
         calculated_elo = calculated_elos.get(player_name)
         if calculated_elo is not None:
-            diff = real_elo - calculated_elo
-            table.add_row(Row(player_name, real_elo, calculated_elo, diff))
+            table.add_row(Row(player_name, real_elo, calculated_elo))
 
     # Add ranks
     table.rank_rows()
     table.rows.sort(key=lambda x: x.real_elo_rank)
 
     return table
+
+
+class EvolutionOptimizer:
+    Vec = Sequence[float]
+
+    def __init__(
+        self,
+        evaluate: Callable[[Vec], Vec],
+        mutate: Callable[[Vec], Vec],
+        reproduce: Callable[[Vec, Vec], Vec],
+        *,
+        k: int = 5,
+    ):
+        self.evaluate = evaluate
+        self.mutate = mutate
+        self.reproduce = reproduce
+        self.k = k  # Number of top options to keep for the next generation
+
+    def _create_offsprings(
+        self, evaluated_epoch_seed: Sequence[Tuple[Vec, Vec]], k: int
+    ) -> list[Vec]:
+        epoch_seed = [s for s, _ in evaluated_epoch_seed]
+        offsprings = []
+        for _ in range(k):
+            if len(epoch_seed) == 1:
+                offspring = epoch_seed[0]
+            else:
+                parents = random.sample(epoch_seed, 2)
+                offspring = self.reproduce(*parents)
+            offspring = self.mutate(offspring)
+            offsprings.append(offspring)
+        return offsprings
+
+    def _select_best_specimens(
+        self,
+        evaluated_candidates: Sequence[Tuple[Vec, Vec]],
+    ) -> list[(Vec, Vec)]:
+        evaluated_candidates.sort(key=lambda x: x[1])
+        return evaluated_candidates[: self.k]
+
+    def run_epoch(
+        self, evaluated_epoch_seed: Sequence[Tuple[Vec, Vec]]
+    ) -> list[(Vec, Vec)]:
+        offsprings = self._create_offsprings(evaluated_epoch_seed, EPOCH_OFFSPRINGS)
+        offsprings = [(s, self.evaluate(s)) for s in offsprings]
+        return self._select_best_specimens(offsprings + evaluated_epoch_seed)
+
+
+def options_to_vec(options: MlEloOptions) -> EvolutionOptimizer.Vec:
+    return [
+        options.even_match_target_probability,
+        options.advantage_match_target_probability,
+        options.pwnage_match_target_probability,
+    ]
+
+
+def vec_to_options(v: EvolutionOptimizer.Vec) -> MlEloOptions:
+    return MlEloOptions(
+        even_match_target_probability=v[0],
+        advantage_match_target_probability=v[1],
+        pwnage_match_target_probability=v[2],
+    )
+
+
+def table_to_vec(t: Table) -> EvolutionOptimizer.Vec:
+    return (t.mae_of_ranks, t.average_diff)
 
 
 def main() -> None:
@@ -398,39 +469,51 @@ def main() -> None:
         # reset seed for the optimization
         random.seed()
 
+        def evaluate(v: EvolutionOptimizer.Vec) -> EvolutionOptimizer.Vec:
+            options = vec_to_options(v)
+            return table_to_vec(calculate_elo(players, match_history, options))
+
+        def mutate(v: EvolutionOptimizer.Vec) -> EvolutionOptimizer.Vec:
+            return options_to_vec(mutate_options(vec_to_options(v)))
+
+        def reproduce(
+            v1: EvolutionOptimizer.Vec, v2: EvolutionOptimizer.Vec
+        ) -> EvolutionOptimizer.Vec:
+            return [random.choice([g1, g2]) for g1, g2 in zip(v1, v2)]
+
+        optimizer = EvolutionOptimizer(
+            evaluate=evaluate,
+            mutate=mutate,
+            reproduce=reproduce,
+            k=EPOCH_SURVIVORS,
+        )
+
+        epoch_specimen = [
+            (options_to_vec(MlEloOptions()), evaluate(options_to_vec(MlEloOptions()))),
+        ]
+
         best_options = MlEloOptions()
         best_output = calculate_elo(players, match_history, best_options)
         print("Initial output:")
         print_output(best_output)
 
-        for i in range(MAX_ITERATIONS):
-            print(f"ITERATION #{i+1}")
-
-            options = mutate_options(best_options)
-            print_options(options, newline=True)
-
-            output = calculate_elo(players, match_history, options)
-            print_output(output, newline=True)
-
-            if (output.mae_of_ranks, output.average_diff) < (
-                best_output.mae_of_ranks,
-                best_output.average_diff,
-            ):
-                best_output = output
-                best_options = options
-                print("New best found:")
-                print("  previous: ", (output.mae_of_ranks, output.average_diff))
-                print(
-                    "   current: ", (best_output.mae_of_ranks, best_output.average_diff)
-                )
-                print("")
+        for i in range(MAX_EPOCHS):
+            print(f"EPOCH #{i+1}")
+            epoch_specimen = optimizer.run_epoch(epoch_specimen)
+            for s, v in epoch_specimen:
+                print(f"{s} -> {v}")
+            print("")
 
         print("\n========================================")
-        print("======== Result ========================")
+        print("======== Results =======================")
         print("========================================\n")
-        print_output(best_output, newline=True)
-        print("Options:")
-        print_options(best_options, newline=True)
+        for s, v in epoch_specimen[::-1]:
+            options = vec_to_options(s)
+            elo_data = calculate_elo(players, match_history, options)
+
+            print("Options:")
+            print_options(options)
+            print_output(elo_data)
 
 
 if __name__ == "__main__":
