@@ -1,3 +1,4 @@
+import argparse
 import dataclasses as dc
 import subprocess
 import random
@@ -17,9 +18,9 @@ NUM_MATCHES = 100
 #  - Skill doesn't change
 
 
-def generate_players():
+def generate_players(seed: int):
     """Generates a list of random players with ELO ranks."""
-    random.seed(RANDOM_SEED)
+    random.seed(seed)
     players = []
     for i in range(NUM_PLAYERS):
         player = {"name": f"Player-{i + 1}", "elo": random.randint(ELO_MIN, ELO_MAX)}
@@ -155,6 +156,15 @@ class Table:
             return 0.0
         return self.total_diff / len(self.rows)
 
+    @property
+    def mae_of_ranks(self) -> float:
+        if not self.rows:
+            return 0.0
+        total_rank_diff = sum(
+            abs(row.real_elo_rank - row.calculated_elo_rank) for row in self.rows
+        )
+        return total_rank_diff / len(self.rows)
+
     def add_row(self, row: Row):
         self.rows.append(row)
 
@@ -174,6 +184,7 @@ class Table:
 
 def print_output(table: Table):
     average_diff = table.average_diff
+    mae_of_ranks = table.mae_of_ranks
     table = table.to_dicts()
 
     for row in table:
@@ -199,10 +210,10 @@ def print_output(table: Table):
         max_widths["Diff"] = max(max_widths["Diff"], len(str(row["Diff"])))
 
     header = (
-        f"{'PlayerName':<{max_widths['PlayerName']}} | "
-        f"{'RealElo':>{max_widths['RealElo']}} | "
-        f"{'CalculatedElo':>{max_widths['CalculatedElo']}} | "
-        f"{'Diff':>{max_widths['Diff']}}"
+        f"{ 'PlayerName':<{max_widths['PlayerName']}} | "
+        f"{ 'RealElo':>{max_widths['RealElo']}} | "
+        f"{ 'CalculatedElo':>{max_widths['CalculatedElo']}} | "
+        f"{ 'Diff':>{max_widths['Diff']}}"
     )
     print(header)
     print("-" * len(header))
@@ -217,10 +228,22 @@ def print_output(table: Table):
 
     print("-" * len(header))
     print(f"Average Diff: {average_diff:.2f}")
+    print(f"MAE of Ranks: {mae_of_ranks:.2f}")
 
 
 def main() -> None:
-    players = generate_players()
+    parser = argparse.ArgumentParser(
+        description="Simulate ELO calculations based on a generated match history."
+    )
+    parser.add_argument(
+        "--seed",
+        type=int,
+        help="Random seed for player and match generation.",
+        default=RANDOM_SEED,
+    )
+    args = parser.parse_args()
+
+    players = generate_players(args.seed)
     match_history = generate_match_history(players, NUM_MATCHES)
 
     spawelo_output = run_simulation(match_history)
