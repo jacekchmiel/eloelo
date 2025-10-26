@@ -19,8 +19,8 @@ ELO_MIN = 500
 ELO_MAX = 2500
 DEFAULT_SEED = 42
 NUM_MATCHES = 100
-MAX_ITERATIONS = 300
-PROBABILITY_MUTATION_MAX = 0.1
+MAX_ITERATIONS = 100
+PROBABILITY_SIGMA = 0.1
 
 # Current assumptions:
 #  - Equal teams
@@ -46,7 +46,11 @@ def mutate_options(options: "MlEloOptions") -> "MlEloOptions":
         "even_match_target_probability",
         "pwnage_match_target_probability",
     ):
-        mutation = random.uniform(-PROBABILITY_MUTATION_MAX, PROBABILITY_MUTATION_MAX)
+
+        mean = 0
+        std_dev = PROBABILITY_SIGMA
+        mutation = random.gauss(mu=mean, sigma=std_dev)
+
         old_value = getattr(mutated, prob_field)
         new_value = max(0.5, min(1.0, old_value + mutation))
         setattr(mutated, prob_field, new_value)
@@ -99,7 +103,8 @@ def generate_match_history(players, num_matches):
         max_team_size = len(player_names) // 2
         if max_team_size < 1:
             continue  # Not enough players to form a match
-        team_size = random.randint(1, max_team_size)
+        # team_size = random.randint(1, max_team_size)
+        team_size = max_team_size
         num_match_players = team_size * 2
 
         match_players = player_names[:num_match_players]
@@ -116,18 +121,26 @@ def generate_match_history(players, num_matches):
 
         timestamp = start_time + timedelta(hours=i)
 
-        if random.random() < prob_team1_wins:
+        roll = random.random()
+
+        if roll < prob_team1_wins:
             winner_names = team1_names
             loser_names = team2_names
         else:
             winner_names = team2_names
             loser_names = team1_names
 
+        scale = "Even"
+        if roll < 0.2:
+            scale = "Advantage"
+        if prob_team1_wins < 0.05:
+            scale = "Pwnage"
+
         entry = {
             "timestamp": timestamp.isoformat(timespec="milliseconds"),
             "winner": winner_names,
             "loser": loser_names,
-            "scale": "Even",
+            "scale": scale,
             "duration": random.randint(1800, 3600),  # 30-60 minutes
         }
         history["entries"].append(entry)
@@ -382,6 +395,9 @@ def main() -> None:
         return
 
     if args.mode == "optimize":
+        # reset seed for the optimization
+        random.seed()
+
         best_options = MlEloOptions()
         best_output = calculate_elo(players, match_history, best_options)
         print("Initial output:")
@@ -391,7 +407,7 @@ def main() -> None:
             print(f"ITERATION #{i+1}")
 
             options = mutate_options(best_options)
-            print_options(best_options, newline=True)
+            print_options(options, newline=True)
 
             output = calculate_elo(players, match_history, options)
             print_output(output, newline=True)
