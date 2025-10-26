@@ -115,7 +115,7 @@ impl HeroPoolGenerator for RandomHeroPool {
     }
 }
 
-#[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Hash, Default)]
+#[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub struct HeroTag(String);
 
 impl HeroTag {

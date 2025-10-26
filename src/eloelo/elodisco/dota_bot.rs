@@ -21,7 +21,7 @@ use rand::seq::SliceRandom;
 use serde::{Deserialize, Serialize};
 use serenity::all::{Context, CreateMessage, User};
 
-#[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Hash, Serialize, Deserialize, Default)]
+#[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Hash, Serialize, Deserialize)]
 pub struct Hero(String);
 
 impl Hero {
