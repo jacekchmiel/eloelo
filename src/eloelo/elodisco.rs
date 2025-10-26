@@ -13,6 +13,7 @@ mod async_elodisco;
 pub(crate) mod bot_state;
 pub(crate) mod command_handler;
 pub(crate) mod dota_bot;
+pub(crate) mod hero_pool_generators;
 pub(crate) mod notification_bot;
 mod utils;
 

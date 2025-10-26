@@ -29,6 +29,9 @@ pub struct DotaBotState {
     /// List of allowed heroes. If not empty, randomizer will use only this pool.
     pub allowed_heroes: HashSet<Hero>,
 
+    // Number of heroes drafted for the player per roll
+    pub num_of_heroes_shown: u32,
+
     /// List of heroes offered last match.
     #[serde(default)]
     pub last_match_heroes: HashSet<Hero>,

@@ -3,6 +3,9 @@ use std::collections::{HashMap, HashSet};
 use std::fmt::Display;
 
 use crate::eloelo::config::Config;
+use crate::eloelo::elodisco::hero_pool_generators::{
+    HeroPoolGenerator, PlayerInfo, RandomHeroPool, TaggedHeroPool,
+};
 use crate::eloelo::elodisco::utils::send_direct_message;
 use crate::eloelo::message_bus::MatchStart;
 use crate::utils;
@@ -13,12 +16,12 @@ use eloelo_model::PlayerId;
 use super::bot_state::DotaBotState;
 use super::command_handler::{CommandDescription, CommandHandler};
 use anyhow::{format_err, Error, Result};
-use log::{error, info};
+use log::{debug, error, info};
 use rand::seq::SliceRandom;
 use serde::{Deserialize, Serialize};
 use serenity::all::{Context, CreateMessage, User};
 
-#[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Hash, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Hash, Serialize, Deserialize, Default)]
 pub struct Hero(String);
 
 impl Hero {
@@ -27,9 +30,9 @@ impl Hero {
     }
 
     pub fn all() -> HashSet<Hero> {
-        include_str!("dota_heroes.txt")
+        include_str!("dota_heroes.csv")
             .split("\n")
-            .map(|s| Hero(String::from(s.trim())))
+            .map(|s| Hero(String::from(s.split(',').next().unwrap().trim())))
             .collect()
     }
 
@@ -81,6 +84,7 @@ impl AsRef<Hero> for Hero {
 pub struct DotaBot {
     state: HashMap<DiscordUsername, DotaBotState>,
     heroes: HashSet<Hero>,
+    assign_algo: Box<dyn HeroPoolGenerator + Send + Sync>,
 
     pub discord_test_mode: bool,
     pub discord_test_mode_players: HashSet<PlayerId>,
@@ -91,6 +95,7 @@ impl DotaBot {
         Self {
             state,
             heroes: Hero::all(),
+            assign_algo: Box::new(RandomHeroPool::default()),
             discord_test_mode: false,
             discord_test_mode_players: Default::default(),
         }
@@ -99,6 +104,14 @@ impl DotaBot {
     pub fn configure(mut self, config: &Config) -> Self {
         self.discord_test_mode = config.test_mode;
         self.discord_test_mode_players = config.discord_test_mode_players.clone();
+        match config.hero_assign_algo {
+            crate::eloelo::config::AssignAlgo::Random => {
+                self.assign_algo = Box::new(RandomHeroPool::default())
+            }
+            crate::eloelo::config::AssignAlgo::Tags => {
+                self.assign_algo = Box::new(TaggedHeroPool::new())
+            }
+        }
         self
     }
 
@@ -131,74 +144,80 @@ impl DotaBot {
             .join(",\n")
     }
 
-    /// Assigns random heroes in a way that minimizes chances for conflicts
-    fn assign_random_heroes<'a>(
-        &self,
-        users: &'a [DiscordUsername],
-    ) -> HashMap<&'a DiscordUsername, Vec<&Hero>> {
-        let mut hero_pools: Vec<(&DiscordUsername, Vec<&Hero>)> = self.make_hero_pools(users);
-        // Sort players by pool length
-        hero_pools.sort_by_key(|v| (v.1.len(), rand::random::<i32>())); // TODO: randomize order of same-size users
-
-        // Select one hero per player, banning the selected hero along the way
-        // (Ignore when a player's pool is empty)
-        let mut taken: HashSet<&Hero> = HashSet::new();
-        let mut selections: HashMap<&DiscordUsername, Vec<&Hero>> = HashMap::new();
-        for _ in 0..3 {
-            for (user, hero_pool) in &mut hero_pools {
-                hero_pool.shuffle(&mut rand::thread_rng());
-                while let Some(hero) = hero_pool.pop() {
-                    if taken.contains(hero) {
-                        continue;
-                    }
-                    taken.insert(hero);
-                    selections.entry(user).or_default().push(hero);
-                    break;
-                }
-            }
+    fn user_hero_pool(&self, username: &DiscordUsername) -> Vec<Hero> {
+        let user_state = self.state.get(username).expect("discord user state");
+        let pool: Vec<_> = if !user_state.allowed_heroes.is_empty() {
+            user_state.allowed_heroes.iter().cloned().collect()
+        } else {
+            self.heroes
+                .difference(&user_state.banned_heroes)
+                .cloned()
+                .collect()
+        };
+        let should_avoid_duplicates = match user_state.last_match_date {
+            Some(date) => Local::now() < date + chrono::Duration::days(1),
+            None => false,
+        };
+        let has_enough_heroes_to_avoid_duplicates = pool.len() >= 3;
+        if should_avoid_duplicates
+            && has_enough_heroes_to_avoid_duplicates
+            && !user_state.duplicate_heroes_opt_out
+        {
+            pool.into_iter()
+                .filter(|h| !user_state.last_match_heroes.contains(h.as_str()))
+                .collect()
+        } else {
+            pool
         }
-        selections
     }
 
-    fn make_hero_pools<'a>(
-        &self,
-        users: &'a [DiscordUsername],
-    ) -> Vec<(&'a DiscordUsername, Vec<&Hero>)> {
-        users
+    fn make_hero_pools(&self, match_start: &MatchStart) -> Vec<(PlayerInfo, Vec<Hero>)> {
+        debug!("dota bot state: {:?}", self.state);
+        let create_player_info = |id: &PlayerId, elo: i32, is_radiant: bool| -> PlayerInfo {
+            let discord_username = match_start
+                .player_db
+                .get(id)
+                .unwrap()
+                .discord_username()
+                .unwrap();
+            debug!("{}", discord_username);
+            PlayerInfo {
+                elo,
+                number_of_heroes_shown: self
+                    .state
+                    .get(discord_username)
+                    .expect("discord user state")
+                    .num_of_heroes_shown as u32,
+                is_radiant,
+                name: discord_username.clone(),
+            }
+        };
+        match_start
+            .left_team
+            .players
+            .iter()
+            .map(|(id, elo)| create_player_info(id, *elo, true))
+            .chain(
+                match_start
+                    .right_team
+                    .players
+                    .iter()
+                    .map(|(id, elo)| create_player_info(id, *elo, false)),
+            )
             .into_iter()
             .map(|u| {
-                let user_state = self.state.get(u).expect("discord user state");
-                let pool: Vec<_> = if !user_state.allowed_heroes.is_empty() {
-                    user_state.allowed_heroes.iter().collect()
-                } else {
-                    self.heroes.difference(&user_state.banned_heroes).collect()
-                };
-                let should_avoid_duplicates = match user_state.last_match_date {
-                    Some(date) => Local::now() < date + chrono::Duration::days(1),
-                    None => false,
-                };
-                let has_enough_heroes_to_avoid_duplicates = pool.len() >= 3;
-                let pool: Vec<_> = if should_avoid_duplicates
-                    && has_enough_heroes_to_avoid_duplicates
-                    && !user_state.duplicate_heroes_opt_out
-                {
-                    pool.into_iter()
-                        .filter(|h| !user_state.last_match_heroes.contains(h.as_str()))
-                        .collect()
-                } else {
-                    pool
-                };
+                let pool = self.user_hero_pool(&u.name);
                 (u, pool)
             })
             .collect()
     }
 
     pub async fn match_start(
-        &self,
+        &mut self,
         match_start: &MatchStart,
         ctx: &Context,
         members: &HashMap<DiscordUsername, User>,
-    ) -> HashMap<DiscordUsername, Vec<&Hero>> {
+    ) -> HashMap<DiscordUsername, Vec<Hero>> {
         let players = match_start
             .left_team
             .players
@@ -210,47 +229,51 @@ impl DotaBot {
         let with_randomizer: Vec<(&PlayerId, &DiscordUsername)> = discord_users
             .filter(|u| self.state.get(u.1).map(|s| s.randomizer).unwrap_or(false))
             .collect();
-        let users: Vec<DiscordUsername> = with_randomizer
-            .iter()
-            .map(|(_, user)| *user)
-            .cloned()
-            .collect();
         let should_notify: HashSet<_> = with_randomizer
             .iter()
             .filter(|(p, _)| self.is_allowed_to_receive_notifications(p))
             .map(|(_, u)| u)
             .copied()
             .collect();
-
-        let mut hero_assignments: Vec<_> = self.assign_random_heroes(&users).into_iter().collect();
-        hero_assignments.sort_by_key(|u| u.0);
+        let hero_pools = self.make_hero_pools(&match_start);
+        self.assign_algo.clear();
+        let hero_assignments = self.assign_algo.assign_heroes(hero_pools);
 
         let hero_notifications = hero_assignments
             .iter()
-            .filter(|(user, _)| should_notify.contains(user));
-        for (username, heroes) in hero_notifications {
-            info!("Hero assignment {username}: {}", utils::join(heroes, ", "));
+            .filter(|(user, _)| should_notify.contains(&user.name));
+        for (user, heroes) in hero_notifications {
+            info!(
+                "Hero assignment {}: {}",
+                user.name,
+                utils::join(heroes, ", ")
+            );
             let heroes_message = format!(
                 "**Your random heroes for this match are**\n{}",
                 self.random_heroes_str(heroes)
             );
             // TODO: parallelize sending messages
 
-            match members.get(&username) {
+            match members.get(&user.name) {
                 Some(user) => {
                     let message = CreateMessage::new().content(heroes_message);
                     send_direct_message(ctx.clone(), user.clone(), message, "heroes").await;
                 }
                 None => error!(
                     "{} not found in guild members. This should not happen.",
-                    username
+                    user.name
                 ),
             }
         }
         hero_assignments
             .into_iter()
-            .map(|(k, v)| (k.clone(), v))
+            .map(|(k, v)| (k.name.clone(), v.into_iter().collect()))
             .collect()
+    }
+
+    pub fn reroll(&mut self, username: &DiscordUsername) -> Vec<Hero> {
+        let hero_pool = self.user_hero_pool(username);
+        self.assign_algo.reroll_user_heroes(username, hero_pool)
     }
 
     pub fn is_allowed_to_receive_notifications(&self, p: &PlayerId) -> bool {
@@ -268,6 +291,7 @@ enum DotaCommand {
     Unban(Hero),
     Allow(Hero),
     Unallow(Hero),
+    Reroll,
 }
 
 impl DotaCommand {
@@ -282,6 +306,7 @@ impl DotaCommand {
             "unban" => Some(DotaCommand::Unban(Hero::try_from_args(args)?)),
             "allow" => Some(DotaCommand::Allow(Hero::try_from_args(args)?)),
             "unallow" => Some(DotaCommand::Unallow(Hero::try_from_args(args)?)),
+            "reroll" => Some(DotaCommand::Reroll),
             _ => None,
         };
         Ok(command)
@@ -331,6 +356,10 @@ impl CommandHandler for DotaBot {
             CommandDescription {
                 keyword: "all".into(),
                 description: "List all heroes".into(),
+            },
+            CommandDescription {
+                keyword: "reroll".into(),
+                description: "Rerolls your heroes in the current game.".into(),
             },
         ];
     }
@@ -393,6 +422,17 @@ impl CommandHandler for DotaBot {
                 }
                 Some(Ok(format!("{} is now unallowed.", hero).into()))
             }
+            DotaCommand::Reroll => {
+                let new_pool = self.reroll(username);
+                if new_pool.is_empty() {
+                    Some(Ok(String::from("Can't reroll heroes.")))
+                } else {
+                    Some(Ok(format!(
+                        "**Your random heroes for this match are**\n{}",
+                        self.random_heroes_str(new_pool)
+                    )))
+                }
+            }
         }
     }
 }
@@ -408,155 +448,4 @@ fn heroes_str(heroes: &HashSet<Hero>) -> Option<String> {
         heroes.join(",\n"),
         heroes.len()
     ))
-}
-
-#[cfg(test)]
-mod tests {
-    use super::*;
-
-    const N: usize = 1_000;
-
-    fn player_j() -> DiscordUsername {
-        DiscordUsername::from("j".to_string())
-    }
-
-    fn player_bixkog() -> DiscordUsername {
-        DiscordUsername::from("bixkog".to_string())
-    }
-
-    #[test]
-    fn random_from_allowed_pool() {
-        let state = [(
-            player_j(),
-            DotaBotState {
-                randomizer: true,
-                banned_heroes: Default::default(),
-                allowed_heroes: make_heroes(&["Sniper", "Axe", "Lina"]),
-                ..DotaBotState::default()
-            },
-        )]
-        .into_iter()
-        .collect();
-        let bot = DotaBot::with_state(state);
-        let users = [player_j()];
-        for _ in 0..N {
-            let assignments = bot.assign_random_heroes(&users);
-            assert!(assignment_in(
-                assignments.get(&player_j()).unwrap(),
-                &make_heroes(&["Sniper", "Axe", "Lina"])
-            ));
-        }
-    }
-
-    #[test]
-    fn random_with_banned() {
-        let state = [(
-            player_j(),
-            DotaBotState {
-                randomizer: true,
-                banned_heroes: make_heroes(&["Sniper", "Axe", "Lina"]),
-                ..DotaBotState::default()
-            },
-        )]
-        .into_iter()
-        .collect();
-        let bot = DotaBot::with_state(state);
-        let users = [player_j()];
-        for _ in 0..N {
-            let assignments = bot.assign_random_heroes(&users);
-            assert!(!assignment_in(
-                assignments.get(&player_j()).unwrap(),
-                &make_heroes(&["Sniper", "Axe", "Lina"])
-            ));
-        }
-    }
-
-    #[test]
-    fn assignments_dont_overlap() {
-        let state = [
-            (
-                player_bixkog(),
-                DotaBotState {
-                    randomizer: true,
-                    banned_heroes: Default::default(),
-                    allowed_heroes: Default::default(),
-                    ..DotaBotState::default()
-                },
-            ),
-            (
-                player_j(),
-                DotaBotState {
-                    randomizer: true,
-                    banned_heroes: Default::default(),
-                    allowed_heroes: Default::default(),
-                    ..DotaBotState::default()
-                },
-            ),
-        ]
-        .into_iter()
-        .collect();
-        let bot = DotaBot::with_state(state);
-        let users = [player_j(), player_bixkog()];
-        for _ in 0..N {
-            let assignments = bot.assign_random_heroes(&users);
-            assert!(no_overlaps(&assignments));
-        }
-    }
-
-    #[test]
-    fn no_duplicate_assignments() {
-        let player = player_bixkog();
-        let state = [(
-            player.clone(),
-            DotaBotState {
-                randomizer: true,
-                allowed_heroes: make_heroes(&[
-                    "Anti-Mage",
-                    "Axe",
-                    "Bane",
-                    "Bloodseeker",
-                    "Crystal Maiden",
-                    "Drow Ranger",
-                ]),
-                ..DotaBotState::default()
-            },
-        )]
-        .into_iter()
-        .collect();
-        let bot = DotaBot::with_state(state);
-        let users = [player.clone()];
-        let first_assignment = bot
-            .assign_random_heroes(&users)
-            .get(&player)
-            .unwrap()
-            .clone();
-        let second_assignment = bot
-            .assign_random_heroes(&users)
-            .get(&player)
-            .unwrap()
-            .clone();
-        assert!(no_overlaps_between(&first_assignment, &second_assignment));
-    }
-
-    fn make_heroes(names: &[&str]) -> HashSet<Hero> {
-        names.into_iter().copied().map(Hero::from).collect()
-    }
-
-    fn no_overlaps(assignments: &HashMap<&DiscordUsername, Vec<&Hero>>) -> bool {
-        let total_len = assignments.values().flatten().count();
-        let unique_len = assignments.values().flatten().collect::<HashSet<_>>().len();
-        total_len == unique_len
-    }
-
-    fn no_overlaps_between(lhs: &Vec<&Hero>, rhs: &Vec<&Hero>) -> bool {
-        let total_len = lhs.len();
-        let unique_len = rhs.into_iter().collect::<HashSet<_>>().len();
-        total_len == unique_len
-    }
-
-    fn assignment_in(assignment: &[&Hero], set: &HashSet<Hero>) -> bool {
-        set.difference(&assignment.into_iter().map(|v| (*v).clone()).collect())
-            .count()
-            == 0
-    }
 }
