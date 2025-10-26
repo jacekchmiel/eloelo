@@ -1,10 +1,16 @@
 import argparse
 import dataclasses as dc
+from pathlib import Path
 import subprocess
 import random
 import json
+import tempfile
 from datetime import datetime, timedelta, timezone
 from typing import Any, Optional
+import logging
+
+log = logging.getLogger("elo_sim")
+
 
 # Constants
 NUM_PLAYERS = 10
@@ -16,6 +22,15 @@ NUM_MATCHES = 100
 # Current assumptions:
 #  - Equal teams
 #  - Skill doesn't change
+
+
+@dc.dataclass
+class MlEloOptions:
+    fake_match_max_days: int = 99999
+    max_elo_history: int = 0
+    even_match_target_probability: float = 0.75
+    advantage_match_target_probability: float = 0.85
+    pwnage_match_target_probability: float = 0.95
 
 
 def generate_players(seed: int):
@@ -80,10 +95,18 @@ def generate_match_history(players, num_matches):
     return history
 
 
-def run_simulation(match_history):
-    """Runs the simulation using the CLI command with the given history."""
-    history_json_string = json.dumps(match_history, indent=2)
-    command = ["cargo", "run", "--release", "--package", "spawelo_cli"]
+def execute_spawelo_cli(history_json_string: str, options_file: Path):
+    command = [
+        "cargo",
+        "run",
+        "--release",
+        "--package",
+        "spawelo_cli",
+        "--",
+        "--options-file",
+        str(options_file),
+    ]
+    log.debug("> %s", " ".join(command))
     try:
         result = subprocess.run(
             command,
@@ -102,6 +125,16 @@ def run_simulation(match_history):
         print(f"Error: The command '{command[0]}' was not found.")
         print("Please ensure that cargo is installed and in your PATH.")
         return None
+
+
+def run_simulation(match_history, options: Optional[MlEloOptions] = None):
+    """Runs the simulation using the CLI command with the given history and options."""
+    history_json_string = json.dumps(match_history, indent=2)
+    options = options or MlEloOptions()
+
+    with tempfile.NamedTemporaryFile(mode="w", delete=False, suffix=".json") as f:
+        json.dump(dc.asdict(options), f, indent=2)
+        return execute_spawelo_cli(history_json_string, options_file=f.name)
 
 
 @dc.dataclass
@@ -246,7 +279,9 @@ def main() -> None:
     players = generate_players(args.seed)
     match_history = generate_match_history(players, NUM_MATCHES)
 
-    spawelo_output = run_simulation(match_history)
+    # Example of using default options
+    options = MlEloOptions()
+    spawelo_output = run_simulation(match_history, options)
 
     if not spawelo_output:
         raise RuntimeError("No spawelo ouptut")
@@ -275,4 +310,5 @@ def main() -> None:
 
 
 if __name__ == "__main__":
+    logging.basicConfig(level=logging.DEBUG)
     main()
