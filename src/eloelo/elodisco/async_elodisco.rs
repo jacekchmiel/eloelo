@@ -206,7 +206,7 @@ impl EloDisco {
         info!("Sending match start message to common channel");
         // TODO: make dota a hardcoded game
         if match_start.game == GameId::from("DotA 2") {
-            let dota_bot = self.0.dota_bot.lock().await;
+            let mut dota_bot = self.0.dota_bot.lock().await;
             let hero_assignments = dota_bot.match_start(&match_start, &ctx, &members).await;
             send_start_match_message(&ctx, &channel_id, match_start.clone(), &hero_assignments)
                 .await;
@@ -410,7 +410,7 @@ async fn send_start_match_message(
     ctx: &Context,
     channel: &ChannelId,
     msg: MatchStart,
-    hero_assignments: &HashMap<DiscordUsername, Vec<&Hero>>,
+    hero_assignments: &HashMap<DiscordUsername, Vec<Hero>>,
 ) {
     let msg = CreateMessage::new()
         .content(format!("# {} Match Starting", msg.game))
@@ -485,7 +485,7 @@ impl TeamEmbedData {
     pub fn new(
         playerdb: &PlayerDb,
         team: &MatchStartTeam,
-        hero_assignments: &HashMap<DiscordUsername, Vec<&Hero>>,
+        hero_assignments: &HashMap<DiscordUsername, Vec<Hero>>,
     ) -> Self {
         let mut players: Vec<PlayerEmbedData> = Vec::new();
         for (player_id, elo) in team.players.iter() {
