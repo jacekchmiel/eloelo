@@ -32,8 +32,8 @@ pub struct Config {
     #[serde(default)]
     pub discord_test_mode_players: HashSet<PlayerId>,
 
-    #[serde(default = "default_hero_assign_algo")]
-    pub hero_assign_algo: AssignAlgo,
+    #[serde(default = "default_hero_assignement_strategy_kind")]
+    pub hero_assignment_strategy: HeroAssignmentStrategyKind,
 
     #[serde(default = "default_history_git_mirror")]
     pub history_git_mirror: PathBuf,
@@ -80,8 +80,8 @@ fn default_fosiaudio_timeout_ms() -> u64 {
     3 * 1000
 }
 
-fn default_hero_assign_algo() -> AssignAlgo {
-    AssignAlgo::Random
+fn default_hero_assignement_strategy_kind() -> HeroAssignmentStrategyKind {
+    HeroAssignmentStrategyKind::Random
 }
 
 fn default_history_git_mirror() -> PathBuf {
@@ -98,7 +98,7 @@ impl Default for Config {
             discord_bot_token: Default::default(),
             discord_server_name: Default::default(),
             discord_channel_name: Default::default(),
-            hero_assign_algo: default_hero_assign_algo(),
+            hero_assignment_strategy: default_hero_assignement_strategy_kind(),
             history_git_mirror: default_history_git_mirror(),
             dota_screenshot_dir: None,
             fosiaudio_host: default_fosiaudio_host(),
@@ -165,7 +165,7 @@ fn right_team_default() -> String {
 
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
 #[serde(rename_all = "camelCase")]
-pub enum AssignAlgo {
+pub enum HeroAssignmentStrategyKind {
     Random,
     Tags,
 }

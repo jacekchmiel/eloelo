@@ -3,8 +3,8 @@ use std::collections::{HashMap, HashSet};
 use std::fmt::Display;
 
 use crate::eloelo::config::Config;
-use crate::eloelo::elodisco::hero_pool_generators::{
-    HeroPoolGenerator, PlayerInfo, RandomHeroPool, TaggedHeroPool,
+use crate::eloelo::elodisco::hero_assignment_strategy::{
+    DotaTeam, HeroAssignmentStrategy, PlayerInfo, RandomHeroPool, TaggedHeroPool,
 };
 use crate::eloelo::elodisco::utils::send_direct_message;
 use crate::eloelo::message_bus::MatchStart;
@@ -84,7 +84,7 @@ impl AsRef<Hero> for Hero {
 pub struct DotaBot {
     state: HashMap<DiscordUsername, DotaBotState>,
     heroes: HashSet<Hero>,
-    assign_algo: Box<dyn HeroPoolGenerator + Send + Sync>,
+    hero_assign_strategy: Box<dyn HeroAssignmentStrategy + Send + Sync>,
 
     pub discord_test_mode: bool,
     pub discord_test_mode_players: HashSet<PlayerId>,
@@ -95,7 +95,7 @@ impl DotaBot {
         Self {
             state,
             heroes: Hero::all(),
-            assign_algo: Box::new(RandomHeroPool::default()),
+            hero_assign_strategy: Box::new(RandomHeroPool::default()),
             discord_test_mode: false,
             discord_test_mode_players: Default::default(),
         }
@@ -104,12 +104,12 @@ impl DotaBot {
     pub fn configure(mut self, config: &Config) -> Self {
         self.discord_test_mode = config.test_mode;
         self.discord_test_mode_players = config.discord_test_mode_players.clone();
-        match config.hero_assign_algo {
-            crate::eloelo::config::AssignAlgo::Random => {
-                self.assign_algo = Box::new(RandomHeroPool::default())
+        match config.hero_assignment_strategy {
+            crate::eloelo::config::HeroAssignmentStrategyKind::Random => {
+                self.hero_assign_strategy = Box::new(RandomHeroPool::default())
             }
-            crate::eloelo::config::AssignAlgo::Tags => {
-                self.assign_algo = Box::new(TaggedHeroPool::new())
+            crate::eloelo::config::HeroAssignmentStrategyKind::Tags => {
+                self.hero_assign_strategy = Box::new(TaggedHeroPool::new())
             }
         }
         self
@@ -173,36 +173,36 @@ impl DotaBot {
 
     fn make_hero_pools(&self, match_start: &MatchStart) -> Vec<(PlayerInfo, Vec<Hero>)> {
         debug!("dota bot state: {:?}", self.state);
-        let create_player_info = |id: &PlayerId, elo: i32, is_radiant: bool| -> PlayerInfo {
-            let discord_username = match_start
+        let create_player_info = |id: &PlayerId, elo: i32, dota_team: DotaTeam| -> PlayerInfo {
+            let discord_username: DiscordUsername = match_start
                 .player_db
                 .get(id)
                 .unwrap()
                 .discord_username()
-                .unwrap();
-            debug!("{}", discord_username);
+                .unwrap_or(&DiscordUsername::from(id.as_str()))
+                .clone();
             PlayerInfo {
                 elo,
                 number_of_heroes_shown: self
                     .state
-                    .get(discord_username)
+                    .get(&discord_username)
                     .expect("discord user state")
                     .num_of_heroes_shown as u32,
-                is_radiant,
-                name: discord_username.clone(),
+                dota_team,
+                name: discord_username,
             }
         };
         match_start
             .left_team
             .players
             .iter()
-            .map(|(id, elo)| create_player_info(id, *elo, true))
+            .map(|(id, elo)| create_player_info(id, *elo, DotaTeam::Radiant))
             .chain(
                 match_start
                     .right_team
                     .players
                     .iter()
-                    .map(|(id, elo)| create_player_info(id, *elo, false)),
+                    .map(|(id, elo)| create_player_info(id, *elo, DotaTeam::Dire)),
             )
             .into_iter()
             .map(|u| {
@@ -236,8 +236,8 @@ impl DotaBot {
             .copied()
             .collect();
         let hero_pools = self.make_hero_pools(&match_start);
-        self.assign_algo.clear();
-        let hero_assignments = self.assign_algo.assign_heroes(hero_pools);
+        self.hero_assign_strategy.clear();
+        let hero_assignments = self.hero_assign_strategy.assign_heroes(hero_pools);
 
         let hero_notifications = hero_assignments
             .iter()
@@ -271,9 +271,9 @@ impl DotaBot {
             .collect()
     }
 
-    pub fn reroll(&mut self, username: &DiscordUsername) -> Vec<Hero> {
+    pub fn reroll(&mut self, username: &DiscordUsername) -> Result<Vec<Hero>> {
         let hero_pool = self.user_hero_pool(username);
-        self.assign_algo.reroll_user_heroes(username, hero_pool)
+        self.hero_assign_strategy.reroll(username, hero_pool)
     }
 
     pub fn is_allowed_to_receive_notifications(&self, p: &PlayerId) -> bool {
@@ -422,17 +422,16 @@ impl CommandHandler for DotaBot {
                 }
                 Some(Ok(format!("{} is now unallowed.", hero).into()))
             }
-            DotaCommand::Reroll => {
-                let new_pool = self.reroll(username);
-                if new_pool.is_empty() {
-                    Some(Ok(String::from("Can't reroll heroes.")))
-                } else {
-                    Some(Ok(format!(
-                        "**Your random heroes for this match are**\n{}",
-                        self.random_heroes_str(new_pool)
-                    )))
+            DotaCommand::Reroll => Some(match self.reroll(username) {
+                Err(e) => Err(e),
+                Ok(new_pool) if new_pool.is_empty() => {
+                    Ok(String::from("Can't reroll heroes anymore."))
                 }
-            }
+                Ok(new_pool) => Ok(format!(
+                    "**Your random heroes for this match are**\n{}",
+                    self.random_heroes_str(new_pool)
+                )),
+            }),
         }
     }
 }
