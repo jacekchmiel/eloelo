@@ -3,6 +3,7 @@ from concurrent.futures import ThreadPoolExecutor
 from copy import deepcopy
 import dataclasses as dc
 from pathlib import Path
+from pprint import pprint
 import subprocess
 import random
 import json
@@ -22,7 +23,7 @@ DEFAULT_SEED = 42
 NUM_PLAYERS = 10
 ELO_MIN = 500
 ELO_MAX = 4000
-NUM_MATCHES = 50
+NUM_MATCHES = 200
 
 # Evolution algorithm options
 MAX_EPOCHS = 10
@@ -99,7 +100,8 @@ def generate_match_history(players, num_matches):
 
     start_time = datetime.now(timezone.utc)
 
-    for i in range(num_matches):
+    i = 0
+    while len(history["entries"]) < num_matches:
         random.shuffle(player_names)
 
         # Determine team size (e.g., 2v2, 3v3, 4v4, 5v5)
@@ -123,6 +125,12 @@ def generate_match_history(players, num_matches):
         # Calculate win probability for team 1 using the Elo formula
         prob_team1_wins = 1 / (1 + 10 ** ((team2_elo - team1_elo) / 400.0))
 
+        # if max(prob_team1_wins, 1 - prob_team1_wins) > 0.7:
+        #     # Vastly uneven matches will break the learning signal. With uniform
+        #     # distribution of players choice in the team, the probability for win
+        #     # usually ends up at 0.99.
+        #     continue
+
         timestamp = start_time + timedelta(hours=i)
 
         roll = random.random()
@@ -130,15 +138,21 @@ def generate_match_history(players, num_matches):
         if roll < prob_team1_wins:
             winner_names = team1_names
             loser_names = team2_names
+            prob_winner_wins = prob_team1_wins
+            winner_roll = roll
         else:
             winner_names = team2_names
             loser_names = team1_names
+            prob_winner_wins = 1.0 - prob_team1_wins
+            winner_roll = 1.0 - roll
 
         scale = "Even"
-        if roll < 0.2:
-            scale = "Advantage"
-        if prob_team1_wins < 0.05:
-            scale = "Pwnage"
+        # Only if the team has actual advantage we allow win scale larger than Even.
+        # if prob_winner_wins > 0.5:
+        #     if winner_roll < 0.2:
+        #         scale = "Advantage"
+        #     if winner_roll < 0.1:
+        #         scale = "Pwnage"
 
         entry = {
             "timestamp": timestamp.isoformat(timespec="milliseconds"),
@@ -146,20 +160,33 @@ def generate_match_history(players, num_matches):
             "loser": loser_names,
             "scale": scale,
             "duration": random.randint(1800, 3600),  # 30-60 minutes
+            "__metadata": {
+                "roll": roll,
+                "prob_winner_wins": prob_winner_wins,
+                "winner_elo": team1_elo if winner_names == team1_names else team2_elo,
+                "loser_elo": team2_elo if winner_names == team1_names else team1_elo,
+                "winner_roll": winner_roll,
+            },
         }
         history["entries"].append(entry)
+        i += 1
 
     return history
 
 
 def _execute_spawelo_cli(history_json_string: str, options_file: Path):
+    # command = [
+    #     "cargo",
+    #     "run",
+    #     "--release",
+    #     "--package",
+    #     "spawelo_cli",
+    #     "--",
+    #     "--options-file",
+    #     str(options_file),
+    # ]
     command = [
-        "cargo",
-        "run",
-        "--release",
-        "--package",
-        "spawelo_cli",
-        "--",
+        "target/release/spawelo_cli",
         "--options-file",
         str(options_file),
     ]
@@ -203,10 +230,16 @@ class Row:
     calculated_elo: int
     real_elo_rank: Optional[int] = None
     calculated_elo_rank: Optional[int] = None
+    real_elo_normalized: Optional[int] = None
+    calculated_elo_normalized: Optional[int] = None
 
     @property
     def diff(self) -> int:
         return self.calculated_elo - self.real_elo
+
+    @property
+    def diff_normalized(self) -> int:
+        return self.calculated_elo_normalized - self.real_elo_normalized
 
     @property
     def real_elo_str(self) -> str:
@@ -234,7 +267,17 @@ class Row:
             "CalculatedEloRank": self.calculated_elo_rank,
             "RealEloStr": self.real_elo_str,
             "CalculatedEloStr": self.calculated_elo_str,
+            "RealEloNormalized": self.real_elo_normalized,
+            "CalculatedEloNormalized": self.calculated_elo_normalized,
+            "DiffNormalized": self.diff_normalized,
         }
+
+
+def deltas(values: Sequence[Any]) -> list[Any]:
+    out = []
+    for i in range(1, len(values)):
+        out.append(values[i] - values[i - 1])
+    return out
 
 
 @dc.dataclass
@@ -242,14 +285,25 @@ class Table:
     rows: list["Row"] = dc.field(default_factory=list)
 
     @property
-    def total_diff(self) -> int:
-        return sum(abs(record.diff) for record in self.rows)
+    def _total_diff(self) -> int:
+        return sum(abs(row.diff) for row in self.rows)
 
     @property
     def average_diff(self) -> float:
         if not self.rows:
             return 0.0
-        return self.total_diff / len(self.rows)
+        return self._total_diff / len(self.rows)
+
+    @property
+    def mae_of_deltas(self) -> float:
+        real_deltas = deltas([-row.real_elo for row in self.rows])
+        calc_deltas = deltas([-row.calculated_elo for row in self.rows])
+        total_diff = sum(abs(r - c) for r, c in zip(real_deltas, calc_deltas))
+        return total_diff / len(real_deltas)
+
+    @property
+    def average_diff_normalized(self) -> float:
+        return sum(abs(row.diff_normalized) for row in self.rows) / len(self.rows)
 
     @property
     def mae_of_ranks(self) -> float:
@@ -273,6 +327,14 @@ class Table:
         for i, row in enumerate(self.rows):
             row.calculated_elo_rank = i + 1
 
+        # Normalize elo scores
+        min_real_elo = min(row.real_elo for row in self.rows)
+        for row in self.rows:
+            row.real_elo_normalized = row.real_elo - min_real_elo
+        min_calc_elo = min(row.calculated_elo for row in self.rows)
+        for row in self.rows:
+            row.calculated_elo_normalized = row.calculated_elo - min_calc_elo
+
     def to_dicts(self) -> list[dict[str, Any]]:
         return [row.to_dict() for row in self.rows]
 
@@ -286,6 +348,8 @@ def print_options(options: MlEloOptions, *, newline: bool = True):
 
 def print_output(table: Table, *, newline: bool = False):
     average_diff = table.average_diff
+    average_diff_normalized = table.average_diff_normalized
+    mae_of_deltas = table.mae_of_deltas
     mae_of_ranks = table.mae_of_ranks
     table = table.to_dicts()
 
@@ -300,6 +364,9 @@ def print_output(table: Table, *, newline: bool = False):
         "RealElo": len("RealElo"),
         "CalculatedElo": len("CalculatedElo"),
         "Diff": len("Diff"),
+        "RealEloNormalized": len("RealEloNormalized"),
+        "CalculatedEloNormalized": len("CalculatedEloNormalized"),
+        "DiffNormalized": len("DiffNormalized"),
     }
     for row in table:
         max_widths["PlayerName"] = max(
@@ -310,12 +377,25 @@ def print_output(table: Table, *, newline: bool = False):
             max_widths["CalculatedElo"], len(row["CalculatedEloStr"])
         )
         max_widths["Diff"] = max(max_widths["Diff"], len(str(row["Diff"])))
+        max_widths["RealEloNormalized"] = max(
+            max_widths["RealEloNormalized"], len(str(row["RealEloNormalized"]))
+        )
+        max_widths["CalculatedEloNormalized"] = max(
+            max_widths["CalculatedEloNormalized"],
+            len(str(row["CalculatedEloNormalized"])),
+        )
+        max_widths["DiffNormalized"] = max(
+            max_widths["DiffNormalized"], len(str(row["DiffNormalized"]))
+        )
 
     header = (
         f"{ 'PlayerName':<{max_widths['PlayerName']}} | "
         f"{ 'RealElo':>{max_widths['RealElo']}} | "
+        f"{ 'RealEloNormalized':>{max_widths['RealEloNormalized']}} | "
         f"{ 'CalculatedElo':>{max_widths['CalculatedElo']}} | "
-        f"{ 'Diff':>{max_widths['Diff']}}"
+        f"{ 'CalculatedEloNormalized':>{max_widths['CalculatedEloNormalized']}} | "
+        f"{ 'Diff':>{max_widths['Diff']}} | "
+        f"{ 'DiffNormalized':>{max_widths['DiffNormalized']}}"
     )
     print(header)
     print("-" * len(header))
@@ -324,12 +404,17 @@ def print_output(table: Table, *, newline: bool = False):
         print(
             f"{row['PlayerName']:<{max_widths['PlayerName']}} | "
             f"{row['RealEloStr']:>{max_widths['RealElo']}} | "
+            f"{row['RealEloNormalized']:>{max_widths['RealEloNormalized']}} | "
             f"{row['CalculatedEloStr']:>{max_widths['CalculatedElo']}} | "
-            f"{row['Diff']:>{max_widths['Diff']}}"
+            f"{row['CalculatedEloNormalized']:>{max_widths['CalculatedEloNormalized']}} | "
+            f"{row['Diff']:>{max_widths['Diff']}} | "
+            f"{row['DiffNormalized']:>{max_widths['DiffNormalized']}}"
         )
 
     print("-" * len(header))
     print(f"Average Diff: {average_diff:.2f}")
+    print(f"Average Diff Normalized: {average_diff_normalized:.2f}")
+    print(f"MAE of Deltas: {mae_of_deltas:.2f}")
     print(f"MAE of Ranks: {mae_of_ranks:.2f}")
     if newline:
         print("")
@@ -443,7 +528,7 @@ def vec_to_options(v: EvolutionOptimizer.Vec) -> MlEloOptions:
 
 
 def table_to_vec(t: Table) -> EvolutionOptimizer.Vec:
-    return (t.mae_of_ranks, t.average_diff)
+    return (t.average_diff_normalized,)
 
 
 def main() -> None:
@@ -458,9 +543,15 @@ def main() -> None:
     )
     parser.add_argument(
         "--mode",
-        choices=("optimize", "simulate"),
+        choices=("optimize", "simulate", "dump"),
         help="Simulate: run single simulation; Optimize: try to find best options for spawelo",
         default="simulate",
+    )
+    parser.add_argument(
+        "--nmatches",
+        type=int,
+        help="Number of matches to simulate.",
+        default=NUM_MATCHES,
     )
     parser.add_argument("-v", "--verbose", action="store_true", help="Verbose output.")
     args = parser.parse_args()
@@ -471,7 +562,12 @@ def main() -> None:
         logging.basicConfig(level=logging.WARN)
 
     players = generate_players(args.seed)
-    match_history = generate_match_history(players, NUM_MATCHES)
+    match_history = generate_match_history(players, args.nmatches)
+
+    if args.mode == "dump":
+        pprint(players)
+        pprint(match_history)
+        return
 
     if args.mode == "simulate":
         options = MlEloOptions()
