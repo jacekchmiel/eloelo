@@ -7,10 +7,10 @@ use log::error;
 use serde::Serialize;
 use std::collections::HashMap;
 use std::time::Duration;
-use tokio::sync::broadcast::error::RecvError;
 use tokio::sync::broadcast::{Receiver, Sender};
 use tokio_stream::wrappers::BroadcastStream;
 
+use crate::eloelo::elodisco::dota_bot::Hero;
 use crate::eloelo::options::EloEloOptions;
 
 use super::ui_state::UiState;
@@ -38,10 +38,6 @@ impl MessageBus {
 pub(crate) struct MessageBusSubscription(Receiver<Message>);
 
 impl MessageBusSubscription {
-    pub async fn recv(&mut self) -> Option<Message> {
-        Self::translate_recv(self.0.recv().await)
-    }
-
     pub fn stream(self) -> impl Stream<Item = Result<Message>> {
         BroadcastStream::new(self.0).map(|r| r.map_err(anyhow::Error::from))
     }
@@ -74,16 +70,6 @@ impl MessageBusSubscription {
                 _ => None,
             }
         })
-    }
-
-    fn translate_recv(r: Result<Message, RecvError>) -> Option<Message> {
-        match r {
-            Ok(message) => Some(message),
-            Err(RecvError::Lagged(_)) => {
-                panic!("MessageBus receiver lagged!");
-            }
-            Err(RecvError::Closed) => None,
-        }
     }
 }
 
@@ -128,6 +114,12 @@ pub struct RichMatchResult {
     pub winner_team_name: String,
     pub duration: Duration,
     pub scale: WinScale,
+}
+
+#[derive(Debug, Clone)]
+pub struct HeroesAssigned {
+    pub match_start: MatchStart,
+    pub assignments: HashMap<DiscordUsername, Vec<Hero>>,
 }
 
 #[derive(Debug, Clone, Serialize)]
@@ -177,6 +169,7 @@ impl ImageFormat {
 #[derive(Debug, Clone)]
 pub enum Event {
     MatchStart(MatchStart),
+    HeroesAssigned(HeroesAssigned),
     RichMatchResult(RichMatchResult),
     DotaScreenshotReceived(Bytes, Option<ImageFormat>),
 }

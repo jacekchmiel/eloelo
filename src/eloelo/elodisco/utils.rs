@@ -1,3 +1,4 @@
+use eloelo_model::player::DiscordUsername;
 use log::{error, info};
 use serenity::all::{CacheHttp, CreateMessage, User};
 
@@ -11,14 +12,18 @@ impl<C: CacheHttp> DirectMessenger<C> {
         Self { ctx, user }
     }
 
-    pub async fn send_dm(self, message: CreateMessage, message_log_label: &str) {
-        send_direct_message(self.ctx, self.user, message, message_log_label).await
+    pub async fn send_dm(&self, message: CreateMessage, message_log_label: &str) {
+        send_direct_message(&self.ctx, &self.user, message, message_log_label).await
+    }
+
+    pub fn username(&self) -> DiscordUsername {
+        DiscordUsername::from(self.user.name.as_str())
     }
 }
 
 pub async fn send_direct_message(
     ctx: impl CacheHttp,
-    user: User,
+    user: &User,
     message: CreateMessage,
     message_log_label: &str,
 ) {

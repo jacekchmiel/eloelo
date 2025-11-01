@@ -30,7 +30,8 @@ pub struct DotaBotState {
     pub allowed_heroes: HashSet<Hero>,
 
     // Number of heroes drafted for the player per roll
-    pub num_of_heroes_shown: u32,
+    #[serde(default = "default_num_heroes_shown")]
+    pub num_heroes_shown: u32,
 
     /// List of heroes offered last match.
     #[serde(default)]
@@ -44,4 +45,8 @@ pub struct DotaBotState {
     /// the algorithm won't try to avoid presenting same hero twice in a row.
     #[serde(default)]
     pub duplicate_heroes_opt_out: bool,
+}
+
+fn default_num_heroes_shown() -> u32 {
+    3
 }
