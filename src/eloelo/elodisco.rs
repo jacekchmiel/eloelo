@@ -30,7 +30,7 @@ async fn reroll(ctx: Context<'_>) -> Result<()> {
     let mut elodisco = ctx.data().lock().await;
     let username = DiscordUsername::from(ctx.author().name.as_str());
     let new_pool = elodisco.dota_bot_mut().reroll(&username)?;
-    ctx.send(messages::personal_reroll_message(&new_pool))
+    ctx.send(messages::ephemeral_reroll_reply(&new_pool))
         .await?;
     //TODO: make reroll visible on main channel
     Ok(())
@@ -42,7 +42,7 @@ async fn debug(ctx: Context<'_>) -> Result<()> {
     let mut elodisco = ctx.data().lock().await;
     let username = DiscordUsername::from(ctx.author().name.as_str());
     let state = elodisco.dota_bot_mut().get_user_state(&username);
-    ctx.send(messages::personal_dota_bot_state_message(&state))
+    ctx.send(messages::ephemeral_dota_bot_state_reply(&state))
         .await?;
     Ok(())
 }
@@ -53,7 +53,7 @@ async fn status(ctx: Context<'_>) -> Result<()> {
     let mut elodisco = ctx.data().lock().await;
     let username = DiscordUsername::from(ctx.author().name.as_str());
     let state = elodisco.dota_bot_mut().get_user_state(&username);
-    ctx.send(messages::personal_dota_bot_state_message(&state))
+    ctx.send(messages::ephemeral_dota_bot_state_reply(&state))
         .await?;
     Ok(())
 }
@@ -68,7 +68,7 @@ async fn show(ctx: Context<'_>) -> Result<()> {
     let mut elodisco = ctx.data().lock().await;
     let username = DiscordUsername::from(ctx.author().name.as_str());
     let state = elodisco.dota_bot_mut().get_user_state(&username);
-    ctx.send(messages::personal_dota_bot_hero_list_message(
+    ctx.send(messages::ephemeral_dota_bot_hero_list_reply(
         &state.banned_heroes,
     ))
     .await?;
@@ -81,7 +81,7 @@ async fn banlist(ctx: Context<'_>) -> Result<()> {
     let mut elodisco = ctx.data().lock().await;
     let username = DiscordUsername::from(ctx.author().name.as_str());
     let state = elodisco.dota_bot_mut().get_user_state(&username);
-    ctx.send(messages::personal_dota_bot_hero_list_message(
+    ctx.send(messages::ephemeral_dota_bot_hero_list_reply(
         &state.banned_heroes,
     ))
     .await?;
@@ -94,7 +94,7 @@ async fn allowlist(ctx: Context<'_>) -> Result<()> {
     let mut elodisco = ctx.data().lock().await;
     let username = DiscordUsername::from(ctx.author().name.as_str());
     let state = elodisco.dota_bot_mut().get_user_state(&username);
-    ctx.send(messages::personal_dota_bot_hero_list_message(
+    ctx.send(messages::ephemeral_dota_bot_hero_list_reply(
         &state.allowed_heroes,
     ))
     .await?;
@@ -107,7 +107,7 @@ async fn available(ctx: Context<'_>) -> Result<()> {
     let mut elodisco = ctx.data().lock().await;
     let username = DiscordUsername::from(ctx.author().name.as_str());
     let pool = elodisco.dota_bot_mut().user_hero_pool(&username);
-    ctx.send(messages::personal_dota_bot_hero_list_message(&pool))
+    ctx.send(messages::ephemeral_dota_bot_hero_list_reply(&pool))
         .await?;
     Ok(())
 }
@@ -127,7 +127,7 @@ async fn unavailable(ctx: Context<'_>) -> Result<()> {
         )
         .cloned()
         .collect();
-    ctx.send(messages::personal_dota_bot_hero_list_message(&unavailable))
+    ctx.send(messages::ephemeral_dota_bot_hero_list_reply(&unavailable))
         .await?;
     Ok(())
 }
@@ -135,7 +135,7 @@ async fn unavailable(ctx: Context<'_>) -> Result<()> {
 /// Displays all DotA 2 heroes
 #[poise::command(slash_command)]
 async fn all(ctx: Context<'_>) -> Result<()> {
-    ctx.send(messages::personal_dota_bot_hero_list_message(
+    ctx.send(messages::ephemeral_dota_bot_hero_list_reply(
         &Hero::all_alphabetical(),
     ))
     .await?;
@@ -152,7 +152,7 @@ async fn pool(ctx: Context<'_>) -> Result<()> {
     let mut elodisco = ctx.data().lock().await;
     let username = DiscordUsername::from(ctx.author().name.as_str());
     let state = elodisco.dota_bot_mut().get_user_state(&username);
-    ctx.send(messages::personal_dota_bot_hero_list_message(
+    ctx.send(messages::ephemeral_dota_bot_hero_list_reply(
         &state.banned_heroes,
     ))
     .await?;
@@ -173,7 +173,9 @@ async fn ban(
         let hero = Hero::try_from(hero)?;
         elodisco.dota_bot_mut().ban_hero(&username, &hero);
         elodisco.store_bot_state_if_changed().await;
-        ctx.say(format!("{} is now banned", hero)).await?;
+
+        ctx.send(messages::ephemeral_reply(format!("{} is now banned", hero)))
+            .await?;
     }
     Ok(())
 }
@@ -192,7 +194,12 @@ async fn unban(
         let hero = Hero::try_from(hero)?;
         elodisco.dota_bot_mut().unban_hero(&username, &hero);
         elodisco.store_bot_state_if_changed().await;
-        ctx.say(format!("{} is not banned anymore", hero)).await?;
+
+        ctx.send(messages::ephemeral_reply(format!(
+            "{} is not banned anymore",
+            hero
+        )))
+        .await?;
     }
     Ok(())
 }
@@ -211,7 +218,12 @@ async fn allow(
         let hero = Hero::try_from(hero)?;
         elodisco.dota_bot_mut().allow_hero(&username, &hero);
         elodisco.store_bot_state_if_changed().await;
-        ctx.say(format!("{} is now allowed", hero)).await?;
+
+        ctx.send(messages::ephemeral_reply(format!(
+            "{} is now allowed",
+            hero
+        )))
+        .await?;
     }
     Ok(())
 }
@@ -230,8 +242,11 @@ async fn unallow(
         let hero = Hero::try_from(hero)?;
         elodisco.dota_bot_mut().unallow_hero(&username, &hero);
         elodisco.store_bot_state_if_changed().await;
-        ctx.say(format!("{} is not allowed allowed anymore", hero))
-            .await?;
+        ctx.send(messages::ephemeral_reply(format!(
+            "{} is not allowed anymore",
+            hero
+        )))
+        .await?;
     }
     Ok(())
 }
@@ -326,6 +341,22 @@ async fn unallow_autocomplete<'a>(
     heroes_to_autocomplete(state.allowed_heroes.iter(), partial).into_iter()
 }
 
+/// Show this menu
+#[poise::command(prefix_command, track_edits, slash_command)]
+pub async fn help(
+    ctx: Context<'_>,
+    #[description = "Specific command to show help about"] command: Option<String>,
+) -> Result<(), Error> {
+    //     let config = poise::builtins::HelpConfiguration {
+    //         extra_text_at_bottom: "\
+    // Type ?help command for more info on a command.
+    // You can edit your message to the bot and the bot will edit its response.",
+    //         ..Default::default()
+    //     };
+    poise::builtins::help(ctx, command.as_deref(), Default::default()).await?;
+    Ok(())
+}
+
 pub async fn run(config: Config, bot_state: BotState, message_bus: MessageBus) {
     if config.test_mode {
         warn!("Discord running in test mode");
@@ -349,7 +380,7 @@ pub async fn run(config: Config, bot_state: BotState, message_bus: MessageBus) {
 
         let framework = poise::Framework::builder()
             .options(poise::FrameworkOptions {
-                commands: vec![reroll(), debug(), show(), pool()],
+                commands: vec![reroll(), debug(), show(), pool(), help()],
                 ..Default::default()
             })
             .setup(|ctx, _ready, framework| {

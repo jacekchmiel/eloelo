@@ -75,7 +75,7 @@ fn heroes_str(heroes: impl IntoIterator<Item = impl AsRef<Hero>>) -> Option<Stri
     ))
 }
 
-pub fn personal_reroll_message(new_pool: &[Hero]) -> poise::CreateReply {
+pub fn ephemeral_reroll_reply(new_pool: &[Hero]) -> poise::CreateReply {
     if new_pool.is_empty() {
         poise::CreateReply::default().content("Can't reroll heroes anymore.")
     } else {
@@ -88,16 +88,22 @@ pub fn personal_reroll_message(new_pool: &[Hero]) -> poise::CreateReply {
     }
 }
 
-pub fn personal_dota_bot_state_message(state: &DotaBotState) -> poise::CreateReply {
+pub fn ephemeral_dota_bot_state_reply(state: &DotaBotState) -> poise::CreateReply {
     poise::CreateReply::default()
         .content(format!("{state:#?}"))
         .ephemeral(true)
 }
 
-pub fn personal_dota_bot_hero_list_message<'a>(
+pub fn ephemeral_dota_bot_hero_list_reply<'a>(
     heroes: impl IntoIterator<Item = &'a Hero>,
 ) -> poise::CreateReply {
     poise::CreateReply::default()
         .content(heroes_str(heroes).unwrap_or_else(|| String::from("No heroes matching criteria.")))
+        .ephemeral(true)
+}
+
+pub fn ephemeral_reply(content: impl Into<String>) -> poise::CreateReply {
+    poise::CreateReply::default()
+        .content(content)
         .ephemeral(true)
 }

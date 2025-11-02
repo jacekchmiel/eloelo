@@ -136,7 +136,7 @@ impl EloDisco {
         &mut self.dota_bot
     }
 
-    // TODO: PORT THIS?
+    // TODO: PORT Help
     // async fn dispatch_help(&self) -> String {
     //     let mut commands = Vec::new();
     //     commands.extend(self.0.dota_bot.lock().await.supported_commands());

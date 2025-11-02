@@ -20,9 +20,6 @@ pub struct PlayerBotState {
 
 #[derive(Clone, Debug, Default, PartialEq, Serialize, Deserialize)]
 pub struct DotaBotState {
-    /// Controls whether send random hero selection on match start.
-    pub randomizer: bool,
-
     /// List of banned heroes that won't show up in randomizer.
     pub banned_heroes: HashSet<Hero>,
 
