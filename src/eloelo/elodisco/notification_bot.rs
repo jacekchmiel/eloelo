@@ -149,6 +149,16 @@ impl NotificationBot {
         let msg = serenity::CreateMessage::new().content("## Match cancelled 😩");
         send_message(&self.ctx, &self.channel.id, msg).await;
     }
+
+    pub async fn send_user_reroll(&self, username: &DiscordUsername, new_pool: &[Hero]) {
+        //TODO: use player name instead of username here
+        send_message(
+            &self.ctx,
+            &self.channel.id,
+            messages::reroll_broadcast_message(username, new_pool),
+        )
+        .await;
+    }
 }
 
 fn make_win_scale_comment(scale: WinScale) -> String {

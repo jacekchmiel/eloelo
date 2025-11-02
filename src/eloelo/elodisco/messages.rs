@@ -62,6 +62,16 @@ fn random_heroes_str(heroes: impl IntoIterator<Item = impl AsRef<Hero>>) -> Stri
     }
 }
 
+fn random_heroes_str_oneline(heroes: impl IntoIterator<Item = impl AsRef<Hero>>) -> String {
+    let mut heroes: Vec<_> = heroes.into_iter().map(|h| h.as_ref().to_string()).collect();
+    heroes.sort();
+    if heroes.is_empty() {
+        String::from("No heroes.")
+    } else {
+        heroes.join(", ")
+    }
+}
+
 fn heroes_str(heroes: impl IntoIterator<Item = impl AsRef<Hero>>) -> Option<String> {
     let mut heroes: Vec<String> = heroes.into_iter().map(|h| h.as_ref().to_string()).collect();
     heroes.sort_unstable();
@@ -106,4 +116,14 @@ pub fn ephemeral_reply(content: impl Into<String>) -> poise::CreateReply {
     poise::CreateReply::default()
         .content(content)
         .ephemeral(true)
+}
+
+pub fn reroll_broadcast_message(
+    username: &DiscordUsername,
+    new_pool: &[Hero],
+) -> serenity::CreateMessage {
+    let heroes = random_heroes_str_oneline(new_pool);
+    serenity::CreateMessage::new().content(format!(
+        "**{username}** rerolled their hero pool: **{heroes}**"
+    ))
 }

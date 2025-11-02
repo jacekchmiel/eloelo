@@ -2,6 +2,7 @@ use super::bot_state::{BotState, PlayerBotState};
 use super::dota_bot::DotaBot;
 use super::notification_bot::NotificationBot;
 use crate::eloelo::config::Config;
+use crate::eloelo::elodisco::dota_bot::Hero;
 use crate::eloelo::message_bus::{
     AvatarUrl, DiscordPlayerInfo, Message, MessageBus, UiCommand, UiUpdate,
 };
@@ -136,24 +137,13 @@ impl EloDisco {
         &mut self.dota_bot
     }
 
-    // TODO: PORT Help
-    // async fn dispatch_help(&self) -> String {
-    //     let mut commands = Vec::new();
-    //     commands.extend(self.0.dota_bot.lock().await.supported_commands());
-    //     commands.extend(self.0.notification_bot.lock().await.supported_commands());
-    //     commands
-    //         .into_iter()
-    //         .map(|c| format!(" - `/{}` {}", c.keyword, c.description))
-    //         .collect::<Vec<_>>()
-    //         .join("\n")
-    // }
-
-    // async fn respond(&self, ctx: &Context, channel_id: ChannelId, response: &str) {
-    //     let _ = channel_id
-    //         .say(&ctx.http, response)
-    //         .await
-    //         .inspect_err(print_err);
-    // }
+    pub async fn handle_user_reroll(&mut self, username: &DiscordUsername) -> Result<Vec<Hero>> {
+        let new_pool = self.dota_bot.reroll(&username)?;
+        self.notification_bot
+            .send_user_reroll(username, &new_pool)
+            .await;
+        Ok(new_pool)
+    }
 }
 
 async fn get_guild(ctx: &serenity::Context, guild_name: &str) -> Option<serenity::GuildInfo> {

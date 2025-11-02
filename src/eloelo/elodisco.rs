@@ -29,10 +29,9 @@ type Context<'a> = poise::Context<'a, SharedEloDisco, Error>;
 async fn reroll(ctx: Context<'_>) -> Result<()> {
     let mut elodisco = ctx.data().lock().await;
     let username = DiscordUsername::from(ctx.author().name.as_str());
-    let new_pool = elodisco.dota_bot_mut().reroll(&username)?;
+    let new_pool = elodisco.handle_user_reroll(&username).await?;
     ctx.send(messages::ephemeral_reroll_reply(&new_pool))
         .await?;
-    //TODO: make reroll visible on main channel
     Ok(())
 }
 
