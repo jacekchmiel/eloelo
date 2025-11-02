@@ -139,6 +139,7 @@ impl EloDisco {
 
     pub async fn handle_user_reroll(&mut self, username: &DiscordUsername) -> Result<Vec<Hero>> {
         let new_pool = self.dota_bot.reroll(&username)?;
+        self.store_bot_state_if_changed().await;
         self.notification_bot
             .send_user_reroll(username, &new_pool)
             .await;

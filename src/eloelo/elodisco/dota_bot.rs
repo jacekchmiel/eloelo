@@ -5,7 +5,7 @@ use crate::eloelo::elodisco::hero_assignment_strategy::{
 };
 use crate::eloelo::message_bus::{Event, HeroesAssigned, MatchStart, Message, MessageBus};
 use anyhow::{format_err, Error, Result};
-use chrono::Local;
+use chrono::{DateTime, Local};
 use eloelo_model::player::DiscordUsername;
 use eloelo_model::PlayerId;
 use log::{debug, info};
@@ -204,6 +204,15 @@ impl DotaBot {
     }
 
     pub fn reroll(&mut self, username: &DiscordUsername) -> Result<Vec<Hero>> {
+        let state = self.state.entry(username.clone()).or_default();
+        let now = Local::now();
+        cleanup_reroll_log(state, now);
+        if state.reroll_log.len() as u32 >= state.reroll_limit_num {
+            // FIXME: return timestamp when reroll will be available again
+            return Ok(Vec::new());
+        }
+        state.reroll_log.push(now);
+
         let hero_pool = self.user_hero_pool(username);
         debug!(
             "{} rerolled heroes. Remaining pool: {}",
@@ -258,4 +267,16 @@ impl DotaBot {
             s.banned_heroes.clear();
         };
     }
+}
+
+fn cleanup_reroll_log(state: &mut DotaBotState, now: DateTime<Local>) {
+    let irrelevancy_horizon =
+        now - chrono::Duration::minutes(state.reroll_limit_duration_minutes.into());
+    let mut old_log = Vec::new();
+    std::mem::swap(&mut old_log, &mut state.reroll_log);
+
+    state.reroll_log = old_log
+        .into_iter()
+        .filter(|t| *t > irrelevancy_horizon)
+        .collect();
 }

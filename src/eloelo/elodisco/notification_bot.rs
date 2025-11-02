@@ -151,6 +151,9 @@ impl NotificationBot {
     }
 
     pub async fn send_user_reroll(&self, username: &DiscordUsername, new_pool: &[Hero]) {
+        if new_pool.is_empty() {
+            return;
+        }
         //TODO: use player name instead of username here
         send_message(
             &self.ctx,

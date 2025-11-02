@@ -42,8 +42,28 @@ pub struct DotaBotState {
     /// the algorithm won't try to avoid presenting same hero twice in a row.
     #[serde(default)]
     pub duplicate_heroes_opt_out: bool,
+
+    /// Reroll limit x per duration. X component.
+    #[serde(default = "default_reroll_limit_x")]
+    pub reroll_limit_num: u32,
+
+    /// Reroll limit x per duration. Duration component.
+    #[serde(default = "default_reroll_limit_duration_minutes")]
+    pub reroll_limit_duration_minutes: u32,
+
+    #[serde(default)]
+    pub reroll_log: Vec<DateTime<Local>>,
 }
 
 fn default_num_heroes_shown() -> u32 {
     3
+}
+
+fn default_reroll_limit_x() -> u32 {
+    1
+}
+
+fn default_reroll_limit_duration_minutes() -> u32 {
+    // Period is per one-two games
+    80
 }
