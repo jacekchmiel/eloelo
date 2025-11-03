@@ -30,7 +30,6 @@ mod git_mirror;
 pub(crate) mod message_bus;
 pub(crate) mod ocr;
 pub mod options;
-mod silly_responder;
 pub(crate) mod store;
 mod ui_state;
 

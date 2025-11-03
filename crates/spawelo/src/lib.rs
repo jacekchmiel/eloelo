@@ -17,6 +17,7 @@ pub use options::{MlEloOptions, PityBonusOptions, SpaweloOptions};
 // Learning rate is set to very high level to make the computation faster. Learning is not really 100% finished after 1000 iterations, but it gives good results, and blazing fast with this setting
 const LEARNING_RATE: f64 = 5000.0;
 const ML_ITERATIONS: usize = 5_000;
+const WEIGHT_DECAY: f64 = 0.001;
 
 fn print_debug(
     i: usize,
@@ -44,6 +45,13 @@ pub fn ml_elo(history: &[HistoryEntry], options: &MlEloOptions) -> HashMap<Playe
         .map(|p| (p.clone(), Player::default_elo() as f64))
         .collect();
 
+    let games_per_player = history.iter().fold(HashMap::new(), |mut acc, entry| {
+        for p in entry.all_players() {
+            *acc.entry(p.clone()).or_insert(0.0f64) += 1.0f64;
+        }
+        acc
+    });
+
     if elo.is_empty() {
         return Default::default();
     }
@@ -62,6 +70,17 @@ pub fn ml_elo(history: &[HistoryEntry], options: &MlEloOptions) -> HashMap<Playe
         let derivative: HashMap<PlayerId, f64> = backpropagation(history, &elo, options);
         for (player, diff) in derivative {
             *elo.entry(player).or_default() += diff * LEARNING_RATE;
+        }
+
+        // weight decay
+        let avg_elo = if elo.len() > 0 {
+            elo_sum / (elo.len() as f64)
+        } else {
+            1000.0
+        };
+        for (player, value) in elo.iter_mut() {
+            let player_participation_factor = games_per_player.get(player).unwrap_or(&0.0f64) / (history.len() as f64);
+            *value -= (*value - avg_elo) * (WEIGHT_DECAY * player_participation_factor);
         }
     }
 

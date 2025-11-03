@@ -71,7 +71,7 @@ pub fn load_bot_state() -> Result<BotState> {
 }
 
 pub fn store_bot_state(state: &BotState) -> Result<()> {
-    debug!("Storing bot state {:?}", state);
+    debug!("Storing bot state");
     ensure_dir_created(&bot_state_file_path())?;
     store_file_with_backup(&bot_state_file_path(), state)?;
     Ok(())
