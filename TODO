@@ -3,10 +3,7 @@
 ## HIGH PRIORITY
 - [x] S Flag to disable autogrzybke
 - [x] S Display length, elo, advantage and fake on match view
-- [ ] S Add spawelo options (target percentages, use fake)
-- [ ] M Add time decay for old matches
-- [ ] M Match Scoring poll
-- [ ] S Paginate history data by date
+- [x] S Add spawelo options (target percentages, use fake)
 - [x] S Shuffle temperature
 - [x] S Calculate lose streaks only from recent matches (w/setting)
 - [x] S Ignore Fake matches for lose streaks
@@ -32,6 +29,10 @@
   - [ ] Migrate slash commands to proper implementation
   - [ ] Consider modals instead of DM
   - [ ] Consider ephemeral messages instead of DM
+  - [ ] M Match Scoring poll
+
+- [ ] M Add time decay for old matches
+- [ ] S Paginate history data by date
 
 - [ ] L Graphs Per player
   - [ ] Best teammates
