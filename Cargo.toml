@@ -37,6 +37,7 @@ futures-util = "0.3.31"
 tower-http = { version = "0.6.2", features = ["fs"] }
 bytes = "1.9.0"
 regex = "1.11.1"
+csv = "1.4.0"
 
 [profile.dev.package.spawelo]
 opt-level = 1

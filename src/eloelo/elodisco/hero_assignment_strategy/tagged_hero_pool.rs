@@ -1,11 +1,11 @@
+use core::f64;
 use std::{
     collections::{HashMap, HashSet},
-    convert::identity,
     iter::zip,
     str::FromStr,
 };
 
-use anyhow::{format_err, Error, Result};
+use anyhow::{bail, format_err, Context, Error, Result};
 use eloelo_model::player::DiscordUsername;
 use itertools::Itertools;
 use log::{info, warn};
@@ -48,12 +48,14 @@ pub struct TaggedHeroPool {
     pub tags: HashMap<HeroTag, HashSet<Hero>>,
     pub hero_assignement: HashMap<PlayerInfo, Vec<Hero>>,
     pub taken: HashSet<Hero>,
+    pub hero_similarity: HashMap<Hero, Vec<Hero>>,
 }
 
 impl TaggedHeroPool {
     pub fn new() -> Self {
         TaggedHeroPool {
             tags: Self::read_tags(),
+            hero_similarity: Self::read_hero_similarity().unwrap(),
             ..Default::default()
         }
     }
@@ -76,6 +78,44 @@ impl TaggedHeroPool {
                 }
                 m
             })
+    }
+
+    fn read_hero_similarity() -> Result<HashMap<Hero, Vec<Hero>>, Error> {
+        let csv_str = include_str!("hero_similarity_matrix.csv");
+        let mut reader = csv::Reader::from_reader(csv_str.as_bytes());
+        let mut similarity = HashMap::new();
+        let header_hero_names: Vec<Hero> = reader
+            .headers()?
+            .into_iter()
+            .skip(1) // skip "hero" column
+            .map(|s| Hero::try_from(s.to_string()))
+            .try_collect()?;
+        for (i, record) in reader.records().enumerate() {
+            let row = record?;
+            let mut row_iter = row.into_iter();
+            let hero = Hero::try_from(
+                row_iter
+                    .next()
+                    .context(format!("Row {} does not contain hero name.", i))?
+                    .to_string(),
+            )?;
+            let hero_similarities: Vec<f64> = row_iter.map(|s| s.parse::<f64>()).try_collect()?;
+            if hero_similarities.len() != header_hero_names.len() {
+                bail!("Row {} does not contain all columns.", i);
+            }
+            let sorted_heroes = header_hero_names
+                .iter()
+                .cloned()
+                .zip(hero_similarities.into_iter())
+                .sorted_by(|a, b| f64::total_cmp(&b.1, &a.1))
+                .map(|t| t.0)
+                .collect_vec();
+            if hero != sorted_heroes[0] {
+                bail!("Hero is not his own closest hero: {}.", hero);
+            }
+            similarity.insert(hero, sorted_heroes.into_iter().skip(1).collect());
+        }
+        Ok(similarity)
     }
 
     pub fn deduce_tag(&self, hero: &Hero) -> HeroTag {
@@ -105,10 +145,36 @@ impl TaggedHeroPool {
             .cloned()
             .collect();
         if heroes.len() == 0 {
-            info!("Fallback to random hero assignement.");
-            return self.assign_random_hero(hero_pool); // fallback to random hero from players pool
+            info!("Fallback to random hero assignment.");
+            return self.assign_random_hero(hero_pool);
         }
         heroes.into_iter().choose(&mut rand::thread_rng())
+    }
+
+    fn assign_similar_hero(
+        &mut self,
+        hero: &Hero,
+        hero_pool: &HashSet<Hero>,
+        tag: &HeroTag,
+    ) -> Option<Hero> {
+        if let Some(similar_heroes) = self.hero_similarity.get(hero) {
+            let mut sampled_similar_heroes = Vec::new();
+            for similar_hero in similar_heroes.iter() {
+                if hero_pool.contains(similar_hero) && !self.taken.contains(similar_hero) {
+                    sampled_similar_heroes.push(similar_hero.clone());
+                    if sampled_similar_heroes.len() == 3 {
+                        break;
+                    }
+                }
+            }
+            if !sampled_similar_heroes.is_empty() {
+                return sampled_similar_heroes
+                    .into_iter()
+                    .choose(&mut rand::thread_rng());
+            }
+        }
+        info!("Fallback to tagged hero assignment.");
+        self.assign_tagged_hero(hero_pool, tag)
     }
 
     fn players_pairing(t1_len: usize, t2_len: usize) -> Vec<usize> {
@@ -153,6 +219,7 @@ impl HeroAssignmentStrategy for TaggedHeroPool {
             .collect_vec(); // rotate Core -> Support -> Carry -> ... for balanced team composition
         for _ in 0..max_hero_shown {
             for (pair_id, pair_tag) in zip(pairing_order.iter(), pairs_tag.iter()) {
+                let mut paired_hero: Option<Hero> = None;
                 for team in [&radiant, &dire] {
                     if team.len() <= *pair_id {
                         // not even number of players per team
@@ -163,11 +230,18 @@ impl HeroAssignmentStrategy for TaggedHeroPool {
                         .hero_assignement
                         .get(player)
                         .and_then(|v| Some(v.len() == (player.number_of_heroes_shown as usize)))
-                        .is_some_and(identity)
+                        .is_some_and(|x| x == true)
                     {
                         continue;
                     }
-                    if let Some(pick) = self.assign_tagged_hero(hero_pool, pair_tag) {
+
+                    let assigned_pick = if paired_hero.is_some() {
+                        self.assign_similar_hero(&paired_hero.clone().unwrap(), hero_pool, pair_tag)
+                    } else {
+                        paired_hero = self.assign_tagged_hero(hero_pool, pair_tag);
+                        paired_hero.clone()
+                    };
+                    if let Some(pick) = assigned_pick {
                         self.hero_assignement
                             .entry(player.clone())
                             .or_default()

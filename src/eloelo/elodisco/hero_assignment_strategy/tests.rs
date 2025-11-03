@@ -210,59 +210,6 @@ mod tests {
         );
     }
 
-    #[test]
-    fn test_tags_consistent() {
-        let mut tag_assign = TaggedHeroPool::new();
-        for _ in 0..N {
-            let players = default_players(default_hero_pool());
-            tag_assign.clear();
-            let players_assignement = tag_assign.assign_heroes(players);
-            for (_, assignement) in players_assignement.iter() {
-                assert_eq!(
-                    assignement
-                        .iter()
-                        .map(|h| tag_assign.deduce_tag(h))
-                        .unique()
-                        .count(),
-                    1
-                );
-            }
-        }
-    }
-
-    #[test]
-    fn test_tags_correspondence() {
-        let mut tag_assign = TaggedHeroPool::new();
-        for _ in 0..N {
-            let players = default_players(default_hero_pool());
-            tag_assign.clear();
-            let players_assignement = tag_assign.assign_heroes(players);
-            for mut pair in players_assignement
-                .into_iter()
-                .sorted_by_key(|(p, _)| p.elo)
-                .chunks(2)
-                .into_iter()
-            {
-                let (p1, assignement1) = pair.next().unwrap();
-                let (p2, assignement2) = pair.next().unwrap();
-                assert_eq!(p1.elo, p2.elo);
-                assert_ne!(p1.dota_team, p2.dota_team);
-                assert_eq!(
-                    assignement1
-                        .iter()
-                        .map(|h| tag_assign.deduce_tag(h))
-                        .next()
-                        .unwrap(),
-                    assignement2
-                        .iter()
-                        .map(|h| tag_assign.deduce_tag(h))
-                        .next()
-                        .unwrap()
-                );
-            }
-        }
-    }
-
     fn no_overlaps_between(lhs: &Vec<Hero>, rhs: &Vec<Hero>) -> bool {
         !(lhs.iter().any(|h| rhs.contains(h)) || rhs.iter().any(|h| lhs.contains(h)))
     }
@@ -298,26 +245,6 @@ mod tests {
                 &players_assignement[&players[0].0],
                 &reroll
             ));
-            assert_eq!(
-                reroll
-                    .iter()
-                    .map(|h| tag_assign.deduce_tag(h))
-                    .unique()
-                    .count(),
-                1
-            );
-            assert_eq!(
-                players_assignement[&players[0].0]
-                    .iter()
-                    .map(|h| tag_assign.deduce_tag(h))
-                    .next()
-                    .unwrap(),
-                reroll
-                    .iter()
-                    .map(|h| tag_assign.deduce_tag(h))
-                    .next()
-                    .unwrap()
-            );
         }
     }
 }
