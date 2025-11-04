@@ -5,7 +5,7 @@ Anti-Mage,Carry
 Arc Warden,Carry
 Axe,Core  
 Bane,Support  
-Batrider,Core  
+Batrider,Support  
 Beastmaster,Core  
 Bloodseeker,Carry  
 Bounty Hunter,Core  
@@ -16,7 +16,7 @@ Centaur Warrunner,Core
 Chaos Knight,Carry  
 Chen,Support  
 Clinkz,Carry  
-Clockwerk,Core  
+Clockwerk,Support  
 Crystal Maiden,Support  
 Dark Seer,Core  
 Dark Willow,Support  
@@ -29,9 +29,9 @@ Dragon Knight,Carry
 Drow Ranger,Carry  
 Earth Spirit,Core  
 Earthshaker,Core  
-Elder Titan,Support  
+Elder Titan,Core  
 Ember Spirit,Carry  
-Enchantress,Support
+Enchantress,Core
 Enigma,Core
 Faceless Void,Carry  
 Grimstroke,Support  
@@ -45,7 +45,7 @@ Juggernaut,Carry
 Keeper of the Light,Support
 Kez,Carry
 Kunkka,Core  
-Legion Commander,Carry  
+Legion Commander,Core  
 Leshrac,Core  
 Lich,Support  
 Lifestealer,Carry  
@@ -55,7 +55,7 @@ Lone Druid,Carry
 Luna,Carry  
 Lycan,Core  
 Magnus,Core  
-Marci,Support  
+Marci,Core  
 Mars,Core  
 Medusa,Carry  
 Meepo,Carry  
