@@ -9,7 +9,10 @@ use anyhow::{bail, format_err, Context, Error, Result};
 use eloelo_model::player::DiscordUsername;
 use itertools::Itertools;
 use log::{info, warn};
-use rand::seq::{IteratorRandom, SliceRandom};
+use rand::{
+    seq::{IteratorRandom, SliceRandom},
+    thread_rng,
+};
 
 use crate::eloelo::elodisco::hero_assignment_strategy::DotaTeam;
 use crate::eloelo::elodisco::{
@@ -220,7 +223,9 @@ impl HeroAssignmentStrategy for TaggedHeroPool {
         for _ in 0..max_hero_shown {
             for (pair_id, pair_tag) in zip(pairing_order.iter(), pairs_tag.iter()) {
                 let mut paired_hero: Option<Hero> = None;
-                for team in [&radiant, &dire] {
+                let mut teams = [&radiant, &dire];
+                teams.shuffle(&mut thread_rng());
+                for team in teams {
                     if team.len() <= *pair_id {
                         // not even number of players per team
                         continue;
@@ -235,8 +240,8 @@ impl HeroAssignmentStrategy for TaggedHeroPool {
                         continue;
                     }
 
-                    let assigned_pick = if paired_hero.is_some() {
-                        self.assign_similar_hero(&paired_hero.clone().unwrap(), hero_pool, pair_tag)
+                    let assigned_pick = if let Some(hero) = paired_hero.clone() {
+                        self.assign_similar_hero(&hero, hero_pool, pair_tag)
                     } else {
                         paired_hero = self.assign_tagged_hero(hero_pool, pair_tag);
                         paired_hero.clone()

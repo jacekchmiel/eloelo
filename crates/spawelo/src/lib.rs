@@ -79,7 +79,8 @@ pub fn ml_elo(history: &[HistoryEntry], options: &MlEloOptions) -> HashMap<Playe
             1000.0
         };
         for (player, value) in elo.iter_mut() {
-            let player_participation_factor = games_per_player.get(player).unwrap_or(&0.0f64) / (history.len() as f64);
+            let player_participation_factor =
+                games_per_player.get(player).unwrap_or(&0.0f64) / (history.len() as f64);
             *value -= (*value - avg_elo) * (WEIGHT_DECAY * player_participation_factor);
         }
     }
