@@ -166,7 +166,10 @@ impl TaggedHeroPool {
         };
         let mut sampled_similar_heroes = Vec::new();
         for similar_hero in similar_heroes.iter() {
-            if hero_pool.contains(similar_hero) && !self.taken.contains(similar_hero) && self.tags[tag].contains(similar_hero) {
+            if hero_pool.contains(similar_hero)
+                && !self.taken.contains(similar_hero)
+                && self.tags[tag].contains(similar_hero)
+            {
                 sampled_similar_heroes.push(similar_hero.clone());
                 if sampled_similar_heroes.len() == 3 {
                     break;
