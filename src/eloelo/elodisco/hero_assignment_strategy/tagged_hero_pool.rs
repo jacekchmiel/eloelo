@@ -160,24 +160,25 @@ impl TaggedHeroPool {
         hero_pool: &HashSet<Hero>,
         tag: &HeroTag,
     ) -> Option<Hero> {
-        if let Some(similar_heroes) = self.hero_similarity.get(hero) {
-            let mut sampled_similar_heroes = Vec::new();
-            for similar_hero in similar_heroes.iter() {
-                if hero_pool.contains(similar_hero) && !self.taken.contains(similar_hero) {
-                    sampled_similar_heroes.push(similar_hero.clone());
-                    if sampled_similar_heroes.len() == 3 {
-                        break;
-                    }
+        let Some(similar_heroes) = self.hero_similarity.get(hero) else {
+            warn!("Hero is missing from similarity matrix. Fallback to tagged hero assignment.");
+            return self.assign_tagged_hero(hero_pool, tag);
+        };
+        let mut sampled_similar_heroes = Vec::new();
+        for similar_hero in similar_heroes.iter() {
+            if hero_pool.contains(similar_hero) && !self.taken.contains(similar_hero) && self.tags[tag].contains(similar_hero) {
+                sampled_similar_heroes.push(similar_hero.clone());
+                if sampled_similar_heroes.len() == 3 {
+                    break;
                 }
             }
-            if !sampled_similar_heroes.is_empty() {
-                return sampled_similar_heroes
-                    .into_iter()
-                    .choose(&mut rand::thread_rng());
-            }
         }
-        info!("Fallback to tagged hero assignment.");
-        self.assign_tagged_hero(hero_pool, tag)
+        if !sampled_similar_heroes.is_empty() {
+            return sampled_similar_heroes
+                .into_iter()
+                .choose(&mut rand::thread_rng());
+        }
+        None
     }
 
     fn players_pairing(t1_len: usize, t2_len: usize) -> Vec<usize> {
@@ -240,11 +241,12 @@ impl HeroAssignmentStrategy for TaggedHeroPool {
                         continue;
                     }
 
-                    let assigned_pick = if let Some(hero) = paired_hero.clone() {
-                        self.assign_similar_hero(&hero, hero_pool, pair_tag)
-                    } else {
-                        paired_hero = self.assign_tagged_hero(hero_pool, pair_tag);
-                        paired_hero.clone()
+                    let assigned_pick = match paired_hero.clone() {
+                        Some(hero) => self.assign_similar_hero(&hero, hero_pool, pair_tag),
+                        None => {
+                            paired_hero = self.assign_tagged_hero(hero_pool, pair_tag);
+                            paired_hero.clone()
+                        }
                     };
                     if let Some(pick) = assigned_pick {
                         self.hero_assignement
@@ -252,6 +254,8 @@ impl HeroAssignmentStrategy for TaggedHeroPool {
                             .or_default()
                             .push(pick.clone());
                         self.taken.insert(pick);
+                    } else {
+                        info!("Unable to assign hero to player: {}", player.name);
                     }
                 }
             }
