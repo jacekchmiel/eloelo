@@ -2,7 +2,7 @@ use super::bot_state::{BotState, PlayerBotState};
 use super::dota_bot::DotaBot;
 use super::notification_bot::NotificationBot;
 use crate::eloelo::config::Config;
-use crate::eloelo::elodisco::dota_bot::Hero;
+use crate::eloelo::elodisco::dota_bot::RerollResult;
 use crate::eloelo::message_bus::{
     AvatarUrl, DiscordPlayerInfo, Message, MessageBus, UiCommand, UiUpdate,
 };
@@ -137,13 +137,13 @@ impl EloDisco {
         &mut self.dota_bot
     }
 
-    pub async fn handle_user_reroll(&mut self, username: &DiscordUsername) -> Result<Vec<Hero>> {
-        let new_pool = self.dota_bot.reroll(&username)?;
+    pub async fn handle_user_reroll(&mut self, username: &DiscordUsername) -> Result<RerollResult> {
+        let reroll_result = self.dota_bot.reroll(&username)?;
         self.store_bot_state_if_changed().await;
         self.notification_bot
-            .send_user_reroll(username, &new_pool)
+            .send_user_reroll(username, &reroll_result)
             .await;
-        Ok(new_pool)
+        Ok(reroll_result)
     }
 }
 

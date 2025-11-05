@@ -1,7 +1,7 @@
 use std::collections::HashMap;
 
 use crate::eloelo::elodisco::bot_state::DotaBotState;
-use crate::eloelo::elodisco::dota_bot::Hero;
+use crate::eloelo::elodisco::dota_bot::{Hero, RerollResult};
 use crate::eloelo::message_bus::MatchStart;
 use crate::utils;
 use eloelo_model::player::DiscordUsername;
@@ -85,17 +85,21 @@ fn heroes_str(heroes: impl IntoIterator<Item = impl AsRef<Hero>>) -> Option<Stri
     ))
 }
 
-pub fn ephemeral_reroll_reply(new_pool: &[Hero]) -> poise::CreateReply {
-    if new_pool.is_empty() {
-        poise::CreateReply::default().content("Can't reroll heroes anymore.")
-    } else {
-        poise::CreateReply::default()
-            .content(format!(
-                "**Your random heroes for this match are**\n{}",
-                random_heroes_str(new_pool)
-            ))
-            .ephemeral(true)
+pub fn ephemeral_reroll_reply(reroll: &RerollResult) -> poise::CreateReply {
+    match reroll {
+        RerollResult::NewPool(new_pool) if new_pool.is_empty() => {
+            poise::CreateReply::default().content("Sorry bud. No more heroes in the pool.")
+        }
+        RerollResult::NewPool(new_pool) => poise::CreateReply::default().content(format!(
+            "**Your random heroes for this match are**\n{}",
+            random_heroes_str(new_pool)
+        )),
+        RerollResult::NoRerollUntil(timestamp) => poise::CreateReply::default().content(format!(
+            "Sorry bud. Reroll limit exhausted. You can reroll again at {}",
+            timestamp.format("%Y-%m-%d %H:%M:%S")
+        )),
     }
+    .ephemeral(true)
 }
 
 pub fn ephemeral_dota_bot_state_reply(state: &DotaBotState) -> poise::CreateReply {

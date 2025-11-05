@@ -1,7 +1,7 @@
 # TODO
 
 ## HIGH PRIORITY
-- [ ] S Reroll limits - x per duration
+- [x] S Reroll limits - x per duration
 - [x] S Flag to disable autogrzybke
 - [x] S Display length, elo, advantage and fake on match view
 - [x] S Add spawelo options (target percentages, use fake)

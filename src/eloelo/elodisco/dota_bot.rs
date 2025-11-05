@@ -76,6 +76,11 @@ impl AsRef<Hero> for Hero {
     }
 }
 
+pub enum RerollResult {
+    NewPool(Vec<Hero>),
+    NoRerollUntil(DateTime<Local>),
+}
+
 pub struct DotaBot {
     state: HashMap<DiscordUsername, DotaBotState>,
     heroes: HashSet<Hero>,
@@ -203,13 +208,12 @@ impl DotaBot {
             .collect()
     }
 
-    pub fn reroll(&mut self, username: &DiscordUsername) -> Result<Vec<Hero>> {
+    pub fn reroll(&mut self, username: &DiscordUsername) -> Result<RerollResult> {
         let state = self.state.entry(username.clone()).or_default();
         let now = Local::now();
         cleanup_reroll_log(state, now);
         if state.reroll_log.len() as u32 >= state.reroll_limit_num {
-            // FIXME: return timestamp when reroll will be available again
-            return Ok(Vec::new());
+            return Ok(RerollResult::NoRerollUntil(next_reroll_at(state, now)));
         }
         state.reroll_log.push(now);
 
@@ -219,7 +223,9 @@ impl DotaBot {
             username,
             hero_pool.join(", ")
         );
-        self.hero_assign_strategy.reroll(username, hero_pool)
+        Ok(RerollResult::NewPool(
+            self.hero_assign_strategy.reroll(username, hero_pool)?,
+        ))
     }
 
     pub async fn get_state(&self) -> HashMap<DiscordUsername, DotaBotState> {
@@ -279,4 +285,11 @@ fn cleanup_reroll_log(state: &mut DotaBotState, now: DateTime<Local>) {
         .into_iter()
         .filter(|t| *t > irrelevancy_horizon)
         .collect();
+}
+
+fn next_reroll_at(state: &mut DotaBotState, now: DateTime<Local>) -> DateTime<Local> {
+    match state.reroll_log.first() {
+        Some(ts) => *ts + chrono::Duration::minutes(state.reroll_limit_duration_minutes as i64),
+        None => now,
+    }
 }
