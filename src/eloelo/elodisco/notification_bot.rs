@@ -6,7 +6,7 @@ use itertools::join;
 use log::{error, info};
 
 use crate::eloelo::config::Config;
-use crate::eloelo::elodisco::dota_bot::Hero;
+use crate::eloelo::elodisco::dota_bot::{Hero, RerollResult};
 use crate::eloelo::elodisco::messages;
 use crate::eloelo::elodisco::utils::DirectMessenger;
 use crate::eloelo::message_bus::{
@@ -150,14 +150,21 @@ impl NotificationBot {
         send_message(&self.ctx, &self.channel.id, msg).await;
     }
 
-    pub async fn send_user_reroll(&self, username: &DiscordUsername, new_pool: &[Hero]) {
-        //TODO: use player name instead of username here
-        send_message(
-            &self.ctx,
-            &self.channel.id,
-            messages::reroll_broadcast_message(username, new_pool),
-        )
-        .await;
+    pub async fn send_user_reroll(&self, username: &DiscordUsername, reroll: &RerollResult) {
+        match reroll {
+            RerollResult::NewPool(new_pool) if !new_pool.is_empty() =>
+            //TODO: use player name instead of username here
+            {
+                send_message(
+                    &self.ctx,
+                    &self.channel.id,
+                    messages::reroll_broadcast_message(username, new_pool),
+                )
+                .await
+            }
+            RerollResult::NewPool(_) => {}
+            RerollResult::NoRerollUntil(_) => {}
+        }
     }
 }
 
