@@ -9,3 +9,5 @@ TARGET_FILE="$PROJECT_ROOT"/ui/dist/dota-agent.zip
 
 rm -f "$TARGET_FILE"
 zip "$TARGET_FILE" * .python-version
+echo Dota Agent deployed to "$TARGET_FILE"
+
