@@ -1,6 +1,8 @@
 # TODO
 
 ## HIGH PRIORITY
+- [ ] M Role roll fairness. Avoid two games in a row in the same role for a player.
+- [ ] M Global hero ban rules by percentile. E.g. Ban phantom lancer for players with ELO above median.
 - [x] S Reroll limits - x per duration
 - [x] S Flag to disable autogrzybke
 - [x] S Display length, elo, advantage and fake on match view
