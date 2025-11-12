@@ -128,11 +128,19 @@ impl DotaBot {
 
     pub fn user_hero_pool(&self, username: &DiscordUsername) -> Vec<Hero> {
         let user_state = self.state.get(username).expect("discord user state");
+        // TODO: move global banlist to config
+        let banned: HashSet<Hero> = [Hero::try_from(String::from("Phantom Lancer")).unwrap(), Hero::try_from(String::from("Medusa")).unwrap()].into_iter().collect();
         let pool: Vec<_> = if !user_state.allowed_heroes.is_empty() {
-            user_state.allowed_heroes.iter().cloned().collect()
+            user_state.allowed_heroes.iter().cloned()
+                .collect::<HashSet<_>>()
+                .difference(&banned)
+                .cloned()
+                .collect()
         } else {
             self.heroes
-                .difference(&user_state.banned_heroes)
+                .difference(&user_state.banned_heroes).cloned()
+                .collect::<HashSet<_>>()
+                .difference(&banned)
                 .cloned()
                 .collect()
         };

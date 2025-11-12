@@ -270,7 +270,7 @@ fn apply_pity_bonus(
     let mut add_mod = 0;
     if options.pity_bonus.additive {
         add_mod = pity_loses * options.pity_bonus.additive_amount;
-        team_elo = team_elo + pity_loses * options.pity_bonus.additive_amount;
+        team_elo = team_elo - pity_loses * options.pity_bonus.additive_amount;
     }
     // let new_elo = team_elo as f32 * pity_bonus_factor;
     (mul_mod, add_mod, team_elo)
