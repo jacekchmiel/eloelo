@@ -1,6 +1,9 @@
 # TODO
 
 ## HIGH PRIORITY
+- [ ] S Fix adding new player issue - not working right now.
+- [ ] S Global hero bans to config
+- [ ] S Display test mode in UI
 - [ ] M Role roll fairness. Avoid two games in a row in the same role for a player.
 - [ ] M Global hero ban rules by percentile. E.g. Ban phantom lancer for players with ELO above median.
 - [x] S Reroll limits - x per duration
@@ -34,7 +37,7 @@
   - [ ] Consider ephemeral messages instead of DM
   - [ ] M Match Scoring poll
 
-- [ ] M Add time decay for old matches
+- [x] M Add time decay for old matches
 - [ ] S Paginate history data by date
 
 - [ ] L Graphs Per player
