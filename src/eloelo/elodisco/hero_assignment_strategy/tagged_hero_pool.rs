@@ -10,8 +10,7 @@ use eloelo_model::player::DiscordUsername;
 use itertools::Itertools;
 use log::{info, warn};
 use rand::{
-    seq::{IteratorRandom, SliceRandom},
-    thread_rng,
+    Rng, seq::{IteratorRandom, SliceRandom}, thread_rng
 };
 
 use crate::eloelo::elodisco::hero_assignment_strategy::DotaTeam;
@@ -60,6 +59,14 @@ impl TaggedHeroPool {
             tags: Self::read_tags(),
             hero_similarity: Self::read_hero_similarity().unwrap(),
             ..Default::default()
+        }
+    }
+
+    fn random_tag() -> HeroTag {
+        match thread_rng().gen_range(0..3) {
+            0 => HeroTag::Carry,
+            1 => HeroTag::Core,
+            _ => HeroTag::Support,
         }
     }
 
@@ -221,9 +228,15 @@ impl HeroAssignmentStrategy for TaggedHeroPool {
             .max()
             .unwrap_or(3);
         let pairing_order = Self::players_pairing(radiant.len(), dire.len());
-        let pairs_tag = (0..pairing_order.len())
+        let mut pairs_tag = (0..pairing_order.len())
             .map(HeroTag::next_tag)
             .collect_vec(); // rotate Core -> Support -> Carry -> ... for balanced team composition
+
+        if radiant.len() != dire.len() {
+            // To prevent that last player is always carry, assign random tag to the unpaired players
+            pairs_tag.last_mut().map(|t| *t = Self::random_tag()); // assign random tag to unpaired players
+        }
+
         for _ in 0..max_hero_shown {
             for (pair_id, pair_tag) in zip(pairing_order.iter(), pairs_tag.iter()) {
                 let mut paired_hero: Option<Hero> = None;
