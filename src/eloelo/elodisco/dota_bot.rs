@@ -20,8 +20,8 @@ pub struct Hero(String);
 impl Hero {
     pub fn all() -> HashSet<Hero> {
         include_str!("dota_heroes.csv")
-            .split("\n")
-            .map(|s| Hero(String::from(s.split(',').next().unwrap().trim())))
+            .lines()
+            .map(|s| Hero(String::from(s.trim().split(',').next().unwrap().trim())))
             .collect()
     }
 

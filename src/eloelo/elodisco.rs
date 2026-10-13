@@ -9,7 +9,7 @@ use eloelo_model::player::DiscordUsername;
 use futures_util::lock::Mutex;
 use futures_util::StreamExt as _;
 use itertools::Itertools;
-use log::{info, warn};
+use log::{info, warn, debug};
 use poise::serenity_prelude as serenity;
 use std::sync::Arc;
 
@@ -295,7 +295,9 @@ fn heroes_to_autocomplete<'a>(
     heroes.sort();
     heroes
         .into_iter()
+        .inspect(|h| debug!("Autocomplete: {}", h.as_str()))
         .map(|h| serenity::AutocompleteChoice::new(h.as_str(), h.as_str()))
+        .take(100)
         .collect()
 }
 
