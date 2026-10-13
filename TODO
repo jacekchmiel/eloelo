@@ -1,7 +1,7 @@
 # TODO
 
 ## HIGH PRIORITY
-- [ ] S Fix adding new player issue - not working right now.
+- [x] S Fix adding new player issue - not working right now.
 - [ ] S Global hero bans to config
 - [ ] S Display test mode in UI
 - [ ] M Role roll fairness. Avoid two games in a row in the same role for a player.
@@ -31,8 +31,8 @@
 
 ## LOW PRIORITY
 
-- [ ] L Switch to poise - higher level framework for discord
-  - [ ] Migrate slash commands to proper implementation
+- [x] L Switch to poise - higher level framework for discord
+  - [x] Migrate slash commands to proper implementation
   - [ ] Consider modals instead of DM
   - [ ] Consider ephemeral messages instead of DM
   - [ ] M Match Scoring poll
