@@ -72,10 +72,11 @@ impl TaggedHeroPool {
 
     fn read_tags() -> HashMap<HeroTag, HashSet<Hero>> {
         include_str!("../dota_heroes.csv")
-            .split("\n")
-            .map(|s| {
-                let raw: Vec<&str> = s.split(",").map(|s| s.trim()).collect();
-                (raw[0].to_string(), raw[1].to_string())
+            .lines()
+            .filter(|s| !s.trim().is_empty())
+            .filter_map(|s| {
+                let (hero_name, tag_name) = s.split_once(',')?;
+                Some((hero_name.trim().to_string(), tag_name.trim().to_string()))
             })
             .fold(HashMap::new(), |mut m, (hero_name, tag_name)| {
                 if let Some(hero) = Hero::try_from(hero_name).ok() {
