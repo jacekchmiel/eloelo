@@ -86,6 +86,7 @@ pub struct DotaBot {
     heroes: HashSet<Hero>,
     hero_assign_strategy: Box<dyn HeroAssignmentStrategy + Send + Sync>,
     message_bus: MessageBus,
+    global_banned_heroes: HashSet<Hero>,
 }
 
 impl DotaBot {
@@ -94,6 +95,10 @@ impl DotaBot {
         message_bus: MessageBus,
         config: &Config,
     ) -> Self {
+        if !config.global_banned_heroes.is_empty() {
+            let banned_list: Vec<_> = config.global_banned_heroes.iter().map(|h| h.as_str()).collect();
+            info!("Globally banned heroes: {}", banned_list.join(", "));
+        }
         DotaBot {
             state,
             message_bus,
@@ -109,6 +114,7 @@ impl DotaBot {
                     Box::new(TaggedHeroPool::new())
                 }
             },
+            global_banned_heroes: config.global_banned_heroes.clone(),
         }
     }
 
@@ -128,19 +134,17 @@ impl DotaBot {
 
     pub fn user_hero_pool(&self, username: &DiscordUsername) -> Vec<Hero> {
         let user_state = self.get_user_state(username);
-        // TODO: move global banlist to config
-        let banned: HashSet<Hero> = [Hero::try_from(String::from("Phantom Lancer")).unwrap(), Hero::try_from(String::from("Medusa")).unwrap()].into_iter().collect();
+        let banned = &self.global_banned_heroes;
         let pool: Vec<_> = if !user_state.allowed_heroes.is_empty() {
-            user_state.allowed_heroes.iter().cloned()
-                .collect::<HashSet<_>>()
-                .difference(&banned)
+            user_state.allowed_heroes
+                .difference(banned)
                 .cloned()
                 .collect()
         } else {
             self.heroes
                 .difference(&user_state.banned_heroes).cloned()
                 .collect::<HashSet<_>>()
-                .difference(&banned)
+                .difference(banned)
                 .cloned()
                 .collect()
         };
@@ -299,3 +303,82 @@ fn next_reroll_at(state: &mut DotaBotState, now: DateTime<Local>) -> DateTime<Lo
         None => now,
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_global_banned_heroes_excluded_from_pool() {
+        let mut config = Config::default();
+        config.global_banned_heroes =
+            [Hero::from("Phantom Lancer"), Hero::from("Medusa")].into_iter().collect();
+        let message_bus = MessageBus::new();
+        let bot = DotaBot::new(HashMap::new(), message_bus, &config);
+        let user = DiscordUsername::from("test_user");
+        let pool = bot.user_hero_pool(&user);
+        assert!(!pool.contains(&Hero::from("Phantom Lancer")));
+        assert!(!pool.contains(&Hero::from("Medusa")));
+    }
+
+    #[test]
+    fn test_global_banned_heroes_with_user_allowlist() {
+        let mut config = Config::default();
+        config.global_banned_heroes =
+            [Hero::from("Phantom Lancer"), Hero::from("Medusa")].into_iter().collect();
+        let message_bus = MessageBus::new();
+        let user = DiscordUsername::from("test_user");
+
+        let mut user_state = DotaBotState::default();
+        // User allowlist includes a globally banned hero ("Phantom Lancer") and other heroes
+        user_state.allowed_heroes = [
+            Hero::from("Phantom Lancer"),
+            Hero::from("Axe"),
+            Hero::from("Lion"),
+        ]
+        .into_iter()
+        .collect();
+
+        let mut state = HashMap::new();
+        state.insert(user.clone(), user_state);
+
+        let bot = DotaBot::new(state, message_bus, &config);
+        let pool = bot.user_hero_pool(&user);
+
+        // Global ban takes precedence over user allowlist
+        assert!(!pool.contains(&Hero::from("Phantom Lancer")));
+        // Remaining allowed heroes are present
+        assert!(pool.contains(&Hero::from("Axe")));
+        assert!(pool.contains(&Hero::from("Lion")));
+        assert_eq!(pool.len(), 2);
+    }
+
+    #[test]
+    fn test_global_banned_heroes_with_user_banlist() {
+        let mut config = Config::default();
+        config.global_banned_heroes =
+            [Hero::from("Phantom Lancer"), Hero::from("Medusa")].into_iter().collect();
+        let message_bus = MessageBus::new();
+        let user = DiscordUsername::from("test_user");
+
+        let mut user_state = DotaBotState::default();
+        // User bans Axe
+        user_state.banned_heroes = [Hero::from("Axe")].into_iter().collect();
+
+        let mut state = HashMap::new();
+        state.insert(user.clone(), user_state);
+
+        let bot = DotaBot::new(state, message_bus, &config);
+        let pool = bot.user_hero_pool(&user);
+
+        // Both globally banned heroes and user-banned heroes are excluded
+        assert!(!pool.contains(&Hero::from("Phantom Lancer")));
+        assert!(!pool.contains(&Hero::from("Medusa")));
+        assert!(!pool.contains(&Hero::from("Axe")));
+
+        // Non-banned heroes are present in pool
+        assert!(pool.contains(&Hero::from("Lion")));
+        assert_eq!(pool.len(), Hero::all().len() - 3);
+    }
+}
+

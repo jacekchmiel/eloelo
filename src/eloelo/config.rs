@@ -5,6 +5,7 @@ use eloelo_model::{GameId, PlayerId, Team};
 use serde::{Deserialize, Serialize};
 
 use super::store;
+use crate::eloelo::elodisco::dota_bot::Hero;
 
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
 #[serde(rename_all = "camelCase")]
@@ -34,6 +35,9 @@ pub struct Config {
 
     #[serde(default = "default_hero_assignement_strategy_kind")]
     pub hero_assignment_strategy: HeroAssignmentStrategyKind,
+
+    #[serde(default, alias = "bannedHeroes", alias = "global_banned_heroes", alias = "banned_heroes")]
+    pub global_banned_heroes: HashSet<Hero>,
 
     #[serde(default = "default_history_git_mirror")]
     pub history_git_mirror: PathBuf,
@@ -110,6 +114,7 @@ impl Default for Config {
             test_mode: true,
             discord_test_mode_players: Default::default(),
             discord_test_channel_name: Default::default(),
+            global_banned_heroes: Default::default(),
         }
     }
 }
