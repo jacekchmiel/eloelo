@@ -30,7 +30,7 @@ function GameSelector({
   disabled: boolean;
 }) {
   const handleChange = async (event: SelectChangeEvent<string>) => {
-    await invoke("change_game", { name: event.target.value });
+    await invoke("change_game", { id: event.target.value });
   };
 
   return (

@@ -9,9 +9,9 @@ export const invoke = async (command: string, args: object) => {
     body: JSON.stringify(args),
     headers: new Headers({ "Content-Type": "application/json; charset=utf-8" }),
   });
-  const body = await response.json();
   if (!response.ok) {
     const status = response.status;
+    const body = await response.text();
     console.error({ status, body });
   }
 };

@@ -53,8 +53,9 @@ async fn initialize_ui(State(state): AppStateArg) -> impl IntoResponse {
 }
 
 #[derive(Debug, Deserialize)]
+#[serde(rename_all = "camelCase")]
 struct AddNewPlayer {
-    name: String,
+    id: String,
     discord_username: Option<DiscordUsername>,
 }
 async fn add_new_player(
@@ -65,7 +66,7 @@ async fn add_new_player(
     let _ = state
         .message_bus
         .send(Message::UiCommand(UiCommand::AddNewPlayer(
-            Player::with_opt_discord_username(PlayerId::from(body.name), body.discord_username),
+            Player::with_opt_discord_username(PlayerId::from(body.id), body.discord_username),
         )));
     EmptyResponse
 }
