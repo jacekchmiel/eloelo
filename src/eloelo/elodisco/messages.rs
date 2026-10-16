@@ -47,9 +47,34 @@ pub fn personal_hero_assignment_message(
     );
     let heroes_message = format!(
         "**Your random heroes for this match are**\n{}",
-        random_heroes_str(heroes)
+        random_heroes_str_with_links(heroes)
     );
-    serenity::CreateMessage::new().content(heroes_message)
+    serenity::CreateMessage::new()
+        .content(heroes_message)
+        // .flags(serenity::MessageFlags::SUPPRESS_EMBEDS)
+}
+
+fn random_heroes_str_with_links(heroes: impl IntoIterator<Item = impl AsRef<Hero>>) -> String {
+    let mut heroes: Vec<_> = heroes.into_iter().map(|h| h.as_ref().to_string()).collect();
+    heroes.sort();
+    if heroes.is_empty() {
+        String::from("No heroes.")
+    } else {
+        let links: Vec<_> = heroes.iter().map(|h| hero_build_link(h)).collect();
+        links.join(",\n")
+    }
+}
+
+/// Markdown masked link to the hero's dota2protracker builds page. URL is wrapped in `<>` to
+/// suppress the link preview.
+fn hero_build_link(hero: &str) -> String {
+    let encoded = hero
+        .replace('%', "%25")
+        .replace(' ', "%20")
+        .replace('\'', "%27")
+        .replace('(', "%28")
+        .replace(')', "%29");
+    format!("[{hero}](<https://dota2protracker.com/hero/{encoded}?section=builds>)")
 }
 
 fn random_heroes_str(heroes: impl IntoIterator<Item = impl AsRef<Hero>>) -> String {
@@ -130,4 +155,21 @@ pub fn reroll_broadcast_message(
     serenity::CreateMessage::new().content(format!(
         "**{username}** rerolled their hero pool: **{heroes}**"
     ))
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn hero_build_link_encodes_name() {
+        assert_eq!(
+            hero_build_link("Drow Ranger"),
+            "[Drow Ranger](<https://dota2protracker.com/hero/Drow%20Ranger?section=builds>)"
+        );
+        assert_eq!(
+            hero_build_link("Nature's Prophet"),
+            "[Nature's Prophet](<https://dota2protracker.com/hero/Nature%27s%20Prophet?section=builds>)"
+        );
+    }
 }
