@@ -67,7 +67,9 @@ pub fn load_bot_state() -> Result<BotState> {
         store_bot_state(&Default::default())?;
     }
     let state_file = File::open(path)?;
-    Ok(serde_yaml::from_reader(state_file)?)
+    let mut state: BotState = serde_yaml::from_reader(state_file)?;
+    state.validate();
+    Ok(state)
 }
 
 pub fn store_bot_state(state: &BotState) -> Result<()> {
