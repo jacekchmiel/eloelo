@@ -26,6 +26,19 @@ pub struct HistoryEntry {
     #[serde(default)]
     #[serde(skip_serializing_if = "is_default")]
     pub fake: bool,
+    /// Tags assigned to each player. Missing in legacy entries and when hero assignment
+    /// strategy doesn't use tags.
+    #[serde(default)]
+    #[serde(skip_serializing_if = "HashMap::is_empty")]
+    pub tags: HashMap<PlayerId, PlayerTags>,
+}
+
+#[derive(Debug, Clone, Default, Serialize, Deserialize, PartialEq)]
+pub struct PlayerTags {
+    /// Role (hero tag) assigned to the player, e.g. "Support".
+    #[serde(default)]
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub role: Option<String>,
 }
 
 fn is_default<T: Default + PartialEq<T>>(v: &T) -> bool {
@@ -108,7 +121,33 @@ mod tests {
             scale: WinScale::Even,
             duration: Duration::from_secs(40 * 60),
             fake: false,
+            tags: HashMap::new(),
         }
+    }
+
+    #[test]
+    fn tags_are_optional_in_history_entry() {
+        let legacy = r#"{"timestamp":"2026-01-01T20:00:00+01:00","winner":["a"],"loser":["b"],"scale":"even","duration":2400}"#;
+        let entry: HistoryEntry = serde_json::from_str(legacy).unwrap();
+        assert!(entry.tags.is_empty());
+        assert!(!serde_json::to_string(&entry).unwrap().contains("tags"));
+
+        let tagged = HistoryEntry {
+            tags: HashMap::from([(
+                PlayerId::from("a"),
+                PlayerTags {
+                    role: Some(String::from("Support")),
+                },
+            )]),
+            ..entry
+        };
+        let json = serde_json::to_string(&tagged).unwrap();
+        assert!(json.contains(r#""tags":{"a":{"role":"Support"}}"#));
+        assert_eq!(serde_json::from_str::<HistoryEntry>(&json).unwrap(), tagged);
+
+        let empty_player_tags = r#"{"timestamp":"2026-01-01T20:00:00+01:00","winner":["a"],"loser":["b"],"scale":"even","duration":2400,"tags":{"a":{}}}"#;
+        let entry: HistoryEntry = serde_json::from_str(empty_player_tags).unwrap();
+        assert_eq!(entry.tags[&PlayerId::from("a")], PlayerTags::default());
     }
 
     #[test]

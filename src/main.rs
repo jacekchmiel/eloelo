@@ -65,7 +65,7 @@ async fn main() {
         spawelo_options,
         message_bus.clone(),
     );
-    let eloelo_task = tokio::spawn(eloelo.dispatch_ui_commands(message_bus.clone()));
+    let eloelo_task = tokio::spawn(eloelo.dispatch_messages(message_bus.clone()));
     let _ = ocr::spawn_dota_screenshot_parser(config.clone(), message_bus.clone())
         .context("spawn_dota_screenshot_parser failed")
         .inspect_err(|e| error!("{e:#}"));

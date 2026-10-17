@@ -53,16 +53,6 @@ impl MessageBusSubscription {
         })
     }
 
-    pub fn ui_command_stream(self) -> impl Stream<Item = Result<UiCommand>> {
-        self.stream().filter_map(|r| async move {
-            match r {
-                Ok(Message::UiCommand(ui_command)) => Some(Ok(ui_command)),
-                Err(e) => Some(Err(e)),
-                _ => None,
-            }
-        })
-    }
-
     pub fn event_stream(self) -> impl Stream<Item = Result<Event>> {
         self.stream().filter_map(|r| async move {
             match r {

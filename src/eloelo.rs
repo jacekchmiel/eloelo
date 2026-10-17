@@ -10,14 +10,15 @@ use anyhow::{Context, Result};
 use chrono::Local;
 use config::Config;
 use eloelo_model::decimal::Decimal;
-use eloelo_model::history::{History, HistoryEntry};
+use eloelo_model::history::{History, HistoryEntry, PlayerTags};
 use eloelo_model::player::{Player, PlayerDb, PlayersConfig};
 use eloelo_model::{BalancedTeam, GameId, GameState, PlayerId, Team, WinScale};
 use futures_util::stream::{StreamExt as _, TryStreamExt as _};
 use git_mirror::GitMirror;
 use log::{debug, error, info, warn};
 use message_bus::{
-    Event, FinishMatch, MatchStart, MatchStartTeam, Message, MessageBus, RichMatchResult, UiCommand,
+    Event, FinishMatch, HeroesAssigned, MatchStart, MatchStartTeam, Message, MessageBus,
+    RichMatchResult, UiCommand,
 };
 use regex::Regex;
 use spawelo::ml_elo;
@@ -47,6 +48,8 @@ pub struct EloElo {
     git_mirror: GitMirror,
     options: EloEloOptions,
     shuffle_temperature: i32,
+    /// Tags assigned to players in the current match.
+    match_tags: HashMap<PlayerId, PlayerTags>,
 }
 
 impl EloElo {
@@ -82,6 +85,7 @@ impl EloElo {
             git_mirror,
             options,
             shuffle_temperature: state.shuffle_temperature,
+            match_tags: HashMap::new(),
         };
         elo.recalculate_elo_from_history();
         elo
@@ -125,17 +129,34 @@ impl EloElo {
         }
     }
 
-    pub async fn dispatch_ui_commands(mut self, message_bus: MessageBus) {
-        let mut ui_command_stream = message_bus.subscribe().ui_command_stream().boxed();
+    fn on_heroes_assigned(&mut self, heroes_assigned: &HeroesAssigned) {
+        self.match_tags = self
+            .players
+            .all()
+            .filter_map(|p| {
+                let tag = heroes_assigned.tags.get(p.discord_username()?)?;
+                let tags = PlayerTags {
+                    role: Some(tag.to_string()),
+                };
+                Some((p.id.clone(), tags))
+            })
+            .collect();
+    }
+
+    pub async fn dispatch_messages(mut self, message_bus: MessageBus) {
+        let mut message_stream = message_bus.subscribe().stream().boxed();
         loop {
-            match ui_command_stream.try_next().await {
-                Ok(Some(command @ UiCommand::CloseApplication)) => {
+            match message_stream.try_next().await {
+                Ok(Some(Message::UiCommand(command @ UiCommand::CloseApplication))) => {
                     self.dispatch_ui_command(command).await;
                     break;
                 }
-                Ok(Some(command)) => {
-                    self.dispatch_ui_command(command).await;
+                Ok(Some(Message::UiCommand(command))) => self.dispatch_ui_command(command).await,
+                Ok(Some(Message::Event(Event::HeroesAssigned(heroes_assigned)))) => {
+                    self.on_heroes_assigned(&heroes_assigned);
+                    continue;
                 }
+                Ok(Some(_)) => continue,
                 Ok(None) => {
                     break;
                 }
@@ -331,6 +352,7 @@ impl EloElo {
     fn start_match(&mut self) {
         let default_elo = self.default_elo_for_current_game();
         self.game_state = GameState::MatchInProgress;
+        self.match_tags.clear();
         self.message_bus
             .send(Message::Event(Event::MatchStart(MatchStart {
                 game: self.selected_game.clone(),
@@ -387,6 +409,7 @@ impl EloElo {
         }
 
         self.game_state = GameState::AssemblingTeams;
+        self.match_tags.clear();
         debug!("finish_match handled");
     }
 
@@ -720,6 +743,7 @@ impl EloElo {
             scale: info.scale,
             duration: info.duration,
             fake: info.fake,
+            tags: self.match_tags.clone(),
         }
     }
 
