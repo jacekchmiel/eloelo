@@ -89,13 +89,14 @@ impl NotificationBot {
 
         for (player_id, dm) in discord_users {
             dm.send_dm(
-                messages::personal_match_start_message(player_id, &match_start),
+                messages::personal_match_start_message(
+                    player_id,
+                    dm.username(),
+                    &match_start,
+                    hero_assignments,
+                    tags,
+                ),
                 "match_start",
-            )
-            .await;
-            dm.send_dm(
-                messages::personal_hero_assignment_message(dm.username(), hero_assignments, tags),
-                "hero_assignment",
             )
             .await;
         }

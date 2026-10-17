@@ -10,10 +10,21 @@ use eloelo_model::PlayerId;
 use log::info;
 use poise::serenity_prelude as serenity;
 
+/// Match start DM, including player's hero assignment.
 pub fn personal_match_start_message(
     p: &PlayerId,
+    username: impl Into<DiscordUsername>,
     match_start: &MatchStart,
+    hero_assignments: &HashMap<DiscordUsername, Vec<Hero>>,
+    tags: &HashMap<DiscordUsername, HeroTag>,
 ) -> serenity::CreateMessage {
+    let match_start_message = match_start_str(p, match_start);
+    let hero_assignment_message = hero_assignment_str(username, hero_assignments, tags);
+    serenity::CreateMessage::new()
+        .content(format!("{match_start_message}\n{hero_assignment_message}"))
+}
+
+fn match_start_str(p: &PlayerId, match_start: &MatchStart) -> String {
     let team_name = if match_start.left_team.players.contains_key(p) {
         Some(&match_start.left_team.name)
     } else if match_start.right_team.players.contains_key(p) {
@@ -22,24 +33,23 @@ pub fn personal_match_start_message(
         None
     };
 
-    let content = match team_name {
+    match team_name {
         Some(team) => format!(
-            "**{}** match is starting! You're playing in the **{}**!\nGLHF!",
+            "**{}** match is starting! You're playing in the **{}**! GLHF!",
             match_start.game, team
         ),
         None => format!(
-            "**{}** match is starting, but you're not playing.\n See you next time!",
+            "**{}** match is starting, but you're not playing. See you next time!",
             match_start.game
         ),
-    };
-    serenity::CreateMessage::new().content(content)
+    }
 }
 
-pub fn personal_hero_assignment_message(
+fn hero_assignment_str(
     username: impl Into<DiscordUsername>,
     hero_assignments: &HashMap<DiscordUsername, Vec<Hero>>,
     tags: &HashMap<DiscordUsername, HeroTag>,
-) -> serenity::CreateMessage {
+) -> String {
     let username = username.into();
     let heroes = hero_assignments.get(&username).cloned().unwrap_or_default();
     let tag_line = tags
@@ -51,13 +61,10 @@ pub fn personal_hero_assignment_message(
         username,
         utils::join(&heroes, ", ")
     );
-    let heroes_message = format!(
+    format!(
         "{tag_line}Heroes: **{}**\n",
         random_heroes_str_with_links(heroes)
-    );
-    serenity::CreateMessage::new()
-        .content(heroes_message)
-        // .flags(serenity::MessageFlags::SUPPRESS_EMBEDS)
+    )
 }
 
 fn random_heroes_str_with_links(heroes: impl IntoIterator<Item = impl AsRef<Hero>>) -> String {
