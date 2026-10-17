@@ -2,6 +2,7 @@ use std::collections::HashMap;
 
 use crate::eloelo::elodisco::bot_state::DotaBotState;
 use crate::eloelo::elodisco::dota_bot::{Hero, RerollResult};
+use crate::eloelo::elodisco::hero_assignment_strategy::HeroTag;
 use crate::eloelo::message_bus::MatchStart;
 use crate::utils;
 use eloelo_model::player::DiscordUsername;
@@ -37,16 +38,21 @@ pub fn personal_match_start_message(
 pub fn personal_hero_assignment_message(
     username: impl Into<DiscordUsername>,
     hero_assignments: &HashMap<DiscordUsername, Vec<Hero>>,
+    tags: &HashMap<DiscordUsername, HeroTag>,
 ) -> serenity::CreateMessage {
     let username = username.into();
     let heroes = hero_assignments.get(&username).cloned().unwrap_or_default();
+    let tag_line = tags
+        .get(&username)
+        .map(|tag| format!("Role: **{tag}**\n"))
+        .unwrap_or_default();
     info!(
         "Hero assignment {}: {}",
         username,
         utils::join(&heroes, ", ")
     );
     let heroes_message = format!(
-        "**Your random heroes for this match are**\n{}",
+        "{tag_line}Heroes: **{}**\n",
         random_heroes_str_with_links(heroes)
     );
     serenity::CreateMessage::new()
@@ -61,7 +67,7 @@ fn random_heroes_str_with_links(heroes: impl IntoIterator<Item = impl AsRef<Hero
         String::from("No heroes.")
     } else {
         let links: Vec<_> = heroes.iter().map(|h| hero_build_link(h)).collect();
-        links.join(",\n")
+        links.join(", ")
     }
 }
 

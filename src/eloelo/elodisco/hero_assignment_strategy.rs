@@ -10,7 +10,7 @@ mod tagged_hero_pool;
 mod tests;
 
 pub use random_hero_pool::RandomHeroPool;
-pub use tagged_hero_pool::TaggedHeroPool;
+pub use tagged_hero_pool::{HeroTag, TaggedHeroPool};
 
 #[derive(Debug, PartialEq, Eq, Hash, Clone, PartialOrd, Ord)]
 pub enum DotaTeam {
@@ -39,4 +39,9 @@ pub trait HeroAssignmentStrategy {
     ) -> Result<Vec<Hero>, Error>;
 
     fn clear(&mut self);
+
+    /// Tags assigned to players in the current match. Empty for strategies that don't use tags.
+    fn assigned_tags(&self) -> HashMap<DiscordUsername, HeroTag> {
+        HashMap::new()
+    }
 }

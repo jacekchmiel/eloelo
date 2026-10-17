@@ -7,6 +7,7 @@ use log::{error, info};
 
 use crate::eloelo::config::Config;
 use crate::eloelo::elodisco::dota_bot::{Hero, RerollResult};
+use crate::eloelo::elodisco::hero_assignment_strategy::HeroTag;
 use crate::eloelo::elodisco::messages;
 use crate::eloelo::elodisco::utils::DirectMessenger;
 use crate::eloelo::message_bus::{
@@ -44,7 +45,7 @@ impl NotificationBot {
     pub async fn on_message(&mut self, message: &Message) {
         match message {
             Message::Event(Event::HeroesAssigned(event)) => {
-                self.send_match_start(&event.match_start, &event.assignments)
+                self.send_match_start(&event.match_start, &event.assignments, &event.tags)
                     .await;
             }
             Message::Event(Event::RichMatchResult(rich_match_result)) => {
@@ -65,6 +66,7 @@ impl NotificationBot {
         &self,
         match_start: &MatchStart,
         hero_assignments: &HashMap<DiscordUsername, Vec<Hero>>,
+        tags: &HashMap<DiscordUsername, HeroTag>,
     ) {
         let players = match_start
             .left_team
@@ -92,7 +94,7 @@ impl NotificationBot {
             )
             .await;
             dm.send_dm(
-                messages::personal_hero_assignment_message(dm.username(), hero_assignments),
+                messages::personal_hero_assignment_message(dm.username(), hero_assignments, tags),
                 "hero_assignment",
             )
             .await;
@@ -113,8 +115,9 @@ impl NotificationBot {
         &mut self,
         match_start: &MatchStart,
         hero_assignments: &HashMap<DiscordUsername, Vec<Hero>>,
+        tags: &HashMap<DiscordUsername, HeroTag>,
     ) {
-        self.match_start(&match_start, &hero_assignments).await;
+        self.match_start(&match_start, &hero_assignments, tags).await;
 
         info!("Sending match start message to common channel");
         if match_start.game == GameId::from("DotA 2") {
@@ -123,12 +126,18 @@ impl NotificationBot {
                 &self.channel.id,
                 match_start.clone(),
                 &hero_assignments,
+                tags,
             )
             .await;
         } else {
-            let heroes: HashMap<_, _> = Default::default();
-            send_start_match_message(&self.ctx, &self.channel.id, match_start.clone(), &heroes)
-                .await;
+            send_start_match_message(
+                &self.ctx,
+                &self.channel.id,
+                match_start.clone(),
+                &HashMap::new(),
+                &HashMap::new(),
+            )
+            .await;
         }
     }
 
@@ -188,16 +197,17 @@ async fn send_start_match_message(
     channel: &serenity::ChannelId,
     msg: MatchStart,
     hero_assignments: &HashMap<DiscordUsername, Vec<Hero>>,
+    tags: &HashMap<DiscordUsername, HeroTag>,
 ) {
     let msg = serenity::CreateMessage::new()
         .content(format!("# {} Match Starting", msg.game))
         .add_embeds(vec![
             make_team_embed(
-                TeamEmbedData::new(&msg.player_db, &msg.left_team, hero_assignments),
+                TeamEmbedData::new(&msg.player_db, &msg.left_team, hero_assignments, tags),
                 serenity::Colour::DARK_GREEN,
             ),
             make_team_embed(
-                TeamEmbedData::new(&msg.player_db, &msg.right_team, hero_assignments),
+                TeamEmbedData::new(&msg.player_db, &msg.right_team, hero_assignments, tags),
                 serenity::Colour::DARK_RED,
             ),
         ]);
@@ -216,6 +226,7 @@ async fn send_message(
 struct PlayerEmbedData {
     name: String,
     rank: i32,
+    tag: Option<HeroTag>,
     recommendations: String,
 }
 
@@ -230,6 +241,7 @@ impl TeamEmbedData {
         playerdb: &PlayerDb,
         team: &MatchStartTeam,
         hero_assignments: &HashMap<DiscordUsername, Vec<Hero>>,
+        tags: &HashMap<DiscordUsername, HeroTag>,
     ) -> Self {
         let mut players: Vec<PlayerEmbedData> = Vec::new();
         for (player_id, elo) in team.players.iter() {
@@ -244,6 +256,7 @@ impl TeamEmbedData {
                     .unwrap_or("INVALID")
                     .to_string(),
                 rank: *elo,
+                tag: tags.get(&discord_username).cloned(),
                 recommendations: hero_assignments
                     .get(&discord_username)
                     .map(|ha| join(ha, ", "))
@@ -265,8 +278,9 @@ fn make_team_embed(team: TeamEmbedData, colour: serenity::Colour) -> serenity::C
     serenity::CreateEmbed::new()
         .title(team.name)
         .fields(players.into_iter().map(|p| {
+            let tag = p.tag.map(|t| format!("   {t}")).unwrap_or_default();
             (
-                format!("{}   [{}]", p.name, p.rank),
+                format!("{}   [{}]{}", p.name, p.rank, tag),
                 format!("{}", p.recommendations),
                 false,
             )

@@ -11,6 +11,7 @@ use tokio::sync::broadcast::{Receiver, Sender};
 use tokio_stream::wrappers::BroadcastStream;
 
 use crate::eloelo::elodisco::dota_bot::Hero;
+use crate::eloelo::elodisco::hero_assignment_strategy::HeroTag;
 use crate::eloelo::options::EloEloOptions;
 
 use super::ui_state::UiState;
@@ -120,6 +121,8 @@ pub struct RichMatchResult {
 pub struct HeroesAssigned {
     pub match_start: MatchStart,
     pub assignments: HashMap<DiscordUsername, Vec<Hero>>,
+    /// Tags assigned to players. Empty if hero assignment strategy doesn't use tags.
+    pub tags: HashMap<DiscordUsername, HeroTag>,
 }
 
 #[derive(Debug, Clone, Serialize)]

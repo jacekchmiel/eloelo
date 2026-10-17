@@ -231,6 +231,24 @@ mod tests {
     }
 
     #[test]
+    fn test_assigned_tags_match_heroes() {
+        let mut tag_assign = TaggedHeroPool::new();
+        for _ in 0..N {
+            let players = default_players(default_hero_pool());
+            let usernames: HashSet<_> = players.iter().map(|(p, _)| p.name.clone()).collect();
+            tag_assign.clear();
+            let players_assignement = tag_assign.assign_heroes(players);
+            let tags = tag_assign.assigned_tags();
+            assert_eq!(tags.keys().cloned().collect::<HashSet<_>>(), usernames);
+            for (player, assignement) in players_assignement.iter() {
+                for hero in assignement {
+                    assert_eq!(tag_assign.deduce_tag(hero), tags[&player.name]);
+                }
+            }
+        }
+    }
+
+    #[test]
     fn test_tags_correspondence() {
         let mut tag_assign = TaggedHeroPool::new();
         for _ in 0..N {

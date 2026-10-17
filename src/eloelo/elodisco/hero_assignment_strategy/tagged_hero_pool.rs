@@ -1,6 +1,7 @@
 use core::f64;
 use std::{
     collections::{HashMap, HashSet},
+    fmt::Display,
     iter::zip,
     str::FromStr,
 };
@@ -32,6 +33,17 @@ impl HeroTag {
     }
 }
 
+impl Display for HeroTag {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        let name = match self {
+            HeroTag::Carry => "Carry",
+            HeroTag::Core => "Core",
+            HeroTag::Support => "Support",
+        };
+        f.write_str(name)
+    }
+}
+
 impl FromStr for HeroTag {
     type Err = Error;
 
@@ -49,6 +61,7 @@ impl FromStr for HeroTag {
 pub struct TaggedHeroPool {
     pub tags: HashMap<HeroTag, HashSet<Hero>>,
     pub hero_assignement: HashMap<PlayerInfo, Vec<Hero>>,
+    pub player_tags: HashMap<DiscordUsername, HeroTag>,
     pub taken: HashSet<Hero>,
     pub hero_similarity: HashMap<Hero, Vec<Hero>>,
 }
@@ -238,6 +251,14 @@ impl HeroAssignmentStrategy for TaggedHeroPool {
             pairs_tag.last_mut().map(|t| *t = Self::random_tag()); // assign random tag to unpaired players
         }
 
+        for (pair_id, pair_tag) in zip(pairing_order.iter(), pairs_tag.iter()) {
+            for team in [&radiant, &dire] {
+                if let Some((player, _)) = team.get(*pair_id) {
+                    self.player_tags.insert(player.name.clone(), pair_tag.clone());
+                }
+            }
+        }
+
         for _ in 0..max_hero_shown {
             for (pair_id, pair_tag) in zip(pairing_order.iter(), pairs_tag.iter()) {
                 let mut paired_hero: Option<Hero> = None;
@@ -299,7 +320,10 @@ impl HeroAssignmentStrategy for TaggedHeroPool {
                 *username
             ));
         };
-        let player_tag = self.deduce_tag(&self.hero_assignement.get(&player).unwrap()[0]);
+        let player_tag = match self.player_tags.get(username) {
+            Some(tag) => tag.clone(),
+            None => self.deduce_tag(&self.hero_assignement.get(&player).unwrap()[0]),
+        };
         let hero_pool_set = HashSet::from_iter(hero_pool.into_iter());
         let new_picks = (0..player.number_of_heroes_shown)
             .filter_map(|_| {
@@ -326,6 +350,11 @@ impl HeroAssignmentStrategy for TaggedHeroPool {
 
     fn clear(&mut self) {
         self.hero_assignement.clear();
+        self.player_tags.clear();
         self.taken.clear();
+    }
+
+    fn assigned_tags(&self) -> HashMap<DiscordUsername, HeroTag> {
+        self.player_tags.clone()
     }
 }

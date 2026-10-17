@@ -126,6 +126,7 @@ impl DotaBot {
                     .send(Message::Event(Event::HeroesAssigned(HeroesAssigned {
                         match_start: match_start.clone(),
                         assignments,
+                        tags: self.hero_assign_strategy.assigned_tags(),
                     })))
             }
             _ => {}
