@@ -55,8 +55,8 @@ bridgeListenAddr: 0.0.0.0:3001 # default
 cargo run --release --bin elodisco
 ```
 
-The main server keeps reconnecting while the bot server is unreachable; the UI app bar shows
-"Discord bot offline" until the connection is back.
+The main server keeps reconnecting while the bot server is unreachable; the Discord icon in the UI
+app bar is red until the connection is back (hover it for the error).
 
 Hero bans/allowlists (`discord_bot_state.yaml`) live next to the bot, so move the file to the bot
 server's data dir when switching to remote mode.
