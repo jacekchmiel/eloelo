@@ -1,45 +1,9 @@
-use anyhow::{Context, Result};
+use anyhow::Context;
+use eloelo::config::DiscordBotMode;
 use eloelo::message_bus::{Message, MessageBus, UiCommand};
-use eloelo::{elodisco, ocr, store, EloElo};
+use eloelo::utils::{terminate_on_signal, unwrap_or_def_verbose, ResultExt as _};
+use eloelo::{api, bridge, elodisco, logging, ocr, store, EloElo};
 use log::{debug, error, info, warn};
-use serenity::futures;
-use std::future::Future;
-use std::pin::Pin;
-use tokio::signal;
-use utils::{unwrap_or_def_verbose, ResultExt as _};
-
-mod api;
-mod eloelo;
-mod logging;
-pub(crate) mod utils;
-
-#[cfg(unix)]
-async fn terminate_on_signal() -> Result<()> {
-    let interrupt_signal: Pin<Box<dyn Future<Output = _>>> = Box::pin(async {
-        signal::unix::signal(signal::unix::SignalKind::interrupt())
-            .context("Failed to register terminate signal handlers!")?
-            .recv()
-            .await;
-        Ok(())
-    });
-    let terminate_signal = Box::pin(async {
-        signal::unix::signal(signal::unix::SignalKind::terminate())
-            .context("Failed to register terminate signal handlers!")?
-            .recv()
-            .await;
-        Ok(())
-    });
-    futures::future::select_all([interrupt_signal, terminate_signal])
-        .await
-        .0
-}
-
-#[cfg(windows)]
-async fn terminate_on_signal() -> Result<()> {
-    signal::ctrl_c()
-        .await
-        .context("Failed to register ctrl_c signal.")
-}
 
 #[tokio::main]
 async fn main() {
@@ -50,14 +14,26 @@ async fn main() {
     }
     let players_config = unwrap_or_def_verbose(store::load_players());
     let state = unwrap_or_def_verbose(store::load_state());
-    let bot_state = unwrap_or_def_verbose(store::load_bot_state());
     let spawelo_options = unwrap_or_def_verbose(store::load_options());
     let message_bus = MessageBus::new();
-    tokio::spawn(elodisco::run(
-        config.clone(),
-        bot_state,
-        message_bus.clone(),
-    ));
+    match &config.discord_bot {
+        DiscordBotMode::Embedded => {
+            let bot_state = unwrap_or_def_verbose(store::load_bot_state());
+            tokio::spawn(elodisco::run(
+                config.clone(),
+                bot_state,
+                message_bus.clone(),
+            ));
+        }
+        DiscordBotMode::Remote { url } => {
+            tokio::spawn(bridge::run_client(
+                url.clone(),
+                config.bridge_secret.clone(),
+                message_bus.clone(),
+            ));
+        }
+        DiscordBotMode::Disabled => info!("Discord bot disabled."),
+    }
     let eloelo = EloElo::new(
         state,
         config.clone(),

@@ -31,6 +31,9 @@
 
 ## LOW PRIORITY
 
+- [ ] S Remote Discord bot uses its own `testMode`/test channel config, not the one of the main server.
+- [ ] M Remote Discord bot connection health: show disconnected bridge in UI, or block app start / UI actions
+      (e.g. start match) while the bridge is not connected.
 - [x] L Switch to poise - higher level framework for discord
   - [x] Migrate slash commands to proper implementation
   - [ ] Consider modals instead of DM

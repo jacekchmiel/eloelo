@@ -4,7 +4,7 @@ use eloelo_model::player::{DiscordUsername, Player, PlayerDb};
 use eloelo_model::{GameId, PlayerId, Team, WinScale};
 use futures_util::{Stream, StreamExt};
 use log::error;
-use serde::Serialize;
+use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
 use std::time::Duration;
 use tokio::sync::broadcast::{Receiver, Sender};
@@ -17,7 +17,7 @@ use crate::eloelo::options::EloEloOptions;
 use super::ui_state::UiState;
 
 #[derive(Clone)]
-pub(crate) struct MessageBus(Sender<Message>);
+pub struct MessageBus(Sender<Message>);
 
 impl MessageBus {
     pub fn new() -> Self {
@@ -36,7 +36,7 @@ impl MessageBus {
     }
 }
 
-pub(crate) struct MessageBusSubscription(Receiver<Message>);
+pub struct MessageBusSubscription(Receiver<Message>);
 
 impl MessageBusSubscription {
     pub fn stream(self) -> impl Stream<Item = Result<Message>> {
@@ -64,8 +64,8 @@ impl MessageBusSubscription {
     }
 }
 
-#[derive(Clone, Debug)]
-pub(crate) enum Message {
+#[derive(Clone, Debug, Serialize, Deserialize)]
+pub enum Message {
     UiUpdate(UiUpdate),
     UiCommand(UiCommand),
     Event(Event),
@@ -77,14 +77,14 @@ impl From<UiState> for Message {
     }
 }
 
-#[derive(Debug, Clone, Serialize)]
+#[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub enum UiUpdate {
     State(UiState),
     DiscordInfo(Vec<DiscordPlayerInfo>),
 }
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct MatchStart {
     pub game: GameId,
     // Sending full player db seems wasteful though any optimization here seems more wasteful
@@ -93,21 +93,21 @@ pub struct MatchStart {
     pub right_team: MatchStartTeam,
 }
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct MatchStartTeam {
     // TODO(j): since we have full playerdb in MatchStart, maybe we shouldn't send elo here?
     pub players: HashMap<PlayerId, i32>,
     pub name: String,
 }
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct RichMatchResult {
     pub winner_team_name: String,
     pub duration: Duration,
     pub scale: WinScale,
 }
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct HeroesAssigned {
     pub match_start: MatchStart,
     pub assignments: HashMap<DiscordUsername, Vec<Hero>>,
@@ -115,7 +115,7 @@ pub struct HeroesAssigned {
     pub tags: HashMap<DiscordUsername, HeroTag>,
 }
 
-#[derive(Debug, Clone, Serialize)]
+#[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct AvatarUrl(String);
 
 impl From<String> for AvatarUrl {
@@ -124,7 +124,7 @@ impl From<String> for AvatarUrl {
     }
 }
 
-#[derive(Debug, Clone, Serialize)]
+#[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct DiscordPlayerInfo {
     pub id: PlayerId,
@@ -159,15 +159,16 @@ impl ImageFormat {
     }
 }
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Serialize, Deserialize)]
 pub enum Event {
     MatchStart(MatchStart),
     HeroesAssigned(HeroesAssigned),
     RichMatchResult(RichMatchResult),
+    #[serde(skip)]
     DotaScreenshotReceived(Bytes, Option<ImageFormat>),
 }
 
-#[derive(Clone, Debug)]
+#[derive(Clone, Debug, Serialize, Deserialize)]
 pub enum UiCommand {
     InitializeUi,
     AddNewPlayer(Player),
@@ -192,13 +193,13 @@ pub enum UiCommand {
     CloseApplication,
 }
 
-#[derive(Clone, Debug)]
+#[derive(Clone, Debug, Serialize, Deserialize)]
 pub enum FinishMatch {
     Cancelled,
     Finished(MatchInfo),
 }
 
-#[derive(Clone, Copy, Debug)]
+#[derive(Clone, Copy, Debug, Serialize, Deserialize)]
 pub struct MatchInfo {
     pub winner: Team,
     pub scale: WinScale,

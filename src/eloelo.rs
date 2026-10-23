@@ -24,15 +24,15 @@ use regex::Regex;
 use spawelo::ml_elo;
 use ui_state::{PityBonus, State, UiPlayer, UiState};
 
-mod config;
-pub(crate) mod elodisco;
+pub mod config;
+pub mod elodisco;
 mod fosiaudio;
 mod git_mirror;
-pub(crate) mod message_bus;
-pub(crate) mod ocr;
+pub mod message_bus;
+pub mod ocr;
 pub mod options;
-pub(crate) mod store;
-mod ui_state;
+pub mod store;
+pub mod ui_state;
 
 pub struct EloElo {
     selected_game: GameId,

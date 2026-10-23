@@ -10,6 +10,7 @@ use anyhow::{bail, format_err, Context, Error, Result};
 use eloelo_model::player::DiscordUsername;
 use itertools::Itertools;
 use log::{info, warn};
+use serde::{Deserialize, Serialize};
 use rand::{
     Rng, seq::{IteratorRandom, SliceRandom}, thread_rng
 };
@@ -20,7 +21,7 @@ use crate::eloelo::elodisco::{
     hero_assignment_strategy::{HeroAssignmentStrategy, PlayerInfo},
 };
 
-#[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Hash)]
+#[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Hash, Serialize, Deserialize)]
 pub enum HeroTag {
     Carry,
     Core,
