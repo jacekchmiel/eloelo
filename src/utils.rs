@@ -60,7 +60,7 @@ pub fn duration_minutes(d: Duration) -> String {
 
 #[cfg(unix)]
 pub async fn terminate_on_signal() -> Result<()> {
-    let interrupt_signal: Pin<Box<dyn Future<Output = _>>> = Box::pin(async {
+    let interrupt_signal: Pin<Box<dyn Future<Output = _> + Send>> = Box::pin(async {
         signal::unix::signal(signal::unix::SignalKind::interrupt())
             .context("Failed to register terminate signal handlers!")?
             .recv()

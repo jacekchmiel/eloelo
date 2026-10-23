@@ -13,11 +13,13 @@ use futures_util::{SinkExt as _, StreamExt as _};
 use log::{debug, info, warn};
 use tokio::io::{AsyncRead, AsyncWrite};
 use tokio::net::{TcpListener, TcpStream};
+use tokio::task::JoinSet;
 use tokio_tungstenite::tungstenite::client::IntoClientRequest as _;
 use tokio_tungstenite::tungstenite::handshake::server::{ErrorResponse, Request, Response};
 use tokio_tungstenite::tungstenite::http::{header, HeaderValue, StatusCode};
 use tokio_tungstenite::tungstenite::Message as WsMessage;
 use tokio_tungstenite::{MaybeTlsStream, WebSocketStream};
+use tokio_util::sync::CancellationToken;
 
 use crate::message_bus::{
     DiscordBotStatus, Event, FinishMatch, Message, MessageBus, MessageBusSubscription, UiCommand,
@@ -28,6 +30,7 @@ use crate::utils::print_err;
 const PING_INTERVAL: Duration = Duration::from_secs(5);
 const PEER_TIMEOUT: Duration = Duration::from_secs(15);
 const CONNECT_TIMEOUT: Duration = Duration::from_secs(5);
+const CLOSE_TIMEOUT: Duration = Duration::from_secs(1);
 const RECONNECT_DELAY: Duration = Duration::from_secs(2);
 
 /// Messages forwarded from eloelo to the Discord bot.
@@ -49,9 +52,14 @@ fn to_eloelo(message: &Message) -> bool {
     )
 }
 
-/// eloelo side. Connects to the bot server and keeps reconnecting when the connection is lost.
-/// Publishes `DiscordBotStatus` changes on the local bus.
-pub async fn run_client(url: String, secret: String, message_bus: MessageBus) {
+/// eloelo side. Connects to the bot server and keeps reconnecting when the connection is lost,
+/// until `shutdown` is cancelled. Publishes `DiscordBotStatus` changes on the local bus.
+pub async fn run_client(
+    url: String,
+    secret: String,
+    message_bus: MessageBus,
+    shutdown: CancellationToken,
+) {
     let mut status = StatusReporter::new(message_bus.clone());
     if secret.is_empty() {
         warn!("Bridge: bridgeSecret is not set, not connecting to the Discord bot.");
@@ -59,23 +67,52 @@ pub async fn run_client(url: String, secret: String, message_bus: MessageBus) {
         return;
     }
     loop {
-        let error = match connect(&url, &secret).await {
+        let connection = tokio::select! {
+            connection = connect(&url, &secret) => connection,
+            _ = shutdown.cancelled() => return,
+        };
+        match connection {
             Ok(ws) => {
                 info!("Bridge: connected to {url}");
                 // Subscribe before reporting, so no message sent after the status change is missed.
                 let local_messages = message_bus.subscribe();
                 status.connected();
-                match bridge(ws, &message_bus, local_messages, to_bot, to_eloelo).await {
-                    Ok(()) => "Connection closed".into(),
-                    Err(e) => format!("Connection lost: {e:#}"),
+                let result = bridge(
+                    ws,
+                    &message_bus,
+                    local_messages,
+                    to_bot,
+                    to_eloelo,
+                    &shutdown,
+                )
+                .await;
+                if shutdown.is_cancelled() {
+                    info!("Bridge: connection closed.");
+                    return;
+                }
+                match result {
+                    Ok(()) => {
+                        info!("Bridge: bot server closed the connection.");
+                        status.disconnected("Bot server closed the connection".into());
+                    }
+                    Err(e) => {
+                        let error = format!("Connection lost: {}", error_chain(&e));
+                        warn!("Bridge: {error}");
+                        status.disconnected(error);
+                    }
                 }
             }
-            Err(e) => format!("Failed to connect: {e:#}"),
-        };
-        if status.disconnected(error.clone()) {
-            warn!("Bridge: {url}: {error}");
+            Err(e) => {
+                let error = format!("Failed to connect to {url}: {}", error_chain(&e));
+                if status.disconnected(error.clone()) {
+                    warn!("Bridge: {error}");
+                }
+            }
         }
-        tokio::time::sleep(RECONNECT_DELAY).await;
+        tokio::select! {
+            _ = tokio::time::sleep(RECONNECT_DELAY) => {}
+            _ = shutdown.cancelled() => return,
+        }
     }
 }
 
@@ -116,8 +153,13 @@ impl StatusReporter {
     }
 }
 
-/// Bot server side. Accepts eloelo connections.
-pub async fn run_server(addr: &str, secret: &str, message_bus: MessageBus) -> Result<()> {
+/// Bot server side. Accepts eloelo connections until `shutdown` is cancelled, then closes them.
+pub async fn run_server(
+    addr: &str,
+    secret: &str,
+    message_bus: MessageBus,
+    shutdown: CancellationToken,
+) -> Result<()> {
     if secret.is_empty() {
         bail!("bridgeSecret is not set.");
     }
@@ -125,11 +167,17 @@ pub async fn run_server(addr: &str, secret: &str, message_bus: MessageBus) -> Re
         .await
         .with_context(|| format!("Failed to bind {addr}"))?;
     info!("Bridge: listening on {addr}");
+    let mut connections = JoinSet::new();
     loop {
-        let (tcp, peer) = listener.accept().await.context("accept")?;
+        let (tcp, peer) = tokio::select! {
+            accepted = listener.accept() => accepted.context("accept")?,
+            _ = shutdown.cancelled() => break,
+        };
+        while connections.try_join_next().is_some() {}
         let secret = secret.to_owned();
         let message_bus = message_bus.clone();
-        tokio::spawn(async move {
+        let shutdown = shutdown.clone();
+        connections.spawn(async move {
             let authorize = |request: &Request, response| authorize(request, response, &secret);
             let ws = match tokio_tungstenite::accept_hdr_async(tcp, authorize).await {
                 Ok(ws) => ws,
@@ -140,12 +188,23 @@ pub async fn run_server(addr: &str, secret: &str, message_bus: MessageBus) -> Re
             };
             info!("Bridge: eloelo connected from {peer}");
             let local_messages = message_bus.subscribe();
-            match bridge(ws, &message_bus, local_messages, to_eloelo, to_bot).await {
-                Ok(()) => info!("Bridge: {peer} disconnected."),
-                Err(e) => warn!("Bridge: connection with {peer} lost: {e:#}"),
+            match bridge(
+                ws,
+                &message_bus,
+                local_messages,
+                to_eloelo,
+                to_bot,
+                &shutdown,
+            )
+            .await
+            {
+                Ok(()) => info!("Bridge: connection with {peer} closed."),
+                Err(e) => warn!("Bridge: connection with {peer} lost: {}", error_chain(&e)),
             }
         });
     }
+    connections.join_all().await;
+    Ok(())
 }
 
 async fn connect(url: &str, secret: &str) -> Result<WebSocketStream<MaybeTlsStream<TcpStream>>> {
@@ -176,14 +235,32 @@ fn authorize(
     }
 }
 
+/// Like `{e:#}`, but skips causes already contained in the message above them. tungstenite errors
+/// repeat their source in their own message.
+fn error_chain(e: &anyhow::Error) -> String {
+    let mut out = String::new();
+    for cause in e.chain().map(ToString::to_string) {
+        if out.contains(&cause) {
+            continue;
+        }
+        if !out.is_empty() {
+            out.push_str(": ");
+        }
+        out.push_str(&cause);
+    }
+    out
+}
+
 /// Forwards `outgoing` messages from the local bus to the socket and `incoming` messages from the
-/// socket to the local bus. Returns when the connection is closed.
+/// socket to the local bus. Returns when the connection is closed by either side, or after
+/// closing it when `shutdown` is cancelled.
 async fn bridge<S>(
     ws: WebSocketStream<S>,
     message_bus: &MessageBus,
     local_messages: MessageBusSubscription,
     outgoing: fn(&Message) -> bool,
     incoming: fn(&Message) -> bool,
+    shutdown: &CancellationToken,
 ) -> Result<()>
 where
     S: AsyncRead + AsyncWrite + Unpin,
@@ -205,8 +282,13 @@ where
                         Ok(message) => warn!("Bridge: unexpected message dropped: {message:?}"),
                         Err(e) => warn!("Bridge: failed to parse message: {e}"),
                     },
-                    Some(WsMessage::Close(_)) | None => return Ok(()),
+                    Some(WsMessage::Close(_)) => {
+                        // Confirm the peer's closing handshake.
+                        let _ = sink.close().await;
+                        return Ok(());
+                    }
                     Some(_) => {}
+                    None => return Ok(()),
                 }
             }
             message = local_messages.next() => match message {
@@ -224,6 +306,13 @@ where
                 }
                 sink.send(WsMessage::Ping(Default::default())).await?;
             }
+            _ = shutdown.cancelled() => {
+                // Closing handshake: send Close and give the peer a moment to confirm.
+                sink.close().await?;
+                let confirmed = async { while let Some(Ok(_)) = stream.next().await {} };
+                let _ = tokio::time::timeout(CLOSE_TIMEOUT, confirmed).await;
+                return Ok(());
+            }
         }
     }
 }
@@ -240,20 +329,38 @@ mod tests {
 
     const SECRET: &str = "secret";
 
-    async fn start_server(message_bus: MessageBus) -> String {
+    async fn start_server(
+        message_bus: MessageBus,
+        shutdown: CancellationToken,
+    ) -> (String, tokio::task::JoinHandle<Result<()>>) {
         let addr = std::net::TcpListener::bind("127.0.0.1:0")
             .unwrap()
             .local_addr()
             .unwrap()
             .to_string();
-        tokio::spawn({
+        let server = tokio::spawn({
             let addr = addr.clone();
-            async move { run_server(&addr, SECRET, message_bus).await }
+            async move { run_server(&addr, SECRET, message_bus, shutdown).await }
         });
         while TcpStream::connect(&addr).await.is_err() {
             tokio::time::sleep(Duration::from_millis(10)).await;
         }
-        addr
+        (addr, server)
+    }
+
+    /// Reads the socket until it ends. Returns whether Close was received and the error, if any.
+    async fn read_until_end<S: AsyncRead + AsyncWrite + Unpin>(
+        mut ws: WebSocketStream<S>,
+    ) -> (bool, Option<String>) {
+        let mut close_received = false;
+        while let Some(message) = ws.next().await {
+            match message {
+                Ok(WsMessage::Close(_)) => close_received = true,
+                Ok(_) => {}
+                Err(e) => return (close_received, Some(e.to_string())),
+            }
+        }
+        (close_received, None)
     }
 
     async fn next_message(messages: &mut (impl Stream<Item = Result<Message>> + Unpin)) -> Message {
@@ -266,7 +373,7 @@ mod tests {
 
     #[tokio::test]
     async fn rejects_wrong_secret() {
-        let addr = start_server(MessageBus::new()).await;
+        let (addr, _) = start_server(MessageBus::new(), CancellationToken::new()).await;
         let url = format!("ws://{addr}");
         assert!(connect(&url, "wrong").await.is_err());
         assert!(connect(&url, SECRET).await.is_ok());
@@ -288,11 +395,12 @@ mod tests {
         let eloelo_bus = MessageBus::new();
         let mut bot_messages = bot_bus.subscribe().stream().boxed();
         let mut eloelo_messages = eloelo_bus.subscribe().stream().boxed();
-        let addr = start_server(bot_bus.clone()).await;
+        let (addr, _) = start_server(bot_bus.clone(), CancellationToken::new()).await;
         tokio::spawn(run_client(
             format!("ws://{addr}"),
             SECRET.into(),
             eloelo_bus.clone(),
+            CancellationToken::new(),
         ));
         assert_eq!(
             next_status(&mut eloelo_messages).await,
@@ -332,6 +440,7 @@ mod tests {
             format!("ws://{addr}"),
             SECRET.into(),
             eloelo_bus.clone(),
+            CancellationToken::new(),
         ));
 
         assert_eq!(
@@ -342,6 +451,60 @@ mod tests {
             next_status(&mut eloelo_messages).await,
             DiscordBotStatus::Disconnected { .. }
         ));
+    }
+
+    #[tokio::test]
+    async fn client_closes_gracefully_on_shutdown() {
+        let listener = TcpListener::bind("127.0.0.1:0").await.unwrap();
+        let addr = listener.local_addr().unwrap();
+        let server = tokio::spawn(async move {
+            let (tcp, _) = listener.accept().await.unwrap();
+            read_until_end(tokio_tungstenite::accept_async(tcp).await.unwrap()).await
+        });
+        let eloelo_bus = MessageBus::new();
+        let mut eloelo_messages = eloelo_bus.subscribe().stream().boxed();
+        let shutdown = CancellationToken::new();
+        let client = tokio::spawn(run_client(
+            format!("ws://{addr}"),
+            SECRET.into(),
+            eloelo_bus.clone(),
+            shutdown.clone(),
+        ));
+        assert_eq!(
+            next_status(&mut eloelo_messages).await,
+            DiscordBotStatus::Connected
+        );
+
+        shutdown.cancel();
+        let timeout = Duration::from_secs(2);
+        tokio::time::timeout(timeout, client)
+            .await
+            .unwrap()
+            .unwrap();
+        let server = tokio::time::timeout(timeout, server).await.unwrap();
+        assert_eq!(server.unwrap(), (true, None));
+    }
+
+    #[tokio::test]
+    async fn server_closes_gracefully_on_shutdown() {
+        let shutdown = CancellationToken::new();
+        let (addr, server) = start_server(MessageBus::new(), shutdown.clone()).await;
+        let ws = connect(&format!("ws://{addr}"), SECRET).await.unwrap();
+
+        shutdown.cancel();
+        let timeout = Duration::from_secs(2);
+        let client = tokio::time::timeout(timeout, read_until_end(ws)).await;
+        assert_eq!(client.unwrap(), (true, None));
+        let server = tokio::time::timeout(timeout, server).await.unwrap();
+        server.unwrap().unwrap();
+    }
+
+    #[test]
+    fn error_chain_skips_repeated_causes() {
+        let e = anyhow::Error::from(std::io::Error::other("reset"))
+            .context("protocol error: reset")
+            .context("Connection lost");
+        assert_eq!(error_chain(&e), "Connection lost: protocol error: reset");
     }
 
     #[test]

@@ -23,6 +23,7 @@ rand = "0.8.5"
 chrono = { version = "0.4.38", features = ["serde"] }
 tokio = { version = "1.40.0", features = ["signal", "rt-multi-thread", "macros", "net", "time"] }
 tokio-tungstenite = { version = "0.26.1", features = ["native-tls"] }
+tokio-util = "0.7.13"
 serenity = "0.12.2"
 log = "0.4.22"
 flexi_logger = "0.31.7"

@@ -4,6 +4,7 @@ use eloelo::message_bus::{Message, MessageBus, UiCommand};
 use eloelo::utils::{terminate_on_signal, unwrap_or_def_verbose, ResultExt as _};
 use eloelo::{api, bridge, elodisco, logging, ocr, store, EloElo};
 use log::{debug, error, info, warn};
+use tokio_util::sync::CancellationToken;
 
 #[tokio::main]
 async fn main() {
@@ -19,7 +20,8 @@ async fn main() {
     // Subscribe before anything else runs, so EloElo doesn't miss messages sent during startup
     // (e.g. Discord bot status).
     let eloelo_messages = message_bus.subscribe();
-    match &config.discord_bot {
+    let shutdown = CancellationToken::new();
+    let bridge_task = match &config.discord_bot {
         DiscordBotMode::Embedded => {
             let bot_state = unwrap_or_def_verbose(store::load_bot_state());
             tokio::spawn(elodisco::run(
@@ -27,16 +29,19 @@ async fn main() {
                 bot_state,
                 message_bus.clone(),
             ));
+            None
         }
-        DiscordBotMode::Remote { url } => {
-            tokio::spawn(bridge::run_client(
-                url.clone(),
-                config.bridge_secret.clone(),
-                message_bus.clone(),
-            ));
+        DiscordBotMode::Remote { url } => Some(tokio::spawn(bridge::run_client(
+            url.clone(),
+            config.bridge_secret.clone(),
+            message_bus.clone(),
+            shutdown.clone(),
+        ))),
+        DiscordBotMode::Disabled => {
+            info!("Discord bot disabled.");
+            None
         }
-        DiscordBotMode::Disabled => info!("Discord bot disabled."),
-    }
+    };
     let eloelo = EloElo::new(
         state,
         config.clone(),
@@ -57,9 +62,13 @@ async fn main() {
     info!("Running");
     terminate_on_signal().await.print_err();
     info!("Terminating.");
+    shutdown.cancel();
     message_bus.send(Message::UiCommand(UiCommand::CloseApplication));
 
     debug!("Waiting for workers to stop...");
     eloelo_task.await.context("Eloelo task failed").print_err();
+    if let Some(bridge_task) = bridge_task {
+        bridge_task.await.context("Bridge task failed").print_err();
+    }
     debug!("All workers stopped.")
 }
