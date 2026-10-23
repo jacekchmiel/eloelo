@@ -18,7 +18,7 @@ use git_mirror::GitMirror;
 use log::{debug, error, info, warn};
 use message_bus::{
     DiscordBotStatus, Event, FinishMatch, HeroesAssigned, MatchStart, MatchStartTeam, Message,
-    MessageBus, RichMatchResult, UiCommand,
+    MessageBus, MessageBusSubscription, RichMatchResult, UiCommand,
 };
 use regex::Regex;
 use spawelo::ml_elo;
@@ -153,8 +153,12 @@ impl EloElo {
             .collect();
     }
 
-    pub async fn dispatch_messages(mut self, message_bus: MessageBus) {
-        let mut message_stream = message_bus.subscribe().stream().boxed();
+    pub async fn dispatch_messages(
+        mut self,
+        messages: MessageBusSubscription,
+        message_bus: MessageBus,
+    ) {
+        let mut message_stream = messages.stream().boxed();
         loop {
             match message_stream.try_next().await {
                 Ok(Some(Message::UiCommand(command @ UiCommand::CloseApplication))) => {

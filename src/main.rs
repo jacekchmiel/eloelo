@@ -16,6 +16,9 @@ async fn main() {
     let state = unwrap_or_def_verbose(store::load_state());
     let spawelo_options = unwrap_or_def_verbose(store::load_options());
     let message_bus = MessageBus::new();
+    // Subscribe before anything else runs, so EloElo doesn't miss messages sent during startup
+    // (e.g. Discord bot status).
+    let eloelo_messages = message_bus.subscribe();
     match &config.discord_bot {
         DiscordBotMode::Embedded => {
             let bot_state = unwrap_or_def_verbose(store::load_bot_state());
@@ -41,7 +44,7 @@ async fn main() {
         spawelo_options,
         message_bus.clone(),
     );
-    let eloelo_task = tokio::spawn(eloelo.dispatch_messages(message_bus.clone()));
+    let eloelo_task = tokio::spawn(eloelo.dispatch_messages(eloelo_messages, message_bus.clone()));
     let _ = ocr::spawn_dota_screenshot_parser(config.clone(), message_bus.clone())
         .context("spawn_dota_screenshot_parser failed")
         .inspect_err(|e| error!("{e:#}"));
