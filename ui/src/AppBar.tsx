@@ -1,12 +1,15 @@
 import React from "react";
-import type { EloEloState } from "./model";
+import type { DiscordBotStatus, EloEloState } from "./model";
 
+import CloudIcon from "@mui/icons-material/Cloud";
+import CloudOffIcon from "@mui/icons-material/CloudOff";
 import HistoryIcon from "@mui/icons-material/History";
 import MenuIcon from "@mui/icons-material/Menu";
 import RefreshIcon from "@mui/icons-material/Refresh";
 import SettingsIcon from "@mui/icons-material/Settings";
 import AppBar from "@mui/material/AppBar";
 import Box from "@mui/material/Box";
+import Chip from "@mui/material/Chip";
 import FormControl from "@mui/material/FormControl";
 import IconButton from "@mui/material/IconButton";
 import InputLabel from "@mui/material/InputLabel";
@@ -18,6 +21,7 @@ import Select, { type SelectChangeEvent } from "@mui/material/Select";
 import Toolbar from "@mui/material/Toolbar";
 import Typography from "@mui/material/Typography";
 import { invoke } from "./Api";
+import { DefaultTooltip } from "./components/DefaultTooltip";
 import { ThemeSwitcher } from "./components/ThemeSwitcher";
 
 function GameSelector({
@@ -50,6 +54,30 @@ function GameSelector({
       </Select>
     </FormControl>
   );
+}
+
+function DiscordBotStatusIndicator({ status }: { status: DiscordBotStatus }) {
+  if (status.status === "connected") {
+    return (
+      <DefaultTooltip title="Discord bot connected">
+        <CloudIcon />
+      </DefaultTooltip>
+    );
+  }
+  if (status.status === "disconnected") {
+    const since = new Date(status.since).toLocaleTimeString();
+    return (
+      <DefaultTooltip title={`Disconnected since ${since}. ${status.error}`}>
+        <Chip
+          icon={<CloudOffIcon />}
+          label="Discord bot offline"
+          color="error"
+          size="small"
+        />
+      </DefaultTooltip>
+    );
+  }
+  return null;
 }
 
 export function EloEloAppBar({
@@ -130,6 +158,9 @@ export function EloEloAppBar({
             Elo Elo
           </Typography>
           <Box sx={{ flexGrow: 1 }} />
+          <Box sx={{ mr: 2, display: "flex" }}>
+            <DiscordBotStatusIndicator status={state.discordBotStatus} />
+          </Box>
           <Box sx={{ mr: 3 }}>
             <GameSelector
               availableGames={state.availableGames.map((g) => g.name)}

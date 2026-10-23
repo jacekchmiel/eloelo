@@ -1,5 +1,6 @@
 use anyhow::Result;
 use bytes::Bytes;
+use chrono::{DateTime, Local};
 use eloelo_model::player::{DiscordUsername, Player, PlayerDb};
 use eloelo_model::{GameId, PlayerId, Team, WinScale};
 use futures_util::{Stream, StreamExt};
@@ -133,6 +134,22 @@ pub struct DiscordPlayerInfo {
     pub avatar_url: AvatarUrl,
 }
 
+/// Discord bot status as seen by eloelo.
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase", tag = "status")]
+pub enum DiscordBotStatus {
+    Embedded,
+    Disabled,
+    /// Remote bot, bridge connected.
+    Connected,
+    /// Remote bot, bridge not connected.
+    #[serde(rename_all = "camelCase")]
+    Disconnected {
+        since: DateTime<Local>,
+        error: String,
+    },
+}
+
 #[derive(Debug, Clone, Copy)]
 pub enum ImageFormat {
     Jpg,
@@ -166,6 +183,7 @@ pub enum Event {
     RichMatchResult(RichMatchResult),
     #[serde(skip)]
     DotaScreenshotReceived(Bytes, Option<ImageFormat>),
+    DiscordBotStatus(DiscordBotStatus),
 }
 
 #[derive(Clone, Debug, Serialize, Deserialize)]

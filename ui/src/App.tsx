@@ -396,6 +396,7 @@ const initialEloEloState: EloEloState = {
   pityBonus: undefined,
   options: [],
   shuffleTemperature: 0,
+  discordBotStatus: { status: "embedded" },
 };
 
 export default function App() {

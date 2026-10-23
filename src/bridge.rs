@@ -8,6 +8,7 @@
 use std::time::{Duration, Instant};
 
 use anyhow::{bail, Context as _, Result};
+use chrono::Local;
 use futures_util::{SinkExt as _, StreamExt as _};
 use log::{debug, info, warn};
 use tokio::io::{AsyncRead, AsyncWrite};
@@ -18,12 +19,16 @@ use tokio_tungstenite::tungstenite::http::{header, HeaderValue, StatusCode};
 use tokio_tungstenite::tungstenite::Message as WsMessage;
 use tokio_tungstenite::{MaybeTlsStream, WebSocketStream};
 
-use crate::message_bus::{Event, FinishMatch, Message, MessageBus, UiCommand, UiUpdate};
+use crate::message_bus::{
+    DiscordBotStatus, Event, FinishMatch, Message, MessageBus, MessageBusSubscription, UiCommand,
+    UiUpdate,
+};
 use crate::utils::print_err;
 
-const PING_INTERVAL: Duration = Duration::from_secs(30);
-const PEER_TIMEOUT: Duration = Duration::from_secs(90);
-const RECONNECT_DELAY: Duration = Duration::from_secs(5);
+const PING_INTERVAL: Duration = Duration::from_secs(5);
+const PEER_TIMEOUT: Duration = Duration::from_secs(15);
+const CONNECT_TIMEOUT: Duration = Duration::from_secs(5);
+const RECONNECT_DELAY: Duration = Duration::from_secs(2);
 
 /// Messages forwarded from eloelo to the Discord bot.
 fn to_bot(message: &Message) -> bool {
@@ -45,23 +50,69 @@ fn to_eloelo(message: &Message) -> bool {
 }
 
 /// eloelo side. Connects to the bot server and keeps reconnecting when the connection is lost.
+/// Publishes `DiscordBotStatus` changes on the local bus.
 pub async fn run_client(url: String, secret: String, message_bus: MessageBus) {
+    let mut status = StatusReporter::new(message_bus.clone());
     if secret.is_empty() {
         warn!("Bridge: bridgeSecret is not set, not connecting to the Discord bot.");
+        status.disconnected("bridgeSecret is not set".into());
         return;
     }
     loop {
-        match connect(&url, &secret).await {
+        let error = match connect(&url, &secret).await {
             Ok(ws) => {
                 info!("Bridge: connected to {url}");
-                match bridge(ws, &message_bus, to_bot, to_eloelo).await {
-                    Ok(()) => info!("Bridge: connection closed."),
-                    Err(e) => warn!("Bridge: connection lost: {e:#}"),
+                // Subscribe before reporting, so no message sent after the status change is missed.
+                let local_messages = message_bus.subscribe();
+                status.connected();
+                match bridge(ws, &message_bus, local_messages, to_bot, to_eloelo).await {
+                    Ok(()) => "Connection closed".into(),
+                    Err(e) => format!("Connection lost: {e:#}"),
                 }
             }
-            Err(e) => warn!("Bridge: failed to connect to {url}: {e:#}"),
+            Err(e) => format!("Failed to connect: {e:#}"),
+        };
+        if status.disconnected(error.clone()) {
+            warn!("Bridge: {url}: {error}");
         }
         tokio::time::sleep(RECONNECT_DELAY).await;
+    }
+}
+
+/// Publishes bridge status on the local bus, only when it changes.
+struct StatusReporter {
+    message_bus: MessageBus,
+    last: Option<DiscordBotStatus>,
+}
+
+impl StatusReporter {
+    fn new(message_bus: MessageBus) -> Self {
+        Self {
+            message_bus,
+            last: None,
+        }
+    }
+
+    fn connected(&mut self) {
+        self.report(DiscordBotStatus::Connected);
+    }
+
+    fn disconnected(&mut self, error: String) -> bool {
+        let since = match &self.last {
+            Some(DiscordBotStatus::Disconnected { since, .. }) => *since,
+            _ => Local::now(),
+        };
+        self.report(DiscordBotStatus::Disconnected { since, error })
+    }
+
+    fn report(&mut self, status: DiscordBotStatus) -> bool {
+        if self.last.as_ref() == Some(&status) {
+            return false;
+        }
+        self.message_bus
+            .send(Message::Event(Event::DiscordBotStatus(status.clone())));
+        self.last = Some(status);
+        true
     }
 }
 
@@ -88,7 +139,8 @@ pub async fn run_server(addr: &str, secret: &str, message_bus: MessageBus) -> Re
                 }
             };
             info!("Bridge: eloelo connected from {peer}");
-            match bridge(ws, &message_bus, to_eloelo, to_bot).await {
+            let local_messages = message_bus.subscribe();
+            match bridge(ws, &message_bus, local_messages, to_eloelo, to_bot).await {
                 Ok(()) => info!("Bridge: {peer} disconnected."),
                 Err(e) => warn!("Bridge: connection with {peer} lost: {e:#}"),
             }
@@ -102,7 +154,9 @@ async fn connect(url: &str, secret: &str) -> Result<WebSocketStream<MaybeTlsStre
         header::AUTHORIZATION,
         HeaderValue::from_str(&format!("Bearer {secret}"))?,
     );
-    let (ws, _) = tokio_tungstenite::connect_async(request).await?;
+    let (ws, _) = tokio::time::timeout(CONNECT_TIMEOUT, tokio_tungstenite::connect_async(request))
+        .await
+        .context("Timed out")??;
     Ok(ws)
 }
 
@@ -127,6 +181,7 @@ fn authorize(
 async fn bridge<S>(
     ws: WebSocketStream<S>,
     message_bus: &MessageBus,
+    local_messages: MessageBusSubscription,
     outgoing: fn(&Message) -> bool,
     incoming: fn(&Message) -> bool,
 ) -> Result<()>
@@ -134,7 +189,7 @@ where
     S: AsyncRead + AsyncWrite + Unpin,
 {
     let (mut sink, mut stream) = ws.split();
-    let mut local_messages = message_bus.subscribe().stream().boxed();
+    let mut local_messages = local_messages.stream().boxed();
     let mut ping = tokio::time::interval(PING_INTERVAL);
     let mut last_seen = Instant::now();
     loop {
@@ -217,39 +272,39 @@ mod tests {
         assert!(connect(&url, SECRET).await.is_ok());
     }
 
+    async fn next_status(
+        messages: &mut (impl Stream<Item = Result<Message>> + Unpin),
+    ) -> DiscordBotStatus {
+        loop {
+            if let Message::Event(Event::DiscordBotStatus(status)) = next_message(messages).await {
+                return status;
+            }
+        }
+    }
+
     #[tokio::test]
     async fn forwards_only_bridged_messages() {
         let bot_bus = MessageBus::new();
         let eloelo_bus = MessageBus::new();
         let mut bot_messages = bot_bus.subscribe().stream().boxed();
+        let mut eloelo_messages = eloelo_bus.subscribe().stream().boxed();
         let addr = start_server(bot_bus.clone()).await;
         tokio::spawn(run_client(
             format!("ws://{addr}"),
             SECRET.into(),
             eloelo_bus.clone(),
         ));
-
-        // Messages sent before the client subscribes are lost, so keep sending until one arrives.
-        loop {
-            eloelo_bus.send(Message::UiCommand(UiCommand::InitializeUi));
-            let received = tokio::time::timeout(Duration::from_millis(50), bot_messages.next());
-            if received.await.is_ok() {
-                break;
-            }
-        }
+        assert_eq!(
+            next_status(&mut eloelo_messages).await,
+            DiscordBotStatus::Connected
+        );
 
         eloelo_bus.send(Message::UiCommand(UiCommand::StartMatch));
         eloelo_bus.send(Message::UiCommand(UiCommand::FinishMatch(
             FinishMatch::Cancelled,
         )));
-        let received = loop {
-            match next_message(&mut bot_messages).await {
-                Message::UiCommand(UiCommand::InitializeUi) => continue,
-                message => break message,
-            }
-        };
         assert!(matches!(
-            received,
+            next_message(&mut bot_messages).await,
             Message::UiCommand(UiCommand::FinishMatch(FinishMatch::Cancelled))
         ));
 
@@ -259,6 +314,33 @@ mod tests {
         assert!(matches!(
             next_message(&mut eloelo_messages).await,
             Message::UiUpdate(UiUpdate::DiscordInfo(_))
+        ));
+    }
+
+    #[tokio::test]
+    async fn reports_connection_status() {
+        // Server accepting a single connection and dropping it right away.
+        let listener = TcpListener::bind("127.0.0.1:0").await.unwrap();
+        let addr = listener.local_addr().unwrap();
+        tokio::spawn(async move {
+            let (tcp, _) = listener.accept().await.unwrap();
+            drop(tokio_tungstenite::accept_async(tcp).await.unwrap());
+        });
+        let eloelo_bus = MessageBus::new();
+        let mut eloelo_messages = eloelo_bus.subscribe().stream().boxed();
+        tokio::spawn(run_client(
+            format!("ws://{addr}"),
+            SECRET.into(),
+            eloelo_bus.clone(),
+        ));
+
+        assert_eq!(
+            next_status(&mut eloelo_messages).await,
+            DiscordBotStatus::Connected
+        );
+        assert!(matches!(
+            next_status(&mut eloelo_messages).await,
+            DiscordBotStatus::Disconnected { .. }
         ));
     }
 
