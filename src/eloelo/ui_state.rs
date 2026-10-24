@@ -6,7 +6,7 @@ use serde::{Deserialize, Serialize};
 
 use super::config::Game;
 use super::message_bus::DiscordBotStatus;
-use eloelo_model::history::HistoryEntry;
+use eloelo_model::history::{HistoryEntry, PlayerTags};
 use eloelo_model::{BalancedTeam, GameId, GameState, PlayerId};
 
 #[derive(Clone, PartialEq, Debug, Serialize, Deserialize)]
@@ -27,6 +27,11 @@ pub struct State {
 
     #[serde(default)]
     pub shuffle_temperature: i32,
+
+    /// Tags assigned to players in the current match. Stored, so they reach the history even
+    /// when eloelo is restarted during the match.
+    #[serde(default)]
+    pub match_tags: HashMap<PlayerId, PlayerTags>,
 }
 
 impl State {
@@ -38,6 +43,7 @@ impl State {
             game_state: Default::default(),
             lobby: Default::default(),
             shuffle_temperature: Default::default(),
+            match_tags: Default::default(),
         }
     }
 }

@@ -97,7 +97,7 @@ impl EloElo {
             git_mirror,
             options,
             shuffle_temperature: state.shuffle_temperature,
-            match_tags: HashMap::new(),
+            match_tags: state.match_tags,
             discord_bot_status,
         };
         elo.recalculate_elo_from_history();
@@ -197,6 +197,7 @@ impl EloElo {
             game_state: self.game_state,
             lobby: self.lobby.clone(),
             shuffle_temperature: self.shuffle_temperature,
+            match_tags: self.match_tags.clone(),
         };
         store::store_state(&state)?;
         store::store_options(&self.options)?;
