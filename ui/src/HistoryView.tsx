@@ -14,7 +14,7 @@ import {
 } from "@mui/material";
 import React from "react";
 import { elapsedSecondsString } from "./Duration";
-import type { Avatars, HistoryEntry, Player } from "./model";
+import type { Avatars, HistoryEntry, Player, PlayerTags } from "./model";
 
 function percentage(v: number): string {
   const formatter = new Intl.NumberFormat(undefined, {
@@ -50,6 +50,7 @@ export function HistoryView({
             discordUsername: undefined,
             presentInLobby: false,
             loseStreak: 0,
+            role: undefined,
           };
     });
   };
@@ -110,6 +111,7 @@ export function HistoryView({
       <Stack>
         <TeamCell
           players={getPlayersByIds(playerIds, players)}
+          tags={row.entry.tags}
           avatars={avatars}
           highlight={highlightState}
           justifyContent={justifyContent}
@@ -170,12 +172,14 @@ export function HistoryView({
 
 function TeamCell({
   players,
+  tags,
   avatars,
   highlight,
   justifyContent,
   onAvatarClick,
 }: {
   players: Player[];
+  tags: { [playerId: string]: PlayerTags };
   avatars: Avatars;
   highlight: string | undefined;
   justifyContent: "left" | "right" | "center";
@@ -187,6 +191,7 @@ function TeamCell({
         <AvatarWithFallback
           key={player.id}
           dim={highlight !== undefined && highlight !== player.id}
+          role={tags[player.id]?.role}
           {...{ avatars, player, onAvatarClick }}
         />
       ))}
@@ -197,11 +202,13 @@ function TeamCell({
 function AvatarWithFallback({
   avatars,
   player,
+  role,
   dim,
   onAvatarClick,
 }: {
   avatars: Avatars;
   player: Player;
+  role: string | undefined;
   dim: boolean;
   onAvatarClick: (player: string) => void;
 }) {
@@ -209,7 +216,7 @@ function AvatarWithFallback({
   const sx = dim ? { filter: "grayscale(1) opacity(20%)" } : {};
 
   return (
-    <Tooltip title={player.name}>
+    <Tooltip title={role ? `${player.name} (${role})` : player.name}>
       {avatar !== undefined ? (
         <Avatar
           alt={player.name}

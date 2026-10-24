@@ -57,6 +57,8 @@ pub struct UiPlayer {
     pub elo: i32,
     pub present_in_lobby: bool,
     pub lose_streak: Option<i32>,
+    /// Role (hero tag) assigned in the current match.
+    pub role: Option<String>,
 }
 
 #[derive(Clone, Debug, Serialize, Deserialize)]

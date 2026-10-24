@@ -170,8 +170,8 @@ impl EloElo {
                 }
                 Ok(Some(Message::UiCommand(command))) => self.dispatch_ui_command(command).await,
                 Ok(Some(Message::Event(Event::HeroesAssigned(heroes_assigned)))) => {
+                    // Falls through to sending the UI state, which shows the assigned roles.
                     self.on_heroes_assigned(&heroes_assigned);
-                    continue;
                 }
                 Ok(Some(Message::Event(Event::DiscordBotStatus(status)))) => {
                     self.discord_bot_status = status;
@@ -294,6 +294,7 @@ impl EloElo {
                     .and_then(|p| p.discord_username().map(|n| n.to_string()));
                 let present_in_lobby = self.lobby.contains(&player);
                 let lose_streak = lose_streaks.get(&player).copied();
+                let role = self.match_tags.get(&player).and_then(|t| t.role.clone());
                 UiPlayer {
                     id: player,
                     name,
@@ -301,6 +302,7 @@ impl EloElo {
                     elo,
                     present_in_lobby,
                     lose_streak,
+                    role,
                 }
             })
             .collect()

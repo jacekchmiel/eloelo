@@ -89,7 +89,7 @@ function PlayerProfile({
       </ListItemAvatar>
       <ListItemText
         primary={`${crown ? "👑 " : ""}${player.name}`}
-        secondary={player.elo}
+        secondary={player.role ? `${player.elo} · ${player.role}` : player.elo}
         sx={textSx}
       />
       {player.loseStreak != null && (

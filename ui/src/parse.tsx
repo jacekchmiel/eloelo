@@ -8,6 +8,7 @@ import type {
   OptionsGroup,
   PityBonus,
   Player,
+  PlayerTags,
   WinScale,
 } from "./model";
 
@@ -20,6 +21,7 @@ type HistoryEntryTransport = {
     duration: number;
     scale: WinScale;
     fake: boolean;
+    tags?: { [playerId: string]: PlayerTags };
   };
   metadata: {
     winnerElo: number;
@@ -49,11 +51,12 @@ export type EloEloStateTransport = {
 
 function parseHistoryEntry(historyEntry: HistoryEntryTransport): HistoryEntry {
   const { entry, metadata } = historyEntry;
-  const { timestamp, scale, ...rest } = entry;
+  const { timestamp, scale, tags, ...rest } = entry;
   return {
     entry: {
       timestamp: new Date(timestamp),
       scale: scale.toLowerCase() as WinScale,
+      tags: tags ?? {},
       ...rest,
     },
     metadata,

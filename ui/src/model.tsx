@@ -5,9 +5,15 @@ export type Player = {
   elo: number;
   presentInLobby: boolean;
   loseStreak: number | undefined;
+  /** Role (hero tag) assigned in the current match. */
+  role: string | undefined;
 };
 
 export type GameState = "assemblingTeams" | "matchInProgress";
+
+export type PlayerTags = {
+  role?: string;
+};
 
 export type Team = "left" | "right";
 
@@ -25,6 +31,8 @@ export type HistoryEntry = {
     duration: number;
     scale: WinScale;
     fake: boolean;
+    /** Tags (e.g. role) assigned to players in the match, by player id. */
+    tags: { [playerId: string]: PlayerTags };
   };
   metadata: {
     winnerElo: number;
