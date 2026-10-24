@@ -22,7 +22,8 @@ pub struct Config {
     #[serde(default)]
     pub discord_channel_name: String,
 
-    /// Disables priv messages and storing history. Useful for development and testing.
+    /// Disables priv messages, storing match history and syncing the history git mirror. Finished
+    /// matches are kept in memory only. Useful for development and testing.
     #[serde(default)]
     pub test_mode: bool,
 

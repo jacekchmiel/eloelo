@@ -66,10 +66,13 @@ impl EloElo {
         let _ = std::fs::create_dir_all(&config.history_git_mirror)
             .inspect_err(|e| error!("Cannot create git mirror directory - {e}"));
         let git_mirror = GitMirror::new(config.history_git_mirror.clone());
-        let _ = git_mirror
-            .sync(None)
-            .context("Initial git mirror sync failed")
-            .print_err();
+        // Test mode never touches the shared history repo.
+        if !config.test_mode {
+            let _ = git_mirror
+                .sync(None)
+                .context("Initial git mirror sync failed")
+                .print_err();
+        }
         let history = unwrap_or_def_verbose(store::load_history());
         let discord_bot_status = match config.discord_bot {
             DiscordBotMode::Embedded => DiscordBotStatus::Embedded,
@@ -725,22 +728,26 @@ impl EloElo {
     }
 
     fn store_updated_history(&self, history_entry: &HistoryEntry, winner: Team) {
+        // History files live in the git mirror's working tree, so in test mode the match is kept
+        // in memory only. Otherwise the next sync would push it to the shared history.
+        if self.config.test_mode {
+            info!("Test mode: match not stored in history.");
+            return;
+        }
         let _ = store::append_history_entry(&self.selected_game, &history_entry)
             .context("Failed to append history entry")
             .print_err(); // TODO: proper error propagation
-        if !self.config.test_mode {
-            let commit_message = self.mk_finish_match_commit_message(
-                winner,
-                history_entry.scale,
-                history_entry.duration,
-                history_entry.fake,
-            );
-            let _ = self
-                .git_mirror
-                .sync(Some(&commit_message))
-                .context("Failed to sync history git mirror")
-                .print_err(); // TODO: proper error propagation
-        }
+        let commit_message = self.mk_finish_match_commit_message(
+            winner,
+            history_entry.scale,
+            history_entry.duration,
+            history_entry.fake,
+        );
+        let _ = self
+            .git_mirror
+            .sync(Some(&commit_message))
+            .context("Failed to sync history git mirror")
+            .print_err(); // TODO: proper error propagation
     }
 
     fn make_history_entry(&self, info: MatchInfo) -> HistoryEntry {
