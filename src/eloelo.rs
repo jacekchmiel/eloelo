@@ -8,7 +8,7 @@ use crate::eloelo::ui_state::{MatchMetadata, UiHistory, UiHistoryEntry};
 use crate::utils::{duration_minutes, print_err, unwrap_or_def_verbose, ResultExt as _};
 use anyhow::{Context, Result};
 use chrono::Local;
-use config::Config;
+use config::{Config, DiscordBotMode};
 use eloelo_model::decimal::Decimal;
 use eloelo_model::history::{History, HistoryEntry, PlayerTags};
 use eloelo_model::player::{Player, PlayerDb, PlayersConfig};
@@ -17,22 +17,22 @@ use futures_util::stream::{StreamExt as _, TryStreamExt as _};
 use git_mirror::GitMirror;
 use log::{debug, error, info, warn};
 use message_bus::{
-    Event, FinishMatch, HeroesAssigned, MatchStart, MatchStartTeam, Message, MessageBus,
-    RichMatchResult, UiCommand,
+    DiscordBotStatus, Event, FinishMatch, HeroesAssigned, MatchStart, MatchStartTeam, Message,
+    MessageBus, MessageBusSubscription, RichMatchResult, UiCommand,
 };
 use regex::Regex;
 use spawelo::ml_elo;
 use ui_state::{PityBonus, State, UiPlayer, UiState};
 
-mod config;
-pub(crate) mod elodisco;
+pub mod config;
+pub mod elodisco;
 mod fosiaudio;
 mod git_mirror;
-pub(crate) mod message_bus;
-pub(crate) mod ocr;
+pub mod message_bus;
+pub mod ocr;
 pub mod options;
-pub(crate) mod store;
-mod ui_state;
+pub mod store;
+pub mod ui_state;
 
 pub struct EloElo {
     selected_game: GameId,
@@ -50,6 +50,7 @@ pub struct EloElo {
     shuffle_temperature: i32,
     /// Tags assigned to players in the current match.
     match_tags: HashMap<PlayerId, PlayerTags>,
+    discord_bot_status: DiscordBotStatus,
 }
 
 impl EloElo {
@@ -70,6 +71,14 @@ impl EloElo {
             .context("Initial git mirror sync failed")
             .print_err();
         let history = unwrap_or_def_verbose(store::load_history());
+        let discord_bot_status = match config.discord_bot {
+            DiscordBotMode::Embedded => DiscordBotStatus::Embedded,
+            DiscordBotMode::Disabled => DiscordBotStatus::Disabled,
+            DiscordBotMode::Remote { .. } => DiscordBotStatus::Disconnected {
+                since: Local::now(),
+                error: "Not connected yet".into(),
+            },
+        };
 
         let mut elo = EloElo {
             selected_game: state.selected_game,
@@ -86,6 +95,7 @@ impl EloElo {
             options,
             shuffle_temperature: state.shuffle_temperature,
             match_tags: HashMap::new(),
+            discord_bot_status,
         };
         elo.recalculate_elo_from_history();
         elo
@@ -143,8 +153,12 @@ impl EloElo {
             .collect();
     }
 
-    pub async fn dispatch_messages(mut self, message_bus: MessageBus) {
-        let mut message_stream = message_bus.subscribe().stream().boxed();
+    pub async fn dispatch_messages(
+        mut self,
+        messages: MessageBusSubscription,
+        message_bus: MessageBus,
+    ) {
+        let mut message_stream = messages.stream().boxed();
         loop {
             match message_stream.try_next().await {
                 Ok(Some(Message::UiCommand(command @ UiCommand::CloseApplication))) => {
@@ -155,6 +169,9 @@ impl EloElo {
                 Ok(Some(Message::Event(Event::HeroesAssigned(heroes_assigned)))) => {
                     self.on_heroes_assigned(&heroes_assigned);
                     continue;
+                }
+                Ok(Some(Message::Event(Event::DiscordBotStatus(status)))) => {
+                    self.discord_bot_status = status;
                 }
                 Ok(Some(_)) => continue,
                 Ok(None) => {
@@ -204,6 +221,7 @@ impl EloElo {
                 3,
             ),
             shuffle_temperature: self.shuffle_temperature,
+            discord_bot_status: self.discord_bot_status.clone(),
         }
     }
 

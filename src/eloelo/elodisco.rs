@@ -14,7 +14,7 @@ use poise::serenity_prelude as serenity;
 use std::sync::Arc;
 
 pub(crate) mod async_elodisco;
-pub(crate) mod bot_state;
+pub mod bot_state;
 pub(crate) mod dota_bot;
 pub(crate) mod hero_assignment_strategy;
 pub(crate) mod messages;

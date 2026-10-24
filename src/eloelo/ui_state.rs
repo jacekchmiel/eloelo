@@ -5,6 +5,7 @@ use eloelo_model::options::DescribedOptionsGroup;
 use serde::{Deserialize, Serialize};
 
 use super::config::Game;
+use super::message_bus::DiscordBotStatus;
 use eloelo_model::history::HistoryEntry;
 use eloelo_model::{BalancedTeam, GameId, GameState, PlayerId};
 
@@ -121,4 +122,5 @@ pub struct UiState {
 
     pub history: UiHistory,
     pub options: Vec<DescribedOptionsGroup>,
+    pub discord_bot_status: DiscordBotStatus,
 }

@@ -62,6 +62,33 @@ pub struct Config {
 
     #[serde(default = "default_serving_addr")]
     pub serving_addr: String,
+
+    #[serde(default)]
+    pub discord_bot: DiscordBotMode,
+
+    /// Shared secret authenticating eloelo connections to the remote Discord bot server.
+    #[serde(default)]
+    pub bridge_secret: String,
+
+    /// Address the Discord bot server (elodisco binary) listens on for eloelo connections.
+    #[serde(default = "default_bridge_listen_addr")]
+    pub bridge_listen_addr: String,
+}
+
+/// Where eloelo's Discord bot runs.
+#[derive(Debug, Clone, Default, Serialize, Deserialize, PartialEq)]
+#[serde(rename_all = "camelCase", tag = "mode")]
+pub enum DiscordBotMode {
+    /// In the eloelo process.
+    #[default]
+    Embedded,
+    /// In a separate elodisco process. eloelo connects to it at `url`, e.g. `ws://host:3001`.
+    Remote { url: String },
+    Disabled,
+}
+
+fn default_bridge_listen_addr() -> String {
+    "0.0.0.0:3001".into()
 }
 
 fn default_serving_addr() -> String {
@@ -111,6 +138,9 @@ impl Default for Config {
             dota_ocr_engine_pwd: default_dota_ocr_engine_pwd(),
             static_serving_dir: default_static_serving_dir(),
             serving_addr: default_serving_addr(),
+            discord_bot: Default::default(),
+            bridge_secret: Default::default(),
+            bridge_listen_addr: default_bridge_listen_addr(),
             test_mode: true,
             discord_test_mode_players: Default::default(),
             discord_test_channel_name: Default::default(),

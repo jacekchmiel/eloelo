@@ -1,7 +1,11 @@
 use std::fmt::Display;
+use std::future::Future;
+use std::pin::Pin;
 use std::time::Duration;
 
+use anyhow::{Context as _, Result};
 use log::{error, info};
+use tokio::signal;
 
 pub fn print_err(e: &impl Display) {
     error!("{e:#}")
@@ -26,7 +30,7 @@ impl<T> ResultExt for Result<T, anyhow::Error> {
     }
 }
 
-pub(crate) fn join<T>(collection: T, sep: &str) -> String
+pub fn join<T>(collection: T, sep: &str) -> String
 where
     T: IntoIterator,
     T::Item: Display,
@@ -38,7 +42,7 @@ where
         .join(sep)
 }
 
-pub(crate) fn unwrap_or_def_verbose<T, E>(result: Result<T, E>) -> T
+pub fn unwrap_or_def_verbose<T, E>(result: Result<T, E>) -> T
 where
     T: Default,
     E: std::fmt::Display,
@@ -52,4 +56,32 @@ where
 
 pub fn duration_minutes(d: Duration) -> String {
     format!("{}m", d.as_secs() / 60)
+}
+
+#[cfg(unix)]
+pub async fn terminate_on_signal() -> Result<()> {
+    let interrupt_signal: Pin<Box<dyn Future<Output = _> + Send>> = Box::pin(async {
+        signal::unix::signal(signal::unix::SignalKind::interrupt())
+            .context("Failed to register terminate signal handlers!")?
+            .recv()
+            .await;
+        Ok(())
+    });
+    let terminate_signal = Box::pin(async {
+        signal::unix::signal(signal::unix::SignalKind::terminate())
+            .context("Failed to register terminate signal handlers!")?
+            .recv()
+            .await;
+        Ok(())
+    });
+    futures_util::future::select_all([interrupt_signal, terminate_signal])
+        .await
+        .0
+}
+
+#[cfg(windows)]
+pub async fn terminate_on_signal() -> Result<()> {
+    signal::ctrl_c()
+        .await
+        .context("Failed to register ctrl_c signal.")
 }

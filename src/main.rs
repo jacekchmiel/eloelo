@@ -1,45 +1,10 @@
-use anyhow::{Context, Result};
+use anyhow::Context;
+use eloelo::config::DiscordBotMode;
 use eloelo::message_bus::{Message, MessageBus, UiCommand};
-use eloelo::{elodisco, ocr, store, EloElo};
+use eloelo::utils::{terminate_on_signal, unwrap_or_def_verbose, ResultExt as _};
+use eloelo::{api, bridge, elodisco, logging, ocr, store, EloElo};
 use log::{debug, error, info, warn};
-use serenity::futures;
-use std::future::Future;
-use std::pin::Pin;
-use tokio::signal;
-use utils::{unwrap_or_def_verbose, ResultExt as _};
-
-mod api;
-mod eloelo;
-mod logging;
-pub(crate) mod utils;
-
-#[cfg(unix)]
-async fn terminate_on_signal() -> Result<()> {
-    let interrupt_signal: Pin<Box<dyn Future<Output = _>>> = Box::pin(async {
-        signal::unix::signal(signal::unix::SignalKind::interrupt())
-            .context("Failed to register terminate signal handlers!")?
-            .recv()
-            .await;
-        Ok(())
-    });
-    let terminate_signal = Box::pin(async {
-        signal::unix::signal(signal::unix::SignalKind::terminate())
-            .context("Failed to register terminate signal handlers!")?
-            .recv()
-            .await;
-        Ok(())
-    });
-    futures::future::select_all([interrupt_signal, terminate_signal])
-        .await
-        .0
-}
-
-#[cfg(windows)]
-async fn terminate_on_signal() -> Result<()> {
-    signal::ctrl_c()
-        .await
-        .context("Failed to register ctrl_c signal.")
-}
+use tokio_util::sync::CancellationToken;
 
 #[tokio::main]
 async fn main() {
@@ -50,14 +15,33 @@ async fn main() {
     }
     let players_config = unwrap_or_def_verbose(store::load_players());
     let state = unwrap_or_def_verbose(store::load_state());
-    let bot_state = unwrap_or_def_verbose(store::load_bot_state());
     let spawelo_options = unwrap_or_def_verbose(store::load_options());
     let message_bus = MessageBus::new();
-    tokio::spawn(elodisco::run(
-        config.clone(),
-        bot_state,
-        message_bus.clone(),
-    ));
+    // Subscribe before anything else runs, so EloElo doesn't miss messages sent during startup
+    // (e.g. Discord bot status).
+    let eloelo_messages = message_bus.subscribe();
+    let shutdown = CancellationToken::new();
+    let bridge_task = match &config.discord_bot {
+        DiscordBotMode::Embedded => {
+            let bot_state = unwrap_or_def_verbose(store::load_bot_state());
+            tokio::spawn(elodisco::run(
+                config.clone(),
+                bot_state,
+                message_bus.clone(),
+            ));
+            None
+        }
+        DiscordBotMode::Remote { url } => Some(tokio::spawn(bridge::run_client(
+            url.clone(),
+            config.bridge_secret.clone(),
+            message_bus.clone(),
+            shutdown.clone(),
+        ))),
+        DiscordBotMode::Disabled => {
+            info!("Discord bot disabled.");
+            None
+        }
+    };
     let eloelo = EloElo::new(
         state,
         config.clone(),
@@ -65,7 +49,7 @@ async fn main() {
         spawelo_options,
         message_bus.clone(),
     );
-    let eloelo_task = tokio::spawn(eloelo.dispatch_messages(message_bus.clone()));
+    let eloelo_task = tokio::spawn(eloelo.dispatch_messages(eloelo_messages, message_bus.clone()));
     let _ = ocr::spawn_dota_screenshot_parser(config.clone(), message_bus.clone())
         .context("spawn_dota_screenshot_parser failed")
         .inspect_err(|e| error!("{e:#}"));
@@ -78,9 +62,13 @@ async fn main() {
     info!("Running");
     terminate_on_signal().await.print_err();
     info!("Terminating.");
+    shutdown.cancel();
     message_bus.send(Message::UiCommand(UiCommand::CloseApplication));
 
     debug!("Waiting for workers to stop...");
     eloelo_task.await.context("Eloelo task failed").print_err();
+    if let Some(bridge_task) = bridge_task {
+        bridge_task.await.context("Bridge task failed").print_err();
+    }
     debug!("All workers stopped.")
 }

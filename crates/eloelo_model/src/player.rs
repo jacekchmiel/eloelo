@@ -130,7 +130,7 @@ impl From<Player> for PlayerConfig {
     }
 }
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct PlayerDb {
     players: HashMap<PlayerId, Player>,
 }

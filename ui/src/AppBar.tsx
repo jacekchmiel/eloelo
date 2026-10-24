@@ -1,5 +1,5 @@
 import React from "react";
-import type { EloEloState } from "./model";
+import type { DiscordBotStatus, EloEloState } from "./model";
 
 import HistoryIcon from "@mui/icons-material/History";
 import MenuIcon from "@mui/icons-material/Menu";
@@ -18,6 +18,8 @@ import Select, { type SelectChangeEvent } from "@mui/material/Select";
 import Toolbar from "@mui/material/Toolbar";
 import Typography from "@mui/material/Typography";
 import { invoke } from "./Api";
+import { DefaultTooltip } from "./components/DefaultTooltip";
+import { DiscordIcon } from "./components/DiscordIcon";
 import { ThemeSwitcher } from "./components/ThemeSwitcher";
 
 function GameSelector({
@@ -49,6 +51,39 @@ function GameSelector({
         ))}
       </Select>
     </FormControl>
+  );
+}
+
+function DiscordBotStatusIndicator({ status }: { status: DiscordBotStatus }) {
+  let title: string;
+  let color: string;
+  if (status.status === "connected") {
+    title = "Discord bot connected";
+    color = "success.main";
+  } else if (status.status === "disconnected") {
+    const since = new Date(status.since).toLocaleTimeString();
+    title = `Discord bot disconnected since ${since}. ${status.error}`;
+    color = "error.main";
+  } else {
+    return null;
+  }
+  return (
+    <DefaultTooltip title={title}>
+      <Box
+        sx={{
+          width: 32,
+          height: 32,
+          borderRadius: "50%",
+          bgcolor: color,
+          color: "common.white",
+          display: "flex",
+          alignItems: "center",
+          justifyContent: "center",
+        }}
+      >
+        <DiscordIcon fontSize="small" />
+      </Box>
+    </DefaultTooltip>
   );
 }
 
@@ -130,6 +165,9 @@ export function EloEloAppBar({
             Elo Elo
           </Typography>
           <Box sx={{ flexGrow: 1 }} />
+          <Box sx={{ mr: 2, display: "flex" }}>
+            <DiscordBotStatusIndicator status={state.discordBotStatus} />
+          </Box>
           <Box sx={{ mr: 3 }}>
             <GameSelector
               availableGames={state.availableGames.map((g) => g.name)}

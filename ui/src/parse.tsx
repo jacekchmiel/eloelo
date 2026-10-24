@@ -1,4 +1,5 @@
 import type {
+  DiscordBotStatus,
   EloEloState,
   Game,
   GameState,
@@ -43,6 +44,7 @@ export type EloEloStateTransport = {
   options: OptionsGroup[];
   winPrediction: number;
   shuffleTemperature: number;
+  discordBotStatus: DiscordBotStatus;
 };
 
 function parseHistoryEntry(historyEntry: HistoryEntryTransport): HistoryEntry {

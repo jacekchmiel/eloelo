@@ -5,7 +5,7 @@ use super::store::data_dir;
 
 pub fn init() -> LoggerHandle {
     let logger = Logger::try_with_str(
-        "warn,eloelo=debug,eloelo_lib=debug,eloelo_model=debug,spawelo=debug,history=debug",
+        "warn,eloelo=debug,elodisco=debug,eloelo_model=debug,spawelo=debug,history=debug",
     )
     .expect("log config text")
     .log_to_file(FileSpec::default().directory(data_dir().join("logs")))

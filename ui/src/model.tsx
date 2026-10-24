@@ -64,7 +64,14 @@ export type EloEloState = {
   options: OptionsGroup[];
   winPrediction?: number;
   shuffleTemperature: number;
+  discordBotStatus: DiscordBotStatus;
 };
+
+export type DiscordBotStatus =
+  | { status: "embedded" }
+  | { status: "disabled" }
+  | { status: "connected" }
+  | { status: "disconnected"; since: string; error: string };
 
 export type PityBonus = {
   left: TeamPityBonus;
