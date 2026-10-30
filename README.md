@@ -60,6 +60,14 @@ own `testMode` only sets the mode until a main server connects.
 cargo run --release --bin elodisco
 ```
 
+To deploy it to a host running it as the `elodisco` systemd service (binary in
+`/var/www/elodisco/`), built locally:
+
+```shell
+./deploy-elodisco.sh HOST           # build, back up the current binary, install, restart
+./deploy-elodisco.sh HOST rollback  # restore the binary from before the last deploy
+```
+
 The main server keeps reconnecting while the bot server is unreachable; the Discord icon in the UI
 app bar is red until the connection is back (hover it for the error).
 
