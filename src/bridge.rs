@@ -70,6 +70,7 @@ pub async fn run_client(
     message_bus: MessageBus,
     shutdown: CancellationToken,
 ) {
+    info!("Bridge: sending test mode: {test_mode}");
     let mut status = StatusReporter::new(message_bus.clone());
     if secret.is_empty() {
         status.disconnected("bridgeSecret is not set, not connecting".into());
@@ -217,7 +218,8 @@ async fn serve(
             return;
         }
     };
-    info!("Bridge: eloelo connected from {peer}");
+    let test_mode_log = test_mode.map_or("not sent".into(), |t| t.to_string());
+    info!("Bridge: eloelo connected from {peer}, test mode: {test_mode_log}");
     // Sent before any bridged message, so the bot is in the right mode for the first match. A
     // client without the header leaves the bot in its current mode.
     if let Some(test_mode) = test_mode {

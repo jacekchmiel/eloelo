@@ -9,7 +9,7 @@ use eloelo_model::player::DiscordUsername;
 use futures_util::lock::Mutex;
 use futures_util::StreamExt as _;
 use itertools::Itertools;
-use log::{info, warn, debug};
+use log::{info, debug};
 use poise::serenity_prelude as serenity;
 use std::sync::Arc;
 
@@ -358,9 +358,10 @@ pub async fn help(
 }
 
 pub async fn run(config: Config, bot_state: BotState, message_bus: MessageBus) {
-    if config.test_mode {
-        warn!("Discord running in test mode");
-    }
+    info!(
+        "Discord bot starting with test mode: {}. A remote bot follows the connected eloelo.",
+        config.test_mode
+    );
     info!(
         "Announcement channel name: {}, in test mode: {}",
         config.discord_channel_name, config.discord_test_channel_name

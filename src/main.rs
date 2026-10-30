@@ -12,6 +12,8 @@ async fn main() {
     let config = unwrap_or_def_verbose(store::load_config());
     if config.test_mode {
         warn!("Running in test mode.");
+    } else {
+        info!("Running in normal mode (test mode off).");
     }
     let players_config = unwrap_or_def_verbose(store::load_players());
     let state = unwrap_or_def_verbose(store::load_state());

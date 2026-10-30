@@ -66,14 +66,10 @@ impl NotificationBot {
     }
 
     fn set_test_mode(&mut self, test_mode: bool) {
-        if test_mode == self.test_mode {
-            return;
-        }
-        if test_mode {
-            warn!("Discord bot switched to test mode.");
-        } else {
-            info!("Discord bot switched to normal mode.");
-        }
+        info!(
+            "Discord bot test mode set by eloelo: {test_mode} (was {}).",
+            self.test_mode
+        );
         self.test_mode = test_mode;
     }
 
