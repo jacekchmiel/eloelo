@@ -11,7 +11,7 @@
 - [x] M Replace the single git repo over the whole data dir (`local_config`), which mixes unrelated files,
       with a separate `GitStorage` per kind of data.
 - [x] S Document the data layout in README.
-- [ ] S Migrate existing data (local data dir and bot server).
+- [x] S Migrate existing data (local data dir and bot server).
 
 ## HIGH PRIORITY
 - [x] S Fix adding new player issue - not working right now.
