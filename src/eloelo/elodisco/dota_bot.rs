@@ -87,6 +87,7 @@ pub struct DotaBot {
     hero_assign_strategy: Box<dyn HeroAssignmentStrategy + Send + Sync>,
     message_bus: MessageBus,
     global_banned_heroes: HashSet<Hero>,
+    unrestricted_players: HashSet<PlayerId>,
     /// Latest players received from eloelo.
     player_db: PlayerDb,
 }
@@ -101,6 +102,17 @@ impl DotaBot {
         if !config.global_banned_heroes.is_empty() {
             let banned_list: Vec<_> = config.global_banned_heroes.iter().map(|h| h.as_str()).collect();
             info!("Globally banned heroes: {}", banned_list.join(", "));
+        }
+        if !config.unrestricted_players.is_empty() {
+            let unrestricted_list: Vec<_> = config
+                .unrestricted_players
+                .iter()
+                .map(|p| p.as_str())
+                .collect();
+            info!(
+                "Players not affected by global bans: {}",
+                unrestricted_list.join(", ")
+            );
         }
         DotaBot {
             state,
@@ -118,6 +130,7 @@ impl DotaBot {
                 }
             },
             global_banned_heroes: config.global_banned_heroes.clone(),
+            unrestricted_players: config.unrestricted_players.clone(),
             player_db,
         }
     }
@@ -143,7 +156,12 @@ impl DotaBot {
 
     pub fn user_hero_pool(&self, username: &DiscordUsername) -> Vec<Hero> {
         let user_state = self.get_user_state(username);
-        let banned = &self.global_banned_heroes;
+        let no_bans = HashSet::new();
+        let banned = if self.is_unrestricted(username) {
+            &no_bans
+        } else {
+            &self.global_banned_heroes
+        };
         let pool: Vec<_> = if !user_state.allowed_heroes.is_empty() {
             user_state.allowed_heroes
                 .difference(banned)
@@ -253,6 +271,17 @@ impl DotaBot {
 
     pub fn player_db(&self) -> &PlayerDb {
         &self.player_db
+    }
+
+    /// Whether `username` belongs to one of `unrestricted_players`. A player without a Discord
+    /// username is matched by id.
+    fn is_unrestricted(&self, username: &DiscordUsername) -> bool {
+        self.unrestricted_players.iter().any(|id| {
+            match self.player_db.get(id).and_then(|p| p.discord_username()) {
+                Some(discord_username) => discord_username == username,
+                None => id.as_str() == username.as_str(),
+            }
+        })
     }
 
     pub fn get_user_state(&self, user: &DiscordUsername) -> DotaBotState {
@@ -419,6 +448,48 @@ mod tests {
         // Non-banned heroes are present in pool
         assert!(pool.contains(&Hero::from("Lion")));
         assert_eq!(pool.len(), Hero::all().len() - 3);
+    }
+
+    #[test]
+    fn test_unrestricted_players_ignore_global_bans() {
+        let mut config = Config::default();
+        config.global_banned_heroes = [Hero::from("Phantom Lancer"), Hero::from("Medusa")]
+            .into_iter()
+            .collect();
+        config.unrestricted_players = [PlayerId::from("j"), PlayerId::from("hypys")]
+            .into_iter()
+            .collect();
+        let player_db = PlayerDb::new([
+            Player::with_opt_discord_username(
+                PlayerId::from("j"),
+                Some(DiscordUsername::from("powerwazniak")),
+            ),
+            Player::with_opt_discord_username(PlayerId::from("hypys"), None),
+            Player::with_opt_discord_username(
+                PlayerId::from("Spawek"),
+                Some(DiscordUsername::from("spawek")),
+            ),
+        ]);
+        let bot = DotaBot::new(HashMap::new(), player_db, MessageBus::new(), &config);
+
+        // Matched by Discord username
+        let pool = bot.user_hero_pool(&DiscordUsername::from("powerwazniak"));
+        assert!(pool.contains(&Hero::from("Phantom Lancer")));
+        assert!(pool.contains(&Hero::from("Medusa")));
+        assert_eq!(pool.len(), Hero::all().len());
+
+        // Player without Discord username is matched by id
+        let pool = bot.user_hero_pool(&DiscordUsername::from("hypys"));
+        assert_eq!(pool.len(), Hero::all().len());
+
+        // The id doesn't match a player who has a different Discord username
+        let pool = bot.user_hero_pool(&DiscordUsername::from("j"));
+        assert!(!pool.contains(&Hero::from("Phantom Lancer")));
+
+        // Other players are still affected
+        let pool = bot.user_hero_pool(&DiscordUsername::from("spawek"));
+        assert!(!pool.contains(&Hero::from("Phantom Lancer")));
+        assert!(!pool.contains(&Hero::from("Medusa")));
     }
 }
 

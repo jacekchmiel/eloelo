@@ -5,7 +5,7 @@
 - [x] S Global hero bans to config
 - [x] S Display test mode in UI
 - [ ] M Role roll fairness. Avoid two games in a row in the same role for a player.
-- [ ] M Global hero ban rules by percentile. E.g. Ban phantom lancer for players with ELO above median.
+- [x] S Players not affected by global hero bans (`unrestrictedPlayers`), instead of ban rules by ELO percentile.
 - [x] S Reroll limits - x per duration
 - [x] S Flag to disable autogrzybke
 - [x] S Display length, elo, advantage and fake on match view
