@@ -26,11 +26,8 @@ async fn main() {
     let bridge_task = match &config.discord_bot {
         DiscordBotMode::Embedded => {
             let bot_state = unwrap_or_def_verbose(store::load_bot_state());
-            tokio::spawn(elodisco::run(
-                config.clone(),
-                bot_state,
-                message_bus.clone(),
-            ));
+            // eloelo doesn't wait for the bot, its messages sent meanwhile are lost.
+            let _ = elodisco::run(config.clone(), bot_state, message_bus.clone());
             None
         }
         DiscordBotMode::Remote { url } => Some(tokio::spawn(bridge::run_client(

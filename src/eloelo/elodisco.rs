@@ -3,15 +3,17 @@ use crate::eloelo::elodisco::async_elodisco::EloDisco;
 use crate::eloelo::elodisco::bot_state::BotState;
 use crate::eloelo::elodisco::dota_bot::Hero;
 use crate::eloelo::message_bus::MessageBus;
-use crate::utils::print_err;
-use anyhow::{Context as _, Error, Result};
+use crate::utils::{print_err, ResultExt as _};
+use anyhow::{bail, Context as _, Error, Result};
 use eloelo_model::player::DiscordUsername;
 use futures_util::lock::Mutex;
 use futures_util::StreamExt as _;
 use itertools::Itertools;
 use log::{info, debug};
 use poise::serenity_prelude as serenity;
+use std::future::Future;
 use std::sync::Arc;
+use tokio::sync::oneshot;
 
 pub(crate) mod async_elodisco;
 pub mod bot_state;
@@ -357,7 +359,14 @@ pub async fn help(
     Ok(())
 }
 
-pub async fn run(config: Config, bot_state: BotState, message_bus: MessageBus) {
+/// Starts the Discord bot in the background. The returned future completes once the bot handles
+/// messages from `message_bus`, or fails if the bot doesn't start. Messages sent before that are
+/// lost. The bot runs whether the future is awaited or not.
+pub fn run(
+    config: Config,
+    bot_state: BotState,
+    message_bus: MessageBus,
+) -> impl Future<Output = Result<()>> {
     info!(
         "Discord bot starting with test mode: {}. A remote bot follows the connected eloelo.",
         config.test_mode
@@ -371,7 +380,8 @@ pub async fn run(config: Config, bot_state: BotState, message_bus: MessageBus) {
         config.discord_test_mode_players.iter().join(", ")
     );
 
-    tokio::spawn(async move {
+    let (bot_ready, bot_ready_receiver) = oneshot::channel();
+    let bot = tokio::spawn(async move {
         let intents = serenity::GatewayIntents::GUILD_MESSAGES
             | serenity::GatewayIntents::DIRECT_MESSAGES
             | serenity::GatewayIntents::MESSAGE_CONTENT;
@@ -391,24 +401,33 @@ pub async fn run(config: Config, bot_state: BotState, message_bus: MessageBus) {
                             .await?;
                     let elodisco = Arc::new(Mutex::new(elodisco));
                     spawn_message_handler(Arc::clone(&elodisco), message_bus.clone());
+                    let _ = bot_ready.send(());
                     Ok(elodisco)
                 })
             })
             .build();
 
-        let mut client = serenity::ClientBuilder::new(token, intents)
-            .framework(framework)
-            .await?;
-
-        info!("Starting Serenity client");
-        client.start().await.context("Serenity client failed")
+        let client = serenity::ClientBuilder::new(token, intents).framework(framework);
+        let started = async {
+            info!("Starting Serenity client");
+            client.await?.start().await
+        };
+        started.await.context("Serenity client failed").print_err();
     });
+    async move {
+        // The sender is dropped when setup fails, but not when the client fails before setup.
+        tokio::select! {
+            ready = bot_ready_receiver => ready.context("Discord bot setup failed"),
+            _ = bot => bail!("Discord bot stopped"),
+        }
+    }
 }
 
 fn spawn_message_handler(elodisco: SharedEloDisco, message_bus: MessageBus) {
+    // Subscribed before returning, so messages sent once the bot is reported ready aren't missed.
+    let messages = message_bus.subscribe();
     tokio::spawn(async move {
-        message_bus
-            .subscribe()
+        messages
             .stream()
             .for_each(move |message| {
                 let elodisco = elodisco.clone();
