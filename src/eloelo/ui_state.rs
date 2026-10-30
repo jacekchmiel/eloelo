@@ -131,4 +131,5 @@ pub struct UiState {
     pub history: UiHistory,
     pub options: Vec<DescribedOptionsGroup>,
     pub discord_bot_status: DiscordBotStatus,
+    pub test_mode: bool,
 }

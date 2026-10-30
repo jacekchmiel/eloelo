@@ -47,6 +47,7 @@ export type EloEloStateTransport = {
   winPrediction: number;
   shuffleTemperature: number;
   discordBotStatus: DiscordBotStatus;
+  testMode: boolean;
 };
 
 function parseHistoryEntry(historyEntry: HistoryEntryTransport): HistoryEntry {

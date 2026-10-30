@@ -7,6 +7,7 @@ import RefreshIcon from "@mui/icons-material/Refresh";
 import SettingsIcon from "@mui/icons-material/Settings";
 import AppBar from "@mui/material/AppBar";
 import Box from "@mui/material/Box";
+import Chip from "@mui/material/Chip";
 import FormControl from "@mui/material/FormControl";
 import IconButton from "@mui/material/IconButton";
 import InputLabel from "@mui/material/InputLabel";
@@ -83,6 +84,14 @@ function DiscordBotStatusIndicator({ status }: { status: DiscordBotStatus }) {
       >
         <DiscordIcon fontSize="small" />
       </Box>
+    </DefaultTooltip>
+  );
+}
+
+function TestModeIndicator() {
+  return (
+    <DefaultTooltip title="Test mode: no priv messages, finished matches are not stored">
+      <Chip label="TEST MODE" color="warning" />
     </DefaultTooltip>
   );
 }
@@ -165,6 +174,11 @@ export function EloEloAppBar({
             Elo Elo
           </Typography>
           <Box sx={{ flexGrow: 1 }} />
+          {state.testMode && (
+            <Box sx={{ mr: 2, display: "flex" }}>
+              <TestModeIndicator />
+            </Box>
+          )}
           <Box sx={{ mr: 2, display: "flex" }}>
             <DiscordBotStatusIndicator status={state.discordBotStatus} />
           </Box>

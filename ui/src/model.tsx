@@ -73,6 +73,7 @@ export type EloEloState = {
   winPrediction?: number;
   shuffleTemperature: number;
   discordBotStatus: DiscordBotStatus;
+  testMode: boolean;
 };
 
 export type DiscordBotStatus =

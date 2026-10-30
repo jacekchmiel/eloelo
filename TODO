@@ -3,7 +3,7 @@
 ## HIGH PRIORITY
 - [x] S Fix adding new player issue - not working right now.
 - [x] S Global hero bans to config
-- [ ] S Display test mode in UI
+- [x] S Display test mode in UI
 - [ ] M Role roll fairness. Avoid two games in a row in the same role for a player.
 - [ ] M Global hero ban rules by percentile. E.g. Ban phantom lancer for players with ELO above median.
 - [x] S Reroll limits - x per duration

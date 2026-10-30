@@ -226,6 +226,7 @@ impl EloElo {
             ),
             shuffle_temperature: self.shuffle_temperature,
             discord_bot_status: self.discord_bot_status.clone(),
+            test_mode: self.config.test_mode,
         }
     }
 
