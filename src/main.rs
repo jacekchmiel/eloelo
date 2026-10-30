@@ -1,7 +1,8 @@
 use anyhow::Context;
 use eloelo::config::DiscordBotMode;
+use eloelo::git_storage::GitStorage;
 use eloelo::message_bus::{DiscordBotStatus, Event, Message, MessageBus, UiCommand};
-use eloelo::utils::{terminate_on_signal, unwrap_or_def_verbose, ResultExt as _};
+use eloelo::utils::{terminate_on_signal, unwrap_or_def_verbose, unwrap_or_exit, ResultExt as _};
 use eloelo::{api, bridge, elodisco, logging, ocr, store, EloElo};
 use log::{debug, error, info, warn};
 use tokio_util::sync::CancellationToken;
@@ -18,6 +19,9 @@ async fn main() {
     let players_config = unwrap_or_def_verbose(store::load_players());
     let state = unwrap_or_def_verbose(store::load_state());
     let spawelo_options = unwrap_or_def_verbose(store::load_options());
+    // Test mode never touches the shared history repo.
+    let history_storage =
+        (!config.test_mode).then(|| unwrap_or_exit(GitStorage::open(store::history_dir(), true)));
     let message_bus = MessageBus::new();
     // Subscribe before anything else runs, so EloElo doesn't miss messages sent during startup
     // (e.g. Discord bot status).
@@ -59,6 +63,7 @@ async fn main() {
         config.clone(),
         players_config.clone(),
         spawelo_options,
+        history_storage,
         message_bus.clone(),
     );
     let eloelo_task = tokio::spawn(eloelo.dispatch_messages(eloelo_messages, message_bus.clone()));

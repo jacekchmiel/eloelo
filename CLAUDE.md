@@ -81,8 +81,9 @@ uses `discordTestChannelName` / DMs only `discordTestModePlayers`. It is shown i
 All runtime data lives in the platform data dir (`directories::ProjectDirs`, on Linux `~/.local/share/eloelo/`, or
 `$XDG_DATA_HOME/eloelo`): `config.yaml`, `players.yaml`, `state.yaml`, `options.yaml`, `discord_bot_state.yaml`,
 `<game>.history.json`, `logs/`. `store.rs` loads/saves them; a missing or broken file falls back to defaults with a
-logged warning (`unwrap_or_def_verbose`). Match history is also committed to a git repo (`history_git/`,
-`git_mirror.rs`). `local_config/`, if present, is a gitignored symlink to the data dir for quick access — it may not
+logged warning (`unwrap_or_def_verbose`). Match history lives in `history/`, a `GitStorage` (`git_storage.rs`):
+a clone of its backup repo, pulled/pushed on open (failure stops the app) and committed and pushed on every new match.
+`local_config/`, if present, is a gitignored symlink to the data dir for quick access — it may not
 exist on every checkout, so never rely on it from code or scripts.
 
 Config structs use `#[serde(rename_all = "camelCase")]` with defaults in `config.rs`; add a default for every new

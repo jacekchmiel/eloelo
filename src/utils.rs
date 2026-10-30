@@ -54,6 +54,14 @@ where
         .unwrap_or_default()
 }
 
+/// For failures the app must not run with: logs the error and exits.
+pub fn unwrap_or_exit<T>(result: Result<T>) -> T {
+    result.unwrap_or_else(|e| {
+        error!("{e:#}");
+        std::process::exit(1)
+    })
+}
+
 pub fn duration_minutes(d: Duration) -> String {
     format!("{}m", d.as_secs() / 60)
 }

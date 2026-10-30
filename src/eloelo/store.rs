@@ -11,12 +11,13 @@ use serde::{Deserialize, Serialize};
 
 use super::config::Config;
 use super::elodisco::bot_state::BotState;
+use super::git_storage::GitStorage;
 use super::ui_state::State;
 use eloelo_model::history::{History, HistoryEntry};
 use eloelo_model::GameId;
 
 const HISTORY_SUFFIX: &str = ".history.json";
-const HISTORY_GIT_DIR: &str = "history_git";
+const HISTORY_DIR: &str = "history";
 
 fn state_file_path() -> PathBuf {
     data_dir().join("state.yaml")
@@ -156,27 +157,31 @@ struct HistorySerializeWrapper {
     entries: Vec<HistoryEntry>,
 }
 
-pub fn append_history_entry(game: &GameId, entry: &HistoryEntry) -> Result<()> {
-    let mut entries = if history_path(game).is_file() {
-        load_history_file(&history_path(game))?.entries
-    } else {
-        vec![]
-    };
+/// Appends `entry` to the history of `game` and commits it with `change` as the message.
+pub fn append_history_entry(
+    storage: &GitStorage,
+    game: &GameId,
+    entry: &HistoryEntry,
+    change: &str,
+) -> Result<()> {
+    let file = history_file_name(game);
+    let mut entries = storage
+        .load::<HistorySerializeWrapper>(&file)?
+        .map(|history| history.entries)
+        .unwrap_or_default();
     entries.push(entry.clone());
-
-    let out_file = File::create(&history_path(game))?;
-    serde_json::to_writer_pretty(
-        out_file,
+    storage.store(
+        &file,
         &HistorySerializeWrapper {
             game: game.clone(),
             entries,
         },
-    )?;
-    Ok(())
+        change,
+    )
 }
 
 pub fn history_dir() -> PathBuf {
-    data_dir().join(HISTORY_GIT_DIR)
+    data_dir().join(HISTORY_DIR)
 }
 
 pub fn load_history() -> Result<History> {
@@ -209,10 +214,9 @@ fn is_regular_history_file(path: &Path) -> bool {
         .ends_with(HISTORY_SUFFIX)
 }
 
-pub fn history_path(game: &GameId) -> PathBuf {
+fn history_file_name(game: &GameId) -> String {
     let safe_game_id = game.as_str().replace(" ", "_").replace(":", "_");
-    let filename = format!("{}{}", safe_game_id, HISTORY_SUFFIX);
-    history_dir().join(filename)
+    format!("{}{}", safe_game_id, HISTORY_SUFFIX)
 }
 
 fn store_file_with_backup<T>(path: &Path, data: &T) -> Result<()>

@@ -4,7 +4,6 @@ use std::path::PathBuf;
 use eloelo_model::{GameId, PlayerId, Team};
 use serde::{Deserialize, Serialize};
 
-use super::store;
 use crate::eloelo::elodisco::dota_bot::Hero;
 
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
@@ -44,9 +43,6 @@ pub struct Config {
     /// Players not affected by `global_banned_heroes`.
     #[serde(default)]
     pub unrestricted_players: HashSet<PlayerId>,
-
-    #[serde(default = "default_history_git_mirror")]
-    pub history_git_mirror: PathBuf,
 
     #[serde(default)]
     pub dota_screenshot_dir: Option<PathBuf>,
@@ -121,10 +117,6 @@ fn default_hero_assignement_strategy_kind() -> HeroAssignmentStrategyKind {
     HeroAssignmentStrategyKind::Random
 }
 
-fn default_history_git_mirror() -> PathBuf {
-    store::data_dir().join("history_git")
-}
-
 fn default_fosiaudio_host() -> String {
     "127.0.0.1:1234".into()
 }
@@ -136,7 +128,6 @@ impl Default for Config {
             discord_server_name: Default::default(),
             discord_channel_name: Default::default(),
             hero_assignment_strategy: default_hero_assignement_strategy_kind(),
-            history_git_mirror: default_history_git_mirror(),
             dota_screenshot_dir: None,
             fosiaudio_host: default_fosiaudio_host(),
             fosiaudio_timeout_ms: default_fosiaudio_timeout_ms(),
