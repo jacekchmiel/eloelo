@@ -58,6 +58,9 @@ cargo run --release --bin elodisco
 The main server keeps reconnecting while the bot server is unreachable; the Discord icon in the UI
 app bar is red until the connection is back (hover it for the error).
 
+The bot server serves one main server at a time. Another one trying to connect meanwhile is
+rejected ("Another eloelo is already connected") and keeps retrying until the first disconnects.
+
 Hero bans/allowlists (`discord_bot_state.yaml`) live next to the bot, so move the file to the bot
 server's data dir when switching to remote mode.
 
