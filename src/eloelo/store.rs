@@ -19,6 +19,10 @@ use eloelo_model::GameId;
 
 const HISTORY_SUFFIX: &str = ".history.json";
 const HISTORY_DIR: &str = "history";
+const ELOELO_DIR: &str = "eloelo";
+const CONFIG_FILE: &str = "config.yaml";
+const PLAYERS_FILE: &str = "players.yaml";
+const OPTIONS_FILE: &str = "options.yaml";
 const ELODISCO_DIR: &str = "elodisco";
 const ELODISCO_CONFIG_FILE: &str = "config.yaml";
 const BOT_STATE_FILE: &str = "discord_bot_state.yaml";
@@ -27,18 +31,6 @@ pub const BRIDGE_SECRET_FILE: &str = "bridge_secret";
 
 fn state_file_path() -> PathBuf {
     data_dir().join("state.yaml")
-}
-
-fn config_file_path() -> PathBuf {
-    data_dir().join("config.yaml")
-}
-
-fn players_file_path() -> PathBuf {
-    data_dir().join("players.yaml")
-}
-
-fn options_file_path() -> PathBuf {
-    data_dir().join("options.yaml")
 }
 
 pub fn data_dir() -> PathBuf {
@@ -101,24 +93,31 @@ pub fn load_secret(file: &str) -> Result<String> {
     Ok(secret.to_string())
 }
 
-pub fn load_config() -> Result<Config> {
-    info!("Config file: {}", config_file_path().to_string_lossy());
-    if !config_file_path().exists() {
-        info!("Config file does not exist, creating.");
-        store_default_config()?;
-    }
-    let config_file = File::open(config_file_path())?;
-    Ok(serde_yaml::from_reader(config_file)?)
+/// eloelo's storage: its config, players and options.
+pub fn eloelo_dir() -> PathBuf {
+    data_dir().join(ELOELO_DIR)
 }
 
-pub fn load_players() -> Result<PlayersConfig> {
-    info!("Players file: {}", players_file_path().to_string_lossy());
-    if !players_file_path().exists() {
-        info!("Players file does not exist, creating.");
-        store_default_players_config()?;
+pub fn load_config(storage: &GitStorage) -> Result<Config> {
+    if let Some(config) = storage.load(CONFIG_FILE)? {
+        return Ok(config);
     }
-    let config_file = File::open(players_file_path())?;
-    let config: PlayersConfig = serde_yaml::from_reader(config_file)?;
+    info!("Config file does not exist, creating.");
+    let config = Config::default();
+    storage.store(CONFIG_FILE, &config, "Create config")?;
+    Ok(config)
+}
+
+pub fn load_players(storage: &GitStorage) -> Result<PlayersConfig> {
+    let config = match storage.load(PLAYERS_FILE)? {
+        Some(config) => config,
+        None => {
+            info!("Players file does not exist, creating.");
+            let config = PlayersConfig::example();
+            storage.store(PLAYERS_FILE, &config, "Create players")?;
+            config
+        }
+    };
     let player_ids: String = config.players.iter().map(|p| &p.id).join(", ");
     let n = config.players.len();
 
@@ -130,46 +129,16 @@ pub fn load_players() -> Result<PlayersConfig> {
     Ok(config)
 }
 
-pub fn load_options<T: DeserializeOwned + Default>() -> Result<T> {
-    let p = options_file_path();
-    info!("Options file: {}", p.to_string_lossy());
-    if !p.exists() {
-        info!(
-            "{} file does not exist. Returning default.",
-            p.to_string_lossy()
-        );
-        return Ok(Default::default());
-    }
-    let config_file = File::open(p)?;
-    Ok(serde_yaml::from_reader(config_file)?)
+pub fn store_players(storage: &GitStorage, players: &PlayersConfig) -> Result<()> {
+    storage.store(PLAYERS_FILE, players, "Update players")
 }
 
-pub fn store_options<T: Serialize>(v: &T) -> Result<()> {
-    let p = options_file_path();
-    ensure_dir_created(&p)?;
-    let file = File::create(&p)?;
-    Ok(serde_yaml::to_writer(file, v)?)
+pub fn load_options<T: DeserializeOwned + Default>(storage: &GitStorage) -> Result<T> {
+    Ok(storage.load(OPTIONS_FILE)?.unwrap_or_default())
 }
 
-pub fn store_default_config() -> Result<()> {
-    ensure_dir_created(&config_file_path())?;
-    let config_file = File::create(&config_file_path())?;
-    Ok(serde_yaml::to_writer(config_file, &Config::default())?)
-}
-
-pub fn store_default_players_config() -> Result<()> {
-    ensure_dir_created(&players_file_path())?;
-    let config_file = File::create(&players_file_path())?;
-    Ok(serde_yaml::to_writer(
-        config_file,
-        &PlayersConfig::example(),
-    )?)
-}
-
-pub fn store_players(players: PlayersConfig) -> Result<()> {
-    ensure_dir_created(&players_file_path())?;
-    let config_file = File::create(&players_file_path())?;
-    Ok(serde_yaml::to_writer(config_file, &players)?)
+pub fn store_options<T: Serialize>(storage: &GitStorage, v: &T) -> Result<()> {
+    storage.store(OPTIONS_FILE, v, "Update options")
 }
 
 #[derive(Serialize, Deserialize, PartialEq)]

@@ -72,22 +72,32 @@ is offline.
 
 ### Test mode
 
-`testMode` in `config.yaml` makes the app safe to try out: the shared history git mirror is never touched, and the bot
-uses `discordTestChannelName` / DMs only `discordTestModePlayers`. It is shown in the UI. Keep new side effects
-(Discord messages, history writes, external calls) gated on it.
+`testMode` in eloelo's `config.yaml` makes the app safe to try out: the shared history repo is never touched, and the
+bot uses `discordTestChannelName` / DMs only `discordTestModePlayers`. It is shown in the UI. Keep new side effects
+(Discord messages, history writes, external calls) gated on it. It doesn't affect the eloelo and elodisco storages:
+config, players, options and players' bot data are real either way.
 
 ### Data and persistence
 
 All runtime data lives in the platform data dir (`directories::ProjectDirs`, on Linux `~/.local/share/eloelo/`, or
-`$XDG_DATA_HOME/eloelo`): `config.yaml`, `players.yaml`, `state.yaml`, `options.yaml`, `discord_bot_state.yaml`,
-`<game>.history.json`, `logs/`. `store.rs` loads/saves them; a missing or broken file falls back to defaults with a
-logged warning (`unwrap_or_def_verbose`). Match history lives in `history/`, a `GitStorage` (`git_storage.rs`):
-a clone of its backup repo, pulled/pushed on open (failure stops the app) and committed and pushed on every new match.
-`local_config/`, if present, is a gitignored symlink to the data dir for quick access — it may not
+`$XDG_DATA_HOME/eloelo`); `store.rs` loads and saves it:
+
+- `eloelo/` — eloelo's `config.yaml`, `players.yaml`, `options.yaml`. Pushed on exit.
+- `elodisco/` — the bot's `config.yaml` (`EloDiscoConfig`) and `discord_bot_state.yaml`. Pushed hourly and on exit.
+- `history/` — `<game>.history.json`. Committed and pushed on every new match (not opened in test mode).
+- `discord_bot_token`, `bridge_secret` — secrets, one per file, never in git.
+- `state.yaml` (current teams/lobby), `logs/` — not backed up.
+
+Each of the three directories is a `GitStorage` (`git_storage.rs`): a clone of its own backup repo. Opening it pulls
+(`--ff-only`), commits changes left on disk and pushes; any git failure stops the app. `store()` only writes files,
+`push()` commits and pushes. A directory without its own `.git` works as plain files with a warning — the escape hatch
+for running without backups. Broken config or data files stop the app instead of falling back to defaults that would
+overwrite them. `local_config/`, if present, is a gitignored symlink to the data dir for quick access — it may not
 exist on every checkout, so never rely on it from code or scripts.
 
-Config structs use `#[serde(rename_all = "camelCase")]` with defaults in `config.rs`; add a default for every new
-field so existing config files keep loading.
+Config structs use `#[serde(rename_all = "camelCase", deny_unknown_fields)]` with defaults (`config.rs`,
+`elodisco/config.rs`); add a default for every new field so existing config files keep loading, and put each field in
+the config of the app that uses it.
 
 ### Shared model and options UI
 

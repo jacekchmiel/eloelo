@@ -45,6 +45,8 @@ pub struct EloElo {
     config: Config,
     players_config: PlayersConfig,
     message_bus: MessageBus,
+    /// Config, players and options.
+    storage: GitStorage,
     /// `None` in test mode, which never touches the shared history repo.
     history_storage: Option<GitStorage>,
     options: EloEloOptions,
@@ -60,6 +62,7 @@ impl EloElo {
         config: Config,
         players_config: PlayersConfig,
         options: EloEloOptions,
+        storage: GitStorage,
         history_storage: Option<GitStorage>,
         message_bus: MessageBus,
     ) -> Self {
@@ -85,6 +88,7 @@ impl EloElo {
             config,
             players_config,
             message_bus,
+            storage,
             history_storage,
             options,
             shuffle_temperature: state.shuffle_temperature,
@@ -198,7 +202,7 @@ impl EloElo {
             match_tags: self.match_tags.clone(),
         };
         store::store_state(&state)?;
-        store::store_options(&self.options)?;
+        store::store_options(&self.storage, &self.options)?;
         Ok(())
     }
 
@@ -309,13 +313,13 @@ impl EloElo {
 
     fn add_new_player(&mut self, player: Player) {
         self.players.insert(player);
-        store::store_players(self.players.to_players_config()).print_err();
+        store::store_players(&self.storage, &self.players.to_players_config()).print_err();
         self.send_player_db();
     }
 
     fn remove_player(&mut self, player_id: &PlayerId) {
         self.players.remove(player_id);
-        store::store_players(self.players.to_players_config()).print_err();
+        store::store_players(&self.storage, &self.players.to_players_config()).print_err();
         self.send_player_db();
     }
 
@@ -446,7 +450,7 @@ impl EloElo {
     fn update_options(&mut self, options: EloEloOptions) {
         info!("Update options: {:?}", options);
         self.options = options;
-        store::store_options(&self.options).print_err();
+        store::store_options(&self.storage, &self.options).print_err();
     }
 
     fn mk_finish_match_commit_message(

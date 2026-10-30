@@ -10,15 +10,16 @@ use tokio_util::sync::CancellationToken;
 #[tokio::main]
 async fn main() {
     logging::init();
-    let config = unwrap_or_def_verbose(store::load_config());
+    let storage = unwrap_or_exit(GitStorage::open(store::eloelo_dir(), false));
+    let config = unwrap_or_exit(store::load_config(&storage));
     if config.test_mode {
         warn!("Running in test mode.");
     } else {
         info!("Running in normal mode (test mode off).");
     }
-    let players_config = unwrap_or_def_verbose(store::load_players());
+    let players_config = unwrap_or_exit(store::load_players(&storage));
     let state = unwrap_or_def_verbose(store::load_state());
-    let spawelo_options = unwrap_or_def_verbose(store::load_options());
+    let spawelo_options = unwrap_or_exit(store::load_options(&storage));
     // Test mode never touches the shared history repo.
     let history_storage =
         (!config.test_mode).then(|| unwrap_or_exit(GitStorage::open(store::history_dir(), true)));
@@ -77,6 +78,7 @@ async fn main() {
         config.clone(),
         players_config.clone(),
         spawelo_options,
+        storage.clone(),
         history_storage,
         message_bus.clone(),
     );
@@ -105,4 +107,9 @@ async fn main() {
     if let Some(storage) = elodisco_storage {
         elodisco::push_storage(&storage).await;
     }
+    // The workers are stopped, so everything they store is on disk.
+    storage
+        .push("Update config, players and options")
+        .context("Failed to push config, players and options")
+        .print_err();
 }
