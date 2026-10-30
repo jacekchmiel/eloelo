@@ -1,5 +1,5 @@
 use super::bot_state::DotaBotState;
-use crate::eloelo::config::Config;
+use crate::eloelo::elodisco::config::EloDiscoConfig;
 use crate::eloelo::elodisco::hero_assignment_strategy::{
     DotaTeam, HeroAssignmentStrategy, PlayerInfo, RandomHeroPool, TaggedHeroPool,
 };
@@ -97,7 +97,7 @@ impl DotaBot {
         state: HashMap<DiscordUsername, DotaBotState>,
         player_db: PlayerDb,
         message_bus: MessageBus,
-        config: &Config,
+        config: &EloDiscoConfig,
     ) -> Self {
         if !config.global_banned_heroes.is_empty() {
             let banned_list: Vec<_> = config.global_banned_heroes.iter().map(|h| h.as_str()).collect();
@@ -119,12 +119,12 @@ impl DotaBot {
             message_bus,
             heroes: Hero::all(),
             hero_assign_strategy: match config.hero_assignment_strategy {
-                crate::eloelo::config::HeroAssignmentStrategyKind::Random => {
+                crate::eloelo::elodisco::config::HeroAssignmentStrategyKind::Random => {
                     info!("HeroAssignment strategy: Random");
                     Box::new(RandomHeroPool::default())
                 }
 
-                crate::eloelo::config::HeroAssignmentStrategyKind::Tags => {
+                crate::eloelo::elodisco::config::HeroAssignmentStrategyKind::Tags => {
                     info!("HeroAssignment strategy: Tags");
                     Box::new(TaggedHeroPool::new())
                 }
@@ -353,7 +353,7 @@ mod tests {
 
     #[tokio::test]
     async fn test_keeps_player_db_received_from_eloelo() {
-        let config = Config::default();
+        let config = EloDiscoConfig::default();
         let mut bot = DotaBot::new(
             HashMap::new(),
             PlayerDb::new([]),
@@ -379,7 +379,7 @@ mod tests {
 
     #[test]
     fn test_global_banned_heroes_excluded_from_pool() {
-        let mut config = Config::default();
+        let mut config = EloDiscoConfig::default();
         config.global_banned_heroes =
             [Hero::from("Phantom Lancer"), Hero::from("Medusa")].into_iter().collect();
         let message_bus = MessageBus::new();
@@ -392,7 +392,7 @@ mod tests {
 
     #[test]
     fn test_global_banned_heroes_with_user_allowlist() {
-        let mut config = Config::default();
+        let mut config = EloDiscoConfig::default();
         config.global_banned_heroes =
             [Hero::from("Phantom Lancer"), Hero::from("Medusa")].into_iter().collect();
         let message_bus = MessageBus::new();
@@ -424,7 +424,7 @@ mod tests {
 
     #[test]
     fn test_global_banned_heroes_with_user_banlist() {
-        let mut config = Config::default();
+        let mut config = EloDiscoConfig::default();
         config.global_banned_heroes =
             [Hero::from("Phantom Lancer"), Hero::from("Medusa")].into_iter().collect();
         let message_bus = MessageBus::new();
@@ -452,7 +452,7 @@ mod tests {
 
     #[test]
     fn test_unrestricted_players_ignore_global_bans() {
-        let mut config = Config::default();
+        let mut config = EloDiscoConfig::default();
         config.global_banned_heroes = [Hero::from("Phantom Lancer"), Hero::from("Medusa")]
             .into_iter()
             .collect();

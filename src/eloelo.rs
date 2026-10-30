@@ -14,7 +14,7 @@ use eloelo_model::history::{History, HistoryEntry, PlayerTags};
 use eloelo_model::player::{Player, PlayerDb, PlayersConfig};
 use eloelo_model::{BalancedTeam, GameId, GameState, PlayerId, Team, WinScale};
 use futures_util::stream::{StreamExt as _, TryStreamExt as _};
-use git_mirror::GitMirror;
+use git_storage::GitStorage;
 use log::{debug, error, info, warn};
 use message_bus::{
     DiscordBotStatus, Event, FinishMatch, HeroesAssigned, MatchStart, MatchStartTeam, Message,
@@ -27,7 +27,7 @@ use ui_state::{PityBonus, State, UiPlayer, UiState};
 pub mod config;
 pub mod elodisco;
 mod fosiaudio;
-mod git_mirror;
+pub mod git_storage;
 pub mod message_bus;
 pub mod ocr;
 pub mod options;
@@ -45,7 +45,10 @@ pub struct EloElo {
     config: Config,
     players_config: PlayersConfig,
     message_bus: MessageBus,
-    git_mirror: GitMirror,
+    /// Config, players and options.
+    storage: GitStorage,
+    /// `None` in test mode, which never touches the shared history repo.
+    history_storage: Option<GitStorage>,
     options: EloEloOptions,
     shuffle_temperature: i32,
     /// Tags assigned to players in the current match.
@@ -59,20 +62,11 @@ impl EloElo {
         config: Config,
         players_config: PlayersConfig,
         options: EloEloOptions,
+        storage: GitStorage,
+        history_storage: Option<GitStorage>,
         message_bus: MessageBus,
     ) -> Self {
         let state = state.unwrap_or_else(|| State::new(config.default_game().clone()));
-
-        let _ = std::fs::create_dir_all(&config.history_git_mirror)
-            .inspect_err(|e| error!("Cannot create git mirror directory - {e}"));
-        let git_mirror = GitMirror::new(config.history_git_mirror.clone());
-        // Test mode never touches the shared history repo.
-        if !config.test_mode {
-            let _ = git_mirror
-                .sync(None)
-                .context("Initial git mirror sync failed")
-                .print_err();
-        }
         let history = unwrap_or_def_verbose(store::load_history());
         let discord_bot_status = match config.discord_bot {
             DiscordBotMode::Embedded => DiscordBotStatus::Embedded,
@@ -94,7 +88,8 @@ impl EloElo {
             config,
             players_config,
             message_bus,
-            git_mirror,
+            storage,
+            history_storage,
             options,
             shuffle_temperature: state.shuffle_temperature,
             match_tags: state.match_tags,
@@ -207,7 +202,7 @@ impl EloElo {
             match_tags: self.match_tags.clone(),
         };
         store::store_state(&state)?;
-        store::store_options(&self.options)?;
+        store::store_options(&self.storage, &self.options)?;
         Ok(())
     }
 
@@ -318,13 +313,13 @@ impl EloElo {
 
     fn add_new_player(&mut self, player: Player) {
         self.players.insert(player);
-        store::store_players(self.players.to_players_config()).print_err();
+        store::store_players(&self.storage, &self.players.to_players_config()).print_err();
         self.send_player_db();
     }
 
     fn remove_player(&mut self, player_id: &PlayerId) {
         self.players.remove(player_id);
-        store::store_players(self.players.to_players_config()).print_err();
+        store::store_players(&self.storage, &self.players.to_players_config()).print_err();
         self.send_player_db();
     }
 
@@ -455,7 +450,7 @@ impl EloElo {
     fn update_options(&mut self, options: EloEloOptions) {
         info!("Update options: {:?}", options);
         self.options = options;
-        store::store_options(&self.options).print_err();
+        store::store_options(&self.storage, &self.options).print_err();
     }
 
     fn mk_finish_match_commit_message(
@@ -746,26 +741,24 @@ impl EloElo {
     }
 
     fn store_updated_history(&self, history_entry: &HistoryEntry, winner: Team) {
-        // History files live in the git mirror's working tree, so in test mode the match is kept
-        // in memory only. Otherwise the next sync would push it to the shared history.
-        if self.config.test_mode {
+        let Some(history_storage) = &self.history_storage else {
             info!("Test mode: match not stored in history.");
             return;
-        }
-        let _ = store::append_history_entry(&self.selected_game, &history_entry)
-            .context("Failed to append history entry")
-            .print_err(); // TODO: proper error propagation
+        };
         let commit_message = self.mk_finish_match_commit_message(
             winner,
             history_entry.scale,
             history_entry.duration,
             history_entry.fake,
         );
-        let _ = self
-            .git_mirror
-            .sync(Some(&commit_message))
-            .context("Failed to sync history git mirror")
-            .print_err(); // TODO: proper error propagation
+        let _ = store::append_history_entry(
+            history_storage,
+            &self.selected_game,
+            history_entry,
+            &commit_message,
+        )
+        .context("Failed to store history entry")
+        .print_err(); // TODO: proper error propagation
     }
 
     fn make_history_entry(&self, info: MatchInfo) -> HistoryEntry {

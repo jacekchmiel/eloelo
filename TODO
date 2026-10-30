@@ -1,5 +1,18 @@
 # TODO
 
+## CONFIG AND STATE STORAGE
+- [x] M `GitStorage`: a general git-backed storage directory (load/store files, commit, pull/push),
+      generalized from `GitMirror`. Used for match history, eloelo config, elodisco config and
+      `discord_bot_state.yaml`.
+- [x] M Split `config.yaml` into eloelo config and elodisco config, each with only its own fields.
+- [x] S Move the Discord bot token and the bridge secret out of the config, each to its own file that
+      isn't backed up by git.
+- [x] S Git-backed storage for `discord_bot_state.yaml` (lives on the bot server in remote mode).
+- [x] M Replace the single git repo over the whole data dir (`local_config`), which mixes unrelated files,
+      with a separate `GitStorage` per kind of data.
+- [x] S Document the data layout in README.
+- [x] S Migrate existing data (local data dir and bot server).
+
 ## HIGH PRIORITY
 - [x] S Fix adding new player issue - not working right now.
 - [x] S Global hero bans to config

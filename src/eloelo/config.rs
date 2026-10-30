@@ -1,52 +1,20 @@
-use std::collections::HashSet;
 use std::path::PathBuf;
 
-use eloelo_model::{GameId, PlayerId, Team};
+use eloelo_model::{GameId, Team};
 use serde::{Deserialize, Serialize};
 
-use super::store;
-use crate::eloelo::elodisco::dota_bot::Hero;
-
+/// eloelo's config. The Discord bot has its own, `EloDiscoConfig`.
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
-#[serde(rename_all = "camelCase")]
+#[serde(rename_all = "camelCase", deny_unknown_fields)]
 pub struct Config {
     #[serde(default)]
     pub games: Vec<Game>,
 
-    #[serde(default)]
-    pub discord_bot_token: String,
-
-    #[serde(default)]
-    pub discord_server_name: String,
-
-    #[serde(default)]
-    pub discord_channel_name: String,
-
     /// Disables priv messages, storing match history and syncing the history git mirror. Finished
-    /// matches are kept in memory only. Useful for development and testing. A remote Discord bot
-    /// follows the value of the connected eloelo, its own value applies only until one connects.
+    /// matches are kept in memory only. Useful for development and testing. The Discord bot
+    /// follows the value of the connected eloelo.
     #[serde(default)]
     pub test_mode: bool,
-
-    #[serde(default)]
-    pub discord_test_channel_name: String,
-
-    /// List of usernames that will receive notifications even in test mode.
-    #[serde(default)]
-    pub discord_test_mode_players: HashSet<PlayerId>,
-
-    #[serde(default = "default_hero_assignement_strategy_kind")]
-    pub hero_assignment_strategy: HeroAssignmentStrategyKind,
-
-    #[serde(default, alias = "bannedHeroes", alias = "global_banned_heroes", alias = "banned_heroes")]
-    pub global_banned_heroes: HashSet<Hero>,
-
-    /// Players not affected by `global_banned_heroes`.
-    #[serde(default)]
-    pub unrestricted_players: HashSet<PlayerId>,
-
-    #[serde(default = "default_history_git_mirror")]
-    pub history_git_mirror: PathBuf,
 
     #[serde(default)]
     pub dota_screenshot_dir: Option<PathBuf>,
@@ -71,14 +39,6 @@ pub struct Config {
 
     #[serde(default)]
     pub discord_bot: DiscordBotMode,
-
-    /// Shared secret authenticating eloelo connections to the remote Discord bot server.
-    #[serde(default)]
-    pub bridge_secret: String,
-
-    /// Address the Discord bot server (elodisco binary) listens on for eloelo connections.
-    #[serde(default = "default_bridge_listen_addr")]
-    pub bridge_listen_addr: String,
 }
 
 /// Where eloelo's Discord bot runs.
@@ -91,10 +51,6 @@ pub enum DiscordBotMode {
     /// In a separate elodisco process. eloelo connects to it at `url`, e.g. `ws://host:3001`.
     Remote { url: String },
     Disabled,
-}
-
-fn default_bridge_listen_addr() -> String {
-    "0.0.0.0:3001".into()
 }
 
 fn default_serving_addr() -> String {
@@ -117,14 +73,6 @@ fn default_fosiaudio_timeout_ms() -> u64 {
     3 * 1000
 }
 
-fn default_hero_assignement_strategy_kind() -> HeroAssignmentStrategyKind {
-    HeroAssignmentStrategyKind::Random
-}
-
-fn default_history_git_mirror() -> PathBuf {
-    store::data_dir().join("history_git")
-}
-
 fn default_fosiaudio_host() -> String {
     "127.0.0.1:1234".into()
 }
@@ -132,11 +80,6 @@ impl Default for Config {
     fn default() -> Self {
         Self {
             games: vec![Game::new(GameId::from("Default Game"))],
-            discord_bot_token: Default::default(),
-            discord_server_name: Default::default(),
-            discord_channel_name: Default::default(),
-            hero_assignment_strategy: default_hero_assignement_strategy_kind(),
-            history_git_mirror: default_history_git_mirror(),
             dota_screenshot_dir: None,
             fosiaudio_host: default_fosiaudio_host(),
             fosiaudio_timeout_ms: default_fosiaudio_timeout_ms(),
@@ -145,13 +88,7 @@ impl Default for Config {
             static_serving_dir: default_static_serving_dir(),
             serving_addr: default_serving_addr(),
             discord_bot: Default::default(),
-            bridge_secret: Default::default(),
-            bridge_listen_addr: default_bridge_listen_addr(),
             test_mode: true,
-            discord_test_mode_players: Default::default(),
-            discord_test_channel_name: Default::default(),
-            global_banned_heroes: Default::default(),
-            unrestricted_players: Default::default(),
         }
     }
 }
@@ -197,9 +134,20 @@ fn right_team_default() -> String {
     "Right Team".into()
 }
 
-#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
-#[serde(rename_all = "camelCase")]
-pub enum HeroAssignmentStrategyKind {
-    Random,
-    Tags,
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn rejects_fields_of_other_configs_and_secrets() {
+        let config: Config = serde_yaml::from_str("fosiaudioHost: host").unwrap();
+        assert_eq!(config.fosiaudio_host, "host");
+        for yaml in [
+            "bridgeSecret: secret",
+            "discordBotToken: token",
+            "discordServerName: x",
+        ] {
+            assert!(serde_yaml::from_str::<Config>(yaml).is_err(), "{yaml}");
+        }
+    }
 }

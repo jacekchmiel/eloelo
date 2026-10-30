@@ -4,4 +4,4 @@ pub mod eloelo;
 pub mod logging;
 pub mod utils;
 
-pub use eloelo::{config, elodisco, message_bus, ocr, store, EloElo};
+pub use eloelo::{config, elodisco, git_storage, message_bus, ocr, store, EloElo};

@@ -2,7 +2,7 @@ use std::ffi::OsStr;
 use std::fs::{self, File};
 use std::path::{Path, PathBuf};
 
-use anyhow::{Context, Result};
+use anyhow::{bail, Context, Result};
 use eloelo_model::player::PlayersConfig;
 use itertools::Itertools;
 use log::{debug, info, warn};
@@ -11,31 +11,26 @@ use serde::{Deserialize, Serialize};
 
 use super::config::Config;
 use super::elodisco::bot_state::BotState;
+use super::elodisco::config::EloDiscoConfig;
+use super::git_storage::GitStorage;
 use super::ui_state::State;
 use eloelo_model::history::{History, HistoryEntry};
 use eloelo_model::GameId;
 
 const HISTORY_SUFFIX: &str = ".history.json";
-const HISTORY_GIT_DIR: &str = "history_git";
+const HISTORY_DIR: &str = "history";
+const ELOELO_DIR: &str = "eloelo";
+const CONFIG_FILE: &str = "config.yaml";
+const PLAYERS_FILE: &str = "players.yaml";
+const OPTIONS_FILE: &str = "options.yaml";
+const ELODISCO_DIR: &str = "elodisco";
+const ELODISCO_CONFIG_FILE: &str = "config.yaml";
+const BOT_STATE_FILE: &str = "discord_bot_state.yaml";
+pub const DISCORD_BOT_TOKEN_FILE: &str = "discord_bot_token";
+pub const BRIDGE_SECRET_FILE: &str = "bridge_secret";
 
 fn state_file_path() -> PathBuf {
     data_dir().join("state.yaml")
-}
-
-fn bot_state_file_path() -> PathBuf {
-    data_dir().join("discord_bot_state.yaml")
-}
-
-fn config_file_path() -> PathBuf {
-    data_dir().join("config.yaml")
-}
-
-fn players_file_path() -> PathBuf {
-    data_dir().join("players.yaml")
-}
-
-fn options_file_path() -> PathBuf {
-    data_dir().join("options.yaml")
 }
 
 pub fn data_dir() -> PathBuf {
@@ -60,43 +55,69 @@ pub fn store_state(state: &State) -> Result<()> {
     Ok(())
 }
 
-pub fn load_bot_state() -> Result<BotState> {
-    let path = bot_state_file_path();
-    info!("Discord Bot State file: {}", path.to_string_lossy());
-    if !path.exists() {
-        store_bot_state(&Default::default())?;
+/// The Discord bot's storage: its config and state.
+pub fn elodisco_dir() -> PathBuf {
+    data_dir().join(ELODISCO_DIR)
+}
+
+pub fn load_elodisco_config(storage: &GitStorage) -> Result<EloDiscoConfig> {
+    if let Some(config) = storage.load(ELODISCO_CONFIG_FILE)? {
+        return Ok(config);
     }
-    let state_file = File::open(path)?;
-    let mut state: BotState = serde_yaml::from_reader(state_file)?;
+    info!("Discord bot config file does not exist, creating.");
+    let config = EloDiscoConfig::default();
+    storage.store(ELODISCO_CONFIG_FILE, &config, "Create Discord bot config")?;
+    Ok(config)
+}
+
+pub fn load_bot_state(storage: &GitStorage) -> Result<BotState> {
+    let mut state: BotState = storage.load(BOT_STATE_FILE)?.unwrap_or_default();
     state.validate();
     Ok(state)
 }
 
-pub fn store_bot_state(state: &BotState) -> Result<()> {
+pub fn store_bot_state(storage: &GitStorage, state: &BotState) -> Result<()> {
     debug!("Storing bot state");
-    ensure_dir_created(&bot_state_file_path())?;
-    store_file_with_backup(&bot_state_file_path(), state)?;
-    Ok(())
+    storage.store(BOT_STATE_FILE, state, "Update Discord bot state")
 }
 
-pub fn load_config() -> Result<Config> {
-    info!("Config file: {}", config_file_path().to_string_lossy());
-    if !config_file_path().exists() {
-        info!("Config file does not exist, creating.");
-        store_default_config()?;
+/// Reads a secret from its own file in the data dir, which is never backed up.
+pub fn load_secret(file: &str) -> Result<String> {
+    let path = data_dir().join(file);
+    let secret = fs::read_to_string(&path)
+        .with_context(|| format!("Cannot read secret from {}", path.to_string_lossy()))?;
+    let secret = secret.trim();
+    if secret.is_empty() {
+        bail!("Secret file {} is empty", path.to_string_lossy());
     }
-    let config_file = File::open(config_file_path())?;
-    Ok(serde_yaml::from_reader(config_file)?)
+    Ok(secret.to_string())
 }
 
-pub fn load_players() -> Result<PlayersConfig> {
-    info!("Players file: {}", players_file_path().to_string_lossy());
-    if !players_file_path().exists() {
-        info!("Players file does not exist, creating.");
-        store_default_players_config()?;
+/// eloelo's storage: its config, players and options.
+pub fn eloelo_dir() -> PathBuf {
+    data_dir().join(ELOELO_DIR)
+}
+
+pub fn load_config(storage: &GitStorage) -> Result<Config> {
+    if let Some(config) = storage.load(CONFIG_FILE)? {
+        return Ok(config);
     }
-    let config_file = File::open(players_file_path())?;
-    let config: PlayersConfig = serde_yaml::from_reader(config_file)?;
+    info!("Config file does not exist, creating.");
+    let config = Config::default();
+    storage.store(CONFIG_FILE, &config, "Create config")?;
+    Ok(config)
+}
+
+pub fn load_players(storage: &GitStorage) -> Result<PlayersConfig> {
+    let config = match storage.load(PLAYERS_FILE)? {
+        Some(config) => config,
+        None => {
+            info!("Players file does not exist, creating.");
+            let config = PlayersConfig::example();
+            storage.store(PLAYERS_FILE, &config, "Create players")?;
+            config
+        }
+    };
     let player_ids: String = config.players.iter().map(|p| &p.id).join(", ");
     let n = config.players.len();
 
@@ -108,46 +129,16 @@ pub fn load_players() -> Result<PlayersConfig> {
     Ok(config)
 }
 
-pub fn load_options<T: DeserializeOwned + Default>() -> Result<T> {
-    let p = options_file_path();
-    info!("Options file: {}", p.to_string_lossy());
-    if !p.exists() {
-        info!(
-            "{} file does not exist. Returning default.",
-            p.to_string_lossy()
-        );
-        return Ok(Default::default());
-    }
-    let config_file = File::open(p)?;
-    Ok(serde_yaml::from_reader(config_file)?)
+pub fn store_players(storage: &GitStorage, players: &PlayersConfig) -> Result<()> {
+    storage.store(PLAYERS_FILE, players, "Update players")
 }
 
-pub fn store_options<T: Serialize>(v: &T) -> Result<()> {
-    let p = options_file_path();
-    ensure_dir_created(&p)?;
-    let file = File::create(&p)?;
-    Ok(serde_yaml::to_writer(file, v)?)
+pub fn load_options<T: DeserializeOwned + Default>(storage: &GitStorage) -> Result<T> {
+    Ok(storage.load(OPTIONS_FILE)?.unwrap_or_default())
 }
 
-pub fn store_default_config() -> Result<()> {
-    ensure_dir_created(&config_file_path())?;
-    let config_file = File::create(&config_file_path())?;
-    Ok(serde_yaml::to_writer(config_file, &Config::default())?)
-}
-
-pub fn store_default_players_config() -> Result<()> {
-    ensure_dir_created(&players_file_path())?;
-    let config_file = File::create(&players_file_path())?;
-    Ok(serde_yaml::to_writer(
-        config_file,
-        &PlayersConfig::example(),
-    )?)
-}
-
-pub fn store_players(players: PlayersConfig) -> Result<()> {
-    ensure_dir_created(&players_file_path())?;
-    let config_file = File::create(&players_file_path())?;
-    Ok(serde_yaml::to_writer(config_file, &players)?)
+pub fn store_options<T: Serialize>(storage: &GitStorage, v: &T) -> Result<()> {
+    storage.store(OPTIONS_FILE, v, "Update options")
 }
 
 #[derive(Serialize, Deserialize, PartialEq)]
@@ -156,27 +147,31 @@ struct HistorySerializeWrapper {
     entries: Vec<HistoryEntry>,
 }
 
-pub fn append_history_entry(game: &GameId, entry: &HistoryEntry) -> Result<()> {
-    let mut entries = if history_path(game).is_file() {
-        load_history_file(&history_path(game))?.entries
-    } else {
-        vec![]
-    };
+/// Appends `entry` to the history of `game` and commits it with `change` as the message.
+pub fn append_history_entry(
+    storage: &GitStorage,
+    game: &GameId,
+    entry: &HistoryEntry,
+    change: &str,
+) -> Result<()> {
+    let file = history_file_name(game);
+    let mut entries = storage
+        .load::<HistorySerializeWrapper>(&file)?
+        .map(|history| history.entries)
+        .unwrap_or_default();
     entries.push(entry.clone());
-
-    let out_file = File::create(&history_path(game))?;
-    serde_json::to_writer_pretty(
-        out_file,
+    storage.store(
+        &file,
         &HistorySerializeWrapper {
             game: game.clone(),
             entries,
         },
-    )?;
-    Ok(())
+        change,
+    )
 }
 
 pub fn history_dir() -> PathBuf {
-    data_dir().join(HISTORY_GIT_DIR)
+    data_dir().join(HISTORY_DIR)
 }
 
 pub fn load_history() -> Result<History> {
@@ -209,10 +204,9 @@ fn is_regular_history_file(path: &Path) -> bool {
         .ends_with(HISTORY_SUFFIX)
 }
 
-pub fn history_path(game: &GameId) -> PathBuf {
+fn history_file_name(game: &GameId) -> String {
     let safe_game_id = game.as_str().replace(" ", "_").replace(":", "_");
-    let filename = format!("{}{}", safe_game_id, HISTORY_SUFFIX);
-    history_dir().join(filename)
+    format!("{}{}", safe_game_id, HISTORY_SUFFIX)
 }
 
 fn store_file_with_backup<T>(path: &Path, data: &T) -> Result<()>

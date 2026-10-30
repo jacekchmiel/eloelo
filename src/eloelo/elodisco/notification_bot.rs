@@ -5,7 +5,7 @@ use eloelo_model::player::{DiscordUsername, PlayerDb};
 use itertools::join;
 use log::{error, info, warn};
 
-use crate::eloelo::config::Config;
+use crate::eloelo::elodisco::config::EloDiscoConfig;
 use crate::eloelo::elodisco::dota_bot::{Hero, RerollResult};
 use crate::eloelo::elodisco::hero_assignment_strategy::HeroTag;
 use crate::eloelo::elodisco::messages;
@@ -19,7 +19,7 @@ use poise::serenity_prelude as serenity;
 
 pub struct NotificationBot {
     notifications: HashMap<DiscordUsername, bool>,
-    config: Config,
+    config: EloDiscoConfig,
     /// Starts as configured, then follows the connected eloelo.
     test_mode: bool,
     ctx: serenity::Context,
@@ -31,7 +31,7 @@ pub struct NotificationBot {
 impl NotificationBot {
     pub fn new(
         notifications: HashMap<DiscordUsername, bool>,
-        config: Config,
+        config: EloDiscoConfig,
         ctx: serenity::Context,
         channel: Option<serenity::GuildChannel>,
         test_channel: Option<serenity::GuildChannel>,

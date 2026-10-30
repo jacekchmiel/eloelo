@@ -1,8 +1,9 @@
 use super::bot_state::{BotState, PlayerBotState};
 use super::dota_bot::DotaBot;
 use super::notification_bot::NotificationBot;
-use crate::eloelo::config::Config;
+use crate::eloelo::elodisco::config::EloDiscoConfig;
 use crate::eloelo::elodisco::dota_bot::RerollResult;
+use crate::eloelo::git_storage::GitStorage;
 use crate::eloelo::message_bus::{
     AvatarUrl, DiscordPlayerInfo, Event, Message, MessageBus, UiCommand, UiUpdate,
 };
@@ -19,8 +20,9 @@ pub struct EloDisco {
     dota_bot: DotaBot,
     notification_bot: NotificationBot,
     #[allow(unused)]
-    config: Config,
+    config: EloDiscoConfig,
     stored_bot_state: BotState,
+    storage: GitStorage,
     message_bus: MessageBus,
     guild_id: serenity::GuildId,
     ctx: serenity::Context,
@@ -29,8 +31,9 @@ pub struct EloDisco {
 impl EloDisco {
     pub async fn initialize(
         bot_state: BotState,
+        storage: GitStorage,
         message_bus: MessageBus,
-        config: Config,
+        config: EloDiscoConfig,
         ctx: &serenity::Context,
     ) -> Result<Self> {
         let Some(guild) = get_guild(&ctx, &config.discord_server_name).await else {
@@ -66,6 +69,7 @@ impl EloDisco {
             dota_bot,
             config,
             stored_bot_state: bot_state,
+            storage,
             message_bus,
             guild_id: guild.id,
             ctx: ctx.clone(),
@@ -127,10 +131,12 @@ impl EloDisco {
     }
 
     async fn store_bot_state(&self, state: BotState) {
-        if let Err(e) =
-            tokio::task::spawn_blocking(move || crate::store::store_bot_state(&state)).await
-        {
-            error!("Failed to store bot state: {}", e);
+        let storage = self.storage.clone();
+        let stored =
+            tokio::task::spawn_blocking(move || crate::store::store_bot_state(&storage, &state))
+                .await;
+        if let Err(e) = stored.map_err(anyhow::Error::from).and_then(|r| r) {
+            error!("Failed to store bot state: {e:#}");
         }
     }
 
