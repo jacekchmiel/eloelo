@@ -44,7 +44,8 @@ impl EloDisco {
             .collect();
         let dota_bot = DotaBot::new(dota_bot_state, message_bus.clone(), &config);
 
-        let channel = get_channel(&ctx, guild.id, &config.effective_discord_channel_name()).await?;
+        let channel = get_channel(ctx, guild.id, &config.discord_channel_name).await?;
+        let test_channel = get_channel(ctx, guild.id, &config.discord_test_channel_name).await?;
         let notifications_state = bot_state
             .players
             .iter()
@@ -55,6 +56,7 @@ impl EloDisco {
             config.clone(),
             ctx.clone(),
             channel,
+            test_channel,
             members,
         );
 
@@ -184,11 +186,15 @@ async fn get_guild_members(
         .collect()
 }
 
+/// `None` if `channel_name` is empty, i.e. not configured.
 async fn get_channel(
     ctx: &serenity::Context,
     guild_id: serenity::GuildId,
     channel_name: &str,
-) -> Result<serenity::GuildChannel> {
+) -> Result<Option<serenity::GuildChannel>> {
+    if channel_name.is_empty() {
+        return Ok(None);
+    }
     ctx.http
         .get_channels(guild_id)
         .await
@@ -200,6 +206,7 @@ async fn get_channel(
         .flatten()
         .find(|c| &c.name == channel_name)
         .with_context(|| format!("Discord: Failed to read channel {}.", &channel_name))
+        .map(Some)
 }
 
 async fn gather_guild_data(

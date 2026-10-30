@@ -362,15 +362,13 @@ pub async fn run(config: Config, bot_state: BotState, message_bus: MessageBus) {
         warn!("Discord running in test mode");
     }
     info!(
-        "Announcement channel name: {}",
-        config.effective_discord_channel_name()
+        "Announcement channel name: {}, in test mode: {}",
+        config.discord_channel_name, config.discord_test_channel_name
     );
-    if config.test_mode {
-        warn!(
-            "Players allowed to be notified: {}",
-            config.discord_test_mode_players.iter().join(", ")
-        );
-    }
+    info!(
+        "Players allowed to be notified in test mode: {}",
+        config.discord_test_mode_players.iter().join(", ")
+    );
 
     tokio::spawn(async move {
         let intents = serenity::GatewayIntents::GUILD_MESSAGES

@@ -184,6 +184,9 @@ pub enum Event {
     #[serde(skip)]
     DotaScreenshotReceived(Bytes, Option<ImageFormat>),
     DiscordBotStatus(DiscordBotStatus),
+    /// Test mode of the eloelo connected to the bot server. Published on the bot server's bus by
+    /// the bridge when eloelo connects.
+    TestMode(bool),
 }
 
 #[derive(Clone, Debug, Serialize, Deserialize)]

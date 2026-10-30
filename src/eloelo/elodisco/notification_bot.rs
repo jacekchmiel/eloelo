@@ -3,7 +3,7 @@ use std::time::Duration;
 
 use eloelo_model::player::{DiscordUsername, PlayerDb};
 use itertools::join;
-use log::{error, info};
+use log::{error, info, warn};
 
 use crate::eloelo::config::Config;
 use crate::eloelo::elodisco::dota_bot::{Hero, RerollResult};
@@ -20,8 +20,11 @@ use poise::serenity_prelude as serenity;
 pub struct NotificationBot {
     notifications: HashMap<DiscordUsername, bool>,
     config: Config,
+    /// Starts as configured, then follows the connected eloelo.
+    test_mode: bool,
     ctx: serenity::Context,
-    channel: serenity::GuildChannel,
+    channel: Option<serenity::GuildChannel>,
+    test_channel: Option<serenity::GuildChannel>,
     guild_members: HashMap<DiscordUsername, serenity::User>,
 }
 
@@ -30,14 +33,17 @@ impl NotificationBot {
         notifications: HashMap<DiscordUsername, bool>,
         config: Config,
         ctx: serenity::Context,
-        channel: serenity::GuildChannel,
+        channel: Option<serenity::GuildChannel>,
+        test_channel: Option<serenity::GuildChannel>,
         guild_members: HashMap<DiscordUsername, serenity::User>,
     ) -> Self {
         Self {
             notifications,
+            test_mode: config.test_mode,
             config,
             ctx,
             channel,
+            test_channel,
             guild_members,
         }
     }
@@ -54,8 +60,34 @@ impl NotificationBot {
             Message::UiCommand(UiCommand::FinishMatch(FinishMatch::Cancelled)) => {
                 self.send_match_cancelled().await;
             }
+            Message::Event(Event::TestMode(test_mode)) => self.set_test_mode(*test_mode),
             _ => {}
         }
+    }
+
+    fn set_test_mode(&mut self, test_mode: bool) {
+        if test_mode == self.test_mode {
+            return;
+        }
+        if test_mode {
+            warn!("Discord bot switched to test mode.");
+        } else {
+            info!("Discord bot switched to normal mode.");
+        }
+        self.test_mode = test_mode;
+    }
+
+    /// Announcement channel of the current mode.
+    fn channel(&self) -> Option<serenity::ChannelId> {
+        let (channel, config_key) = if self.test_mode {
+            (&self.test_channel, "discordTestChannelName")
+        } else {
+            (&self.channel, "discordChannelName")
+        };
+        if channel.is_none() {
+            warn!("{config_key} is not set, not sending to the channel.");
+        }
+        channel.as_ref().map(|c| c.id)
     }
 
     pub fn get_state(&self) -> &HashMap<DiscordUsername, bool> {
@@ -109,7 +141,7 @@ impl NotificationBot {
     fn notifications_allowed(&self, player_id: &PlayerId) -> bool {
         let player_on_allowlist = self.config.discord_test_mode_players.contains(player_id);
 
-        !self.config.test_mode || player_on_allowlist
+        !self.test_mode || player_on_allowlist
     }
 
     async fn send_match_start(
@@ -120,11 +152,14 @@ impl NotificationBot {
     ) {
         self.match_start(&match_start, &hero_assignments, tags).await;
 
+        let Some(channel) = self.channel() else {
+            return;
+        };
         info!("Sending match start message to common channel");
         if match_start.game == GameId::from("DotA 2") {
             send_start_match_message(
                 &self.ctx,
-                &self.channel.id,
+                &channel,
                 match_start.clone(),
                 &hero_assignments,
                 tags,
@@ -133,7 +168,7 @@ impl NotificationBot {
         } else {
             send_start_match_message(
                 &self.ctx,
-                &self.channel.id,
+                &channel,
                 match_start.clone(),
                 &HashMap::new(),
                 &HashMap::new(),
@@ -143,6 +178,9 @@ impl NotificationBot {
     }
 
     pub async fn send_match_result(&self, match_result: &RichMatchResult) {
+        let Some(channel) = self.channel() else {
+            return;
+        };
         let msg = serenity::CreateMessage::new().content(
             [
                 format!("## 🏆 {} have won!", match_result.winner_team_name),
@@ -152,12 +190,15 @@ impl NotificationBot {
             ]
             .join("\n"),
         );
-        send_message(&self.ctx, &self.channel.id, msg).await;
+        send_message(&self.ctx, &channel, msg).await;
     }
 
     pub async fn send_match_cancelled(&self) {
+        let Some(channel) = self.channel() else {
+            return;
+        };
         let msg = serenity::CreateMessage::new().content("## Match cancelled 😩");
-        send_message(&self.ctx, &self.channel.id, msg).await;
+        send_message(&self.ctx, &channel, msg).await;
     }
 
     pub async fn send_user_reroll(&self, username: &DiscordUsername, reroll: &RerollResult) {
@@ -165,9 +206,12 @@ impl NotificationBot {
             RerollResult::NewPool(new_pool) if !new_pool.is_empty() =>
             //TODO: use player name instead of username here
             {
+                let Some(channel) = self.channel() else {
+                    return;
+                };
                 send_message(
                     &self.ctx,
-                    &self.channel.id,
+                    &channel,
                     messages::reroll_broadcast_message(username, new_pool),
                 )
                 .await

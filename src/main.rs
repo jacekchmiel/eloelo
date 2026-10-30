@@ -34,6 +34,7 @@ async fn main() {
         DiscordBotMode::Remote { url } => Some(tokio::spawn(bridge::run_client(
             url.clone(),
             config.bridge_secret.clone(),
+            config.test_mode,
             message_bus.clone(),
             shutdown.clone(),
         ))),

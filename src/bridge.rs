@@ -7,6 +7,8 @@
 //!
 //! The bot server serves one eloelo at a time. The bot keeps per-match state and its replies go to
 //! every connected client, so a second eloelo would mix its matches with the first one's.
+//!
+//! eloelo sends its test mode in the handshake, so the bot follows it without its own config.
 
 use std::net::SocketAddr;
 use std::sync::Arc;
@@ -38,6 +40,7 @@ const PEER_TIMEOUT: Duration = Duration::from_secs(15);
 const CONNECT_TIMEOUT: Duration = Duration::from_secs(5);
 const CLOSE_TIMEOUT: Duration = Duration::from_secs(1);
 const RECONNECT_DELAY: Duration = Duration::from_secs(2);
+const TEST_MODE_HEADER: &str = "x-eloelo-test-mode";
 
 /// Messages forwarded from eloelo to the Discord bot.
 fn to_bot(message: &Message) -> bool {
@@ -63,6 +66,7 @@ fn to_eloelo(message: &Message) -> bool {
 pub async fn run_client(
     url: String,
     secret: String,
+    test_mode: bool,
     message_bus: MessageBus,
     shutdown: CancellationToken,
 ) {
@@ -73,7 +77,7 @@ pub async fn run_client(
     }
     loop {
         let connection = tokio::select! {
-            connection = connect(&url, &secret) => connection,
+            connection = connect(&url, &secret, test_mode) => connection,
             _ = shutdown.cancelled() => return,
         };
         match connection {
@@ -197,8 +201,13 @@ async fn serve(
     shutdown: CancellationToken,
 ) {
     let mut permit = None;
+    let mut test_mode = None;
     let handshake = |request: &Request, response| {
         permit = Some(admit(request, &secret, slot)?);
+        test_mode = request
+            .headers()
+            .get(TEST_MODE_HEADER)
+            .map(|value| value == "true");
         Ok(response)
     };
     let ws = match tokio_tungstenite::accept_hdr_async(tcp, handshake).await {
@@ -209,6 +218,11 @@ async fn serve(
         }
     };
     info!("Bridge: eloelo connected from {peer}");
+    // Sent before any bridged message, so the bot is in the right mode for the first match. A
+    // client without the header leaves the bot in its current mode.
+    if let Some(test_mode) = test_mode {
+        message_bus.send(Message::Event(Event::TestMode(test_mode)));
+    }
     let local_messages = message_bus.subscribe();
     match bridge(
         ws,
@@ -246,11 +260,20 @@ fn admit(
         .map_err(|_| error_response(StatusCode::CONFLICT, "Another eloelo is connected"))
 }
 
-async fn connect(url: &str, secret: &str) -> Result<WebSocketStream<MaybeTlsStream<TcpStream>>> {
+async fn connect(
+    url: &str,
+    secret: &str,
+    test_mode: bool,
+) -> Result<WebSocketStream<MaybeTlsStream<TcpStream>>> {
     let mut request = url.into_client_request()?;
-    request.headers_mut().insert(
+    let headers = request.headers_mut();
+    headers.insert(
         header::AUTHORIZATION,
         HeaderValue::from_str(&format!("Bearer {secret}"))?,
+    );
+    headers.insert(
+        TEST_MODE_HEADER,
+        HeaderValue::from_static(if test_mode { "true" } else { "false" }),
     );
     let connection =
         tokio::time::timeout(CONNECT_TIMEOUT, tokio_tungstenite::connect_async(request))
@@ -411,21 +434,21 @@ mod tests {
     async fn rejects_wrong_secret() {
         let (addr, _) = start_server(MessageBus::new(), CancellationToken::new()).await;
         let url = format!("ws://{addr}");
-        assert!(connect(&url, "wrong").await.is_err());
-        assert!(connect(&url, SECRET).await.is_ok());
+        assert!(connect(&url, "wrong", false).await.is_err());
+        assert!(connect(&url, SECRET, false).await.is_ok());
     }
 
     #[tokio::test]
     async fn serves_one_client_at_a_time() {
         let (addr, _) = start_server(MessageBus::new(), CancellationToken::new()).await;
         let url = format!("ws://{addr}");
-        let mut first = connect(&url, SECRET).await.unwrap();
-        let e = connect(&url, SECRET).await.unwrap_err();
+        let mut first = connect(&url, SECRET, false).await.unwrap();
+        let e = connect(&url, SECRET, false).await.unwrap_err();
         assert!(e.to_string().contains("Another eloelo"), "{e:#}");
 
         first.close(None).await.unwrap();
         let reconnect = async {
-            while connect(&url, SECRET).await.is_err() {
+            while connect(&url, SECRET, false).await.is_err() {
                 tokio::time::sleep(Duration::from_millis(10)).await;
             }
         };
@@ -445,7 +468,7 @@ mod tests {
     }
 
     #[tokio::test]
-    async fn forwards_only_bridged_messages() {
+    async fn forwards_test_mode_and_only_bridged_messages() {
         let bot_bus = MessageBus::new();
         let eloelo_bus = MessageBus::new();
         let mut bot_messages = bot_bus.subscribe().stream().boxed();
@@ -454,6 +477,7 @@ mod tests {
         tokio::spawn(run_client(
             format!("ws://{addr}"),
             SECRET.into(),
+            true,
             eloelo_bus.clone(),
             CancellationToken::new(),
         ));
@@ -461,6 +485,10 @@ mod tests {
             next_status(&mut eloelo_messages).await,
             DiscordBotStatus::Connected
         );
+        assert!(matches!(
+            next_message(&mut bot_messages).await,
+            Message::Event(Event::TestMode(true))
+        ));
 
         eloelo_bus.send(Message::UiCommand(UiCommand::StartMatch));
         eloelo_bus.send(Message::UiCommand(UiCommand::FinishMatch(
@@ -494,6 +522,7 @@ mod tests {
         tokio::spawn(run_client(
             format!("ws://{addr}"),
             SECRET.into(),
+            false,
             eloelo_bus.clone(),
             CancellationToken::new(),
         ));
@@ -522,6 +551,7 @@ mod tests {
         let client = tokio::spawn(run_client(
             format!("ws://{addr}"),
             SECRET.into(),
+            false,
             eloelo_bus.clone(),
             shutdown.clone(),
         ));
@@ -544,7 +574,9 @@ mod tests {
     async fn server_closes_gracefully_on_shutdown() {
         let shutdown = CancellationToken::new();
         let (addr, server) = start_server(MessageBus::new(), shutdown.clone()).await;
-        let ws = connect(&format!("ws://{addr}"), SECRET).await.unwrap();
+        let ws = connect(&format!("ws://{addr}"), SECRET, false)
+            .await
+            .unwrap();
 
         shutdown.cancel();
         let timeout = Duration::from_secs(2);

@@ -49,7 +49,12 @@ Bot server `config.yaml` (Discord settings as usual, plus):
 ```yaml
 bridgeSecret: some-long-random-string # same as above
 bridgeListenAddr: 0.0.0.0:3001 # default
+discordTestChannelName: bot-testing # used while the connected main server is in test mode
+discordTestModePlayers: [player1] # the only players getting DMs in test mode
 ```
+
+The bot follows the `testMode` of the main server, which sends it when connecting. The bot server's
+own `testMode` only sets the mode until a main server connects.
 
 ```shell
 cargo run --release --bin elodisco
