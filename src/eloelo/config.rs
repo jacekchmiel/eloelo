@@ -41,6 +41,10 @@ pub struct Config {
     #[serde(default, alias = "bannedHeroes", alias = "global_banned_heroes", alias = "banned_heroes")]
     pub global_banned_heroes: HashSet<Hero>,
 
+    /// Players not affected by `global_banned_heroes`.
+    #[serde(default)]
+    pub unrestricted_players: HashSet<PlayerId>,
+
     #[serde(default = "default_history_git_mirror")]
     pub history_git_mirror: PathBuf,
 
@@ -147,6 +151,7 @@ impl Default for Config {
             discord_test_mode_players: Default::default(),
             discord_test_channel_name: Default::default(),
             global_banned_heroes: Default::default(),
+            unrestricted_players: Default::default(),
         }
     }
 }

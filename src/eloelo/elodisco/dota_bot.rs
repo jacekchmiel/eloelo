@@ -6,7 +6,7 @@ use crate::eloelo::elodisco::hero_assignment_strategy::{
 use crate::eloelo::message_bus::{Event, HeroesAssigned, MatchStart, Message, MessageBus};
 use anyhow::{format_err, Error, Result};
 use chrono::{DateTime, Local};
-use eloelo_model::player::DiscordUsername;
+use eloelo_model::player::{DiscordUsername, PlayerDb};
 use eloelo_model::PlayerId;
 use log::{debug, info};
 use serde::{Deserialize, Serialize};
@@ -87,17 +87,32 @@ pub struct DotaBot {
     hero_assign_strategy: Box<dyn HeroAssignmentStrategy + Send + Sync>,
     message_bus: MessageBus,
     global_banned_heroes: HashSet<Hero>,
+    unrestricted_players: HashSet<PlayerId>,
+    /// Latest players received from eloelo.
+    player_db: PlayerDb,
 }
 
 impl DotaBot {
     pub fn new(
         state: HashMap<DiscordUsername, DotaBotState>,
+        player_db: PlayerDb,
         message_bus: MessageBus,
         config: &Config,
     ) -> Self {
         if !config.global_banned_heroes.is_empty() {
             let banned_list: Vec<_> = config.global_banned_heroes.iter().map(|h| h.as_str()).collect();
             info!("Globally banned heroes: {}", banned_list.join(", "));
+        }
+        if !config.unrestricted_players.is_empty() {
+            let unrestricted_list: Vec<_> = config
+                .unrestricted_players
+                .iter()
+                .map(|p| p.as_str())
+                .collect();
+            info!(
+                "Players not affected by global bans: {}",
+                unrestricted_list.join(", ")
+            );
         }
         DotaBot {
             state,
@@ -115,12 +130,18 @@ impl DotaBot {
                 }
             },
             global_banned_heroes: config.global_banned_heroes.clone(),
+            unrestricted_players: config.unrestricted_players.clone(),
+            player_db,
         }
     }
 
     pub async fn on_message(&mut self, message: &Message) {
         match message {
+            Message::Event(Event::PlayerDbUpdated(player_db)) => {
+                self.player_db = player_db.clone();
+            }
             Message::Event(Event::MatchStart(match_start)) => {
+                self.player_db = match_start.player_db.clone();
                 let assignments = self.on_match_start(match_start).await;
                 self.message_bus
                     .send(Message::Event(Event::HeroesAssigned(HeroesAssigned {
@@ -135,7 +156,12 @@ impl DotaBot {
 
     pub fn user_hero_pool(&self, username: &DiscordUsername) -> Vec<Hero> {
         let user_state = self.get_user_state(username);
-        let banned = &self.global_banned_heroes;
+        let no_bans = HashSet::new();
+        let banned = if self.is_unrestricted(username) {
+            &no_bans
+        } else {
+            &self.global_banned_heroes
+        };
         let pool: Vec<_> = if !user_state.allowed_heroes.is_empty() {
             user_state.allowed_heroes
                 .difference(banned)
@@ -243,6 +269,21 @@ impl DotaBot {
         self.state.clone()
     }
 
+    pub fn player_db(&self) -> &PlayerDb {
+        &self.player_db
+    }
+
+    /// Whether `username` belongs to one of `unrestricted_players`. A player without a Discord
+    /// username is matched by id.
+    fn is_unrestricted(&self, username: &DiscordUsername) -> bool {
+        self.unrestricted_players.iter().any(|id| {
+            match self.player_db.get(id).and_then(|p| p.discord_username()) {
+                Some(discord_username) => discord_username == username,
+                None => id.as_str() == username.as_str(),
+            }
+        })
+    }
+
     pub fn get_user_state(&self, user: &DiscordUsername) -> DotaBotState {
         self.state.get(user).cloned().unwrap_or_default()
     }
@@ -308,6 +349,33 @@ fn next_reroll_at(state: &mut DotaBotState, now: DateTime<Local>) -> DateTime<Lo
 #[cfg(test)]
 mod tests {
     use super::*;
+    use eloelo_model::player::Player;
+
+    #[tokio::test]
+    async fn test_keeps_player_db_received_from_eloelo() {
+        let config = Config::default();
+        let mut bot = DotaBot::new(
+            HashMap::new(),
+            PlayerDb::new([]),
+            MessageBus::new(),
+            &config,
+        );
+        let player = Player::with_opt_discord_username(
+            PlayerId::from("j"),
+            Some(DiscordUsername::from("powerwazniak")),
+        );
+
+        bot.on_message(&Message::Event(Event::PlayerDbUpdated(PlayerDb::new([
+            player,
+        ]))))
+        .await;
+
+        let player = bot.player_db().get(&PlayerId::from("j")).unwrap();
+        assert_eq!(
+            player.discord_username(),
+            Some(&DiscordUsername::from("powerwazniak"))
+        );
+    }
 
     #[test]
     fn test_global_banned_heroes_excluded_from_pool() {
@@ -315,7 +383,7 @@ mod tests {
         config.global_banned_heroes =
             [Hero::from("Phantom Lancer"), Hero::from("Medusa")].into_iter().collect();
         let message_bus = MessageBus::new();
-        let bot = DotaBot::new(HashMap::new(), message_bus, &config);
+        let bot = DotaBot::new(HashMap::new(), PlayerDb::new([]), message_bus, &config);
         let user = DiscordUsername::from("test_user");
         let pool = bot.user_hero_pool(&user);
         assert!(!pool.contains(&Hero::from("Phantom Lancer")));
@@ -343,7 +411,7 @@ mod tests {
         let mut state = HashMap::new();
         state.insert(user.clone(), user_state);
 
-        let bot = DotaBot::new(state, message_bus, &config);
+        let bot = DotaBot::new(state, PlayerDb::new([]), message_bus, &config);
         let pool = bot.user_hero_pool(&user);
 
         // Global ban takes precedence over user allowlist
@@ -369,7 +437,7 @@ mod tests {
         let mut state = HashMap::new();
         state.insert(user.clone(), user_state);
 
-        let bot = DotaBot::new(state, message_bus, &config);
+        let bot = DotaBot::new(state, PlayerDb::new([]), message_bus, &config);
         let pool = bot.user_hero_pool(&user);
 
         // Both globally banned heroes and user-banned heroes are excluded
@@ -380,6 +448,48 @@ mod tests {
         // Non-banned heroes are present in pool
         assert!(pool.contains(&Hero::from("Lion")));
         assert_eq!(pool.len(), Hero::all().len() - 3);
+    }
+
+    #[test]
+    fn test_unrestricted_players_ignore_global_bans() {
+        let mut config = Config::default();
+        config.global_banned_heroes = [Hero::from("Phantom Lancer"), Hero::from("Medusa")]
+            .into_iter()
+            .collect();
+        config.unrestricted_players = [PlayerId::from("j"), PlayerId::from("hypys")]
+            .into_iter()
+            .collect();
+        let player_db = PlayerDb::new([
+            Player::with_opt_discord_username(
+                PlayerId::from("j"),
+                Some(DiscordUsername::from("powerwazniak")),
+            ),
+            Player::with_opt_discord_username(PlayerId::from("hypys"), None),
+            Player::with_opt_discord_username(
+                PlayerId::from("Spawek"),
+                Some(DiscordUsername::from("spawek")),
+            ),
+        ]);
+        let bot = DotaBot::new(HashMap::new(), player_db, MessageBus::new(), &config);
+
+        // Matched by Discord username
+        let pool = bot.user_hero_pool(&DiscordUsername::from("powerwazniak"));
+        assert!(pool.contains(&Hero::from("Phantom Lancer")));
+        assert!(pool.contains(&Hero::from("Medusa")));
+        assert_eq!(pool.len(), Hero::all().len());
+
+        // Player without Discord username is matched by id
+        let pool = bot.user_hero_pool(&DiscordUsername::from("hypys"));
+        assert_eq!(pool.len(), Hero::all().len());
+
+        // The id doesn't match a player who has a different Discord username
+        let pool = bot.user_hero_pool(&DiscordUsername::from("j"));
+        assert!(!pool.contains(&Hero::from("Phantom Lancer")));
+
+        // Other players are still affected
+        let pool = bot.user_hero_pool(&DiscordUsername::from("spawek"));
+        assert!(!pool.contains(&Hero::from("Phantom Lancer")));
+        assert!(!pool.contains(&Hero::from("Medusa")));
     }
 }
 

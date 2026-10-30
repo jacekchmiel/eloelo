@@ -65,6 +65,11 @@ WebSocket authenticated with `bridgeSecret`. Messages cross unchanged as JSON; w
 serves one eloelo at a time, follows the test mode the client sends in the handshake, and only accepts clients once the
 bot is ready. The UI shows bridge health via `DiscordBotStatus`. See README for config and `./deploy-elodisco.sh`.
 
+eloelo owns the players. It sends its `PlayerDb` (`Event::PlayerDbUpdated`) whenever the bot becomes reachable
+(`DiscordBotStatus` `Connected`/`Embedded`) and when players change; the bot keeps the latest copy (also from
+`MatchStart`) and persists it in `discord_bot_state.yaml`, so player id <-> Discord username mapping works while eloelo
+is offline.
+
 ### Test mode
 
 `testMode` in `config.yaml` makes the app safe to try out: the shared history git mirror is never touched, and the bot

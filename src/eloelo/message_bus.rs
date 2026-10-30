@@ -187,6 +187,9 @@ pub enum Event {
     /// Test mode of the eloelo connected to the bot server. Published on the bot server's bus by
     /// the bridge when eloelo connects.
     TestMode(bool),
+    /// eloelo's players, sent whenever the Discord bot becomes reachable and when players change.
+    /// The bot keeps the latest copy, so it can map Discord usernames to players between matches.
+    PlayerDbUpdated(PlayerDb),
 }
 
 #[derive(Clone, Debug, Serialize, Deserialize)]
