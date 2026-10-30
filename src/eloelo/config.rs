@@ -23,7 +23,8 @@ pub struct Config {
     pub discord_channel_name: String,
 
     /// Disables priv messages, storing match history and syncing the history git mirror. Finished
-    /// matches are kept in memory only. Useful for development and testing.
+    /// matches are kept in memory only. Useful for development and testing. A remote Discord bot
+    /// follows the value of the connected eloelo, its own value applies only until one connects.
     #[serde(default)]
     pub test_mode: bool,
 
@@ -153,14 +154,6 @@ impl Default for Config {
 impl Config {
     pub fn default_game(&self) -> &GameId {
         self.games.first().map(|g| &g.name).unwrap()
-    }
-
-    pub fn effective_discord_channel_name(&self) -> &str {
-        if self.test_mode {
-            &self.discord_test_channel_name
-        } else {
-            &self.discord_channel_name
-        }
     }
 }
 

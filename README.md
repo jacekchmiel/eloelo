@@ -49,14 +49,30 @@ Bot server `config.yaml` (Discord settings as usual, plus):
 ```yaml
 bridgeSecret: some-long-random-string # same as above
 bridgeListenAddr: 0.0.0.0:3001 # default
+discordTestChannelName: bot-testing # used while the connected main server is in test mode
+discordTestModePlayers: [player1] # the only players getting DMs in test mode
 ```
+
+The bot follows the `testMode` of the main server, which sends it when connecting. The bot server's
+own `testMode` only sets the mode until a main server connects.
 
 ```shell
 cargo run --release --bin elodisco
 ```
 
+To deploy it to a host running it as the `elodisco` systemd service (binary in
+`/var/www/elodisco/`), built locally:
+
+```shell
+./deploy-elodisco.sh HOST           # build, back up the current binary, install, restart
+./deploy-elodisco.sh HOST rollback  # restore the binary from before the last deploy
+```
+
 The main server keeps reconnecting while the bot server is unreachable; the Discord icon in the UI
 app bar is red until the connection is back (hover it for the error).
+
+The bot server serves one main server at a time. Another one trying to connect meanwhile is
+rejected ("Another eloelo is already connected") and keeps retrying until the first disconnects.
 
 Hero bans/allowlists (`discord_bot_state.yaml`) live next to the bot, so move the file to the bot
 server's data dir when switching to remote mode.

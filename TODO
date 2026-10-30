@@ -31,7 +31,9 @@
 
 ## LOW PRIORITY
 
-- [ ] S Remote Discord bot uses its own `testMode`/test channel config, not the one of the main server.
+- [x] S Remote Discord bot uses its own `testMode`/test channel config, not the one of the main server.
+- [x] S Deploy script for the remote Discord bot (build release `elodisco`, copy to the server, back up the
+      previous binary, restart the service).
 - [x] S Close bridge WebSocket gracefully (Close frame) on ctrl+c, so the peer doesn't warn about
       "Connection reset without closing handshake". The error text is also duplicated in the log.
 - [x] M Remote Discord bot connection health: show disconnected bridge in UI, or block app start / UI actions
