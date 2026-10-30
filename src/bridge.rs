@@ -68,8 +68,7 @@ pub async fn run_client(
 ) {
     let mut status = StatusReporter::new(message_bus.clone());
     if secret.is_empty() {
-        warn!("Bridge: bridgeSecret is not set, not connecting to the Discord bot.");
-        status.disconnected("bridgeSecret is not set".into());
+        status.disconnected("bridgeSecret is not set, not connecting".into());
         return;
     }
     loop {
@@ -79,7 +78,6 @@ pub async fn run_client(
         };
         match connection {
             Ok(ws) => {
-                info!("Bridge: connected to {url}");
                 // Subscribe before reporting, so no message sent after the status change is missed.
                 let local_messages = message_bus.subscribe();
                 status.connected();
@@ -96,23 +94,13 @@ pub async fn run_client(
                     info!("Bridge: connection closed.");
                     return;
                 }
-                match result {
-                    Ok(()) => {
-                        info!("Bridge: bot server closed the connection.");
-                        status.disconnected("Bot server closed the connection".into());
-                    }
-                    Err(e) => {
-                        let error = format!("Connection lost: {}", error_chain(&e));
-                        warn!("Bridge: {error}");
-                        status.disconnected(error);
-                    }
-                }
+                status.disconnected(match result {
+                    Ok(()) => "Bot server closed the connection".into(),
+                    Err(e) => format!("Connection lost: {}", error_chain(&e)),
+                });
             }
             Err(e) => {
-                let error = format!("Failed to connect to {url}: {}", error_chain(&e));
-                if status.disconnected(error.clone()) {
-                    warn!("Bridge: {error}");
-                }
+                status.disconnected(format!("Failed to connect to {url}: {}", error_chain(&e)));
             }
         }
         tokio::select! {
@@ -122,7 +110,8 @@ pub async fn run_client(
     }
 }
 
-/// Publishes bridge status on the local bus, only when it changes.
+/// Publishes bridge status on the local bus and logs it, only when it changes. Retries failing
+/// the same way don't repeat the log.
 struct StatusReporter {
     message_bus: MessageBus,
     last: Option<DiscordBotStatus>,
@@ -140,22 +129,25 @@ impl StatusReporter {
         self.report(DiscordBotStatus::Connected);
     }
 
-    fn disconnected(&mut self, error: String) -> bool {
+    fn disconnected(&mut self, error: String) {
         let since = match &self.last {
             Some(DiscordBotStatus::Disconnected { since, .. }) => *since,
             _ => Local::now(),
         };
-        self.report(DiscordBotStatus::Disconnected { since, error })
+        self.report(DiscordBotStatus::Disconnected { since, error });
     }
 
-    fn report(&mut self, status: DiscordBotStatus) -> bool {
+    fn report(&mut self, status: DiscordBotStatus) {
         if self.last.as_ref() == Some(&status) {
-            return false;
+            return;
+        }
+        match &status {
+            DiscordBotStatus::Disconnected { error, .. } => warn!("Bridge: {error}"),
+            _ => info!("Bridge: connected."),
         }
         self.message_bus
             .send(Message::Event(Event::DiscordBotStatus(status.clone())));
         self.last = Some(status);
-        true
     }
 }
 
