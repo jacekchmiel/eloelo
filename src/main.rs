@@ -27,12 +27,22 @@ async fn main() {
     // (e.g. Discord bot status).
     let eloelo_messages = message_bus.subscribe();
     let shutdown = CancellationToken::new();
-    let bridge_task = match &config.discord_bot {
+    let (bridge_task, elodisco_storage) = match &config.discord_bot {
         DiscordBotMode::Embedded => {
-            let bot_state = unwrap_or_def_verbose(store::load_bot_state());
+            let storage = unwrap_or_exit(GitStorage::open(store::elodisco_dir(), false));
+            let mut bot_config = unwrap_or_exit(store::load_elodisco_config(&storage));
+            bot_config.test_mode = config.test_mode;
+            let token = unwrap_or_exit(store::load_secret(store::DISCORD_BOT_TOKEN_FILE));
+            let bot_state = unwrap_or_exit(store::load_bot_state(&storage));
             // eloelo doesn't wait for the bot, its messages sent meanwhile are lost. The status
             // sent once the bot is ready lets eloelo send what the bot needs from the start.
-            let bot_ready = elodisco::run(config.clone(), bot_state, message_bus.clone());
+            let bot_ready = elodisco::run(
+                bot_config,
+                token,
+                bot_state,
+                storage.clone(),
+                message_bus.clone(),
+            );
             tokio::spawn({
                 let message_bus = message_bus.clone();
                 async move {
@@ -44,18 +54,22 @@ async fn main() {
                     }
                 }
             });
-            None
+            (None, Some(storage))
         }
-        DiscordBotMode::Remote { url } => Some(tokio::spawn(bridge::run_client(
-            url.clone(),
-            config.bridge_secret.clone(),
-            config.test_mode,
-            message_bus.clone(),
-            shutdown.clone(),
-        ))),
+        DiscordBotMode::Remote { url } => {
+            let bridge_secret = unwrap_or_exit(store::load_secret(store::BRIDGE_SECRET_FILE));
+            let bridge_task = tokio::spawn(bridge::run_client(
+                url.clone(),
+                bridge_secret,
+                config.test_mode,
+                message_bus.clone(),
+                shutdown.clone(),
+            ));
+            (Some(bridge_task), None)
+        }
         DiscordBotMode::Disabled => {
             info!("Discord bot disabled.");
-            None
+            (None, None)
         }
     };
     let eloelo = EloElo::new(
@@ -87,5 +101,8 @@ async fn main() {
     if let Some(bridge_task) = bridge_task {
         bridge_task.await.context("Bridge task failed").print_err();
     }
-    debug!("All workers stopped.")
+    debug!("All workers stopped.");
+    if let Some(storage) = elodisco_storage {
+        elodisco::push_storage(&storage).await;
+    }
 }

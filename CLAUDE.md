@@ -60,7 +60,7 @@ Subscribe before sending startup messages (see `main.rs`) — a broadcast receiv
 
 `config.yaml` `discordBot.mode`: `embedded` (bot runs in-process on the same bus), `remote`, or `disabled`. In remote
 mode `bridge.rs` connects the local bus to the bus of a standalone `elodisco` server (`src/bin/elodisco.rs`) over a
-WebSocket authenticated with `bridgeSecret`. Messages cross unchanged as JSON; which ones cross is decided only by the
+WebSocket authenticated with the secret in the `bridge_secret` file. Messages cross unchanged as JSON; which ones cross is decided only by the
 `to_bot`/`to_eloelo` filters in `bridge.rs`, which must not overlap or messages bounce between buses. The bot server
 serves one eloelo at a time, follows the test mode the client sends in the handshake, and only accepts clients once the
 bot is ready. The UI shows bridge health via `DiscordBotStatus`. See README for config and `./deploy-elodisco.sh`.

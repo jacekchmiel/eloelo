@@ -2,7 +2,7 @@ use std::ffi::OsStr;
 use std::fs::{self, File};
 use std::path::{Path, PathBuf};
 
-use anyhow::{Context, Result};
+use anyhow::{bail, Context, Result};
 use eloelo_model::player::PlayersConfig;
 use itertools::Itertools;
 use log::{debug, info, warn};
@@ -11,6 +11,7 @@ use serde::{Deserialize, Serialize};
 
 use super::config::Config;
 use super::elodisco::bot_state::BotState;
+use super::elodisco::config::EloDiscoConfig;
 use super::git_storage::GitStorage;
 use super::ui_state::State;
 use eloelo_model::history::{History, HistoryEntry};
@@ -18,13 +19,14 @@ use eloelo_model::GameId;
 
 const HISTORY_SUFFIX: &str = ".history.json";
 const HISTORY_DIR: &str = "history";
+const ELODISCO_DIR: &str = "elodisco";
+const ELODISCO_CONFIG_FILE: &str = "config.yaml";
+const BOT_STATE_FILE: &str = "discord_bot_state.yaml";
+pub const DISCORD_BOT_TOKEN_FILE: &str = "discord_bot_token";
+pub const BRIDGE_SECRET_FILE: &str = "bridge_secret";
 
 fn state_file_path() -> PathBuf {
     data_dir().join("state.yaml")
-}
-
-fn bot_state_file_path() -> PathBuf {
-    data_dir().join("discord_bot_state.yaml")
 }
 
 fn config_file_path() -> PathBuf {
@@ -61,23 +63,42 @@ pub fn store_state(state: &State) -> Result<()> {
     Ok(())
 }
 
-pub fn load_bot_state() -> Result<BotState> {
-    let path = bot_state_file_path();
-    info!("Discord Bot State file: {}", path.to_string_lossy());
-    if !path.exists() {
-        store_bot_state(&Default::default())?;
+/// The Discord bot's storage: its config and state.
+pub fn elodisco_dir() -> PathBuf {
+    data_dir().join(ELODISCO_DIR)
+}
+
+pub fn load_elodisco_config(storage: &GitStorage) -> Result<EloDiscoConfig> {
+    if let Some(config) = storage.load(ELODISCO_CONFIG_FILE)? {
+        return Ok(config);
     }
-    let state_file = File::open(path)?;
-    let mut state: BotState = serde_yaml::from_reader(state_file)?;
+    info!("Discord bot config file does not exist, creating.");
+    let config = EloDiscoConfig::default();
+    storage.store(ELODISCO_CONFIG_FILE, &config, "Create Discord bot config")?;
+    Ok(config)
+}
+
+pub fn load_bot_state(storage: &GitStorage) -> Result<BotState> {
+    let mut state: BotState = storage.load(BOT_STATE_FILE)?.unwrap_or_default();
     state.validate();
     Ok(state)
 }
 
-pub fn store_bot_state(state: &BotState) -> Result<()> {
+pub fn store_bot_state(storage: &GitStorage, state: &BotState) -> Result<()> {
     debug!("Storing bot state");
-    ensure_dir_created(&bot_state_file_path())?;
-    store_file_with_backup(&bot_state_file_path(), state)?;
-    Ok(())
+    storage.store(BOT_STATE_FILE, state, "Update Discord bot state")
+}
+
+/// Reads a secret from its own file in the data dir, which is never backed up.
+pub fn load_secret(file: &str) -> Result<String> {
+    let path = data_dir().join(file);
+    let secret = fs::read_to_string(&path)
+        .with_context(|| format!("Cannot read secret from {}", path.to_string_lossy()))?;
+    let secret = secret.trim();
+    if secret.is_empty() {
+        bail!("Secret file {} is empty", path.to_string_lossy());
+    }
+    Ok(secret.to_string())
 }
 
 pub fn load_config() -> Result<Config> {

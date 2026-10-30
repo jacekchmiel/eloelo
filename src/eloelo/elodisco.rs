@@ -1,7 +1,8 @@
-use crate::eloelo::config::Config;
 use crate::eloelo::elodisco::async_elodisco::EloDisco;
 use crate::eloelo::elodisco::bot_state::BotState;
+use crate::eloelo::elodisco::config::EloDiscoConfig;
 use crate::eloelo::elodisco::dota_bot::Hero;
+use crate::eloelo::git_storage::GitStorage;
 use crate::eloelo::message_bus::MessageBus;
 use crate::utils::{print_err, ResultExt as _};
 use anyhow::{bail, Context as _, Error, Result};
@@ -9,19 +10,23 @@ use eloelo_model::player::DiscordUsername;
 use futures_util::lock::Mutex;
 use futures_util::StreamExt as _;
 use itertools::Itertools;
-use log::{info, debug};
+use log::{debug, error, info};
 use poise::serenity_prelude as serenity;
 use std::future::Future;
 use std::sync::Arc;
+use std::time::Duration;
 use tokio::sync::oneshot;
 
 pub(crate) mod async_elodisco;
 pub mod bot_state;
+pub mod config;
 pub(crate) mod dota_bot;
 pub(crate) mod hero_assignment_strategy;
 pub(crate) mod messages;
 pub(crate) mod notification_bot;
 mod utils;
+
+const STORAGE_PUSH_INTERVAL: Duration = Duration::from_secs(60 * 60);
 
 type SharedEloDisco = Arc<Mutex<EloDisco>>;
 type Context<'a> = poise::Context<'a, SharedEloDisco, Error>;
@@ -361,10 +366,13 @@ pub async fn help(
 
 /// Starts the Discord bot in the background. The returned future completes once the bot handles
 /// messages from `message_bus`, or fails if the bot doesn't start. Messages sent before that are
-/// lost. The bot runs whether the future is awaited or not.
+/// lost. The bot runs whether the future is awaited or not. Its data in `storage` is pushed every
+/// `STORAGE_PUSH_INTERVAL`; the caller pushes it on exit with `push_storage`.
 pub fn run(
-    config: Config,
+    config: EloDiscoConfig,
+    token: String,
     bot_state: BotState,
+    storage: GitStorage,
     message_bus: MessageBus,
 ) -> impl Future<Output = Result<()>> {
     info!(
@@ -380,12 +388,13 @@ pub fn run(
         config.discord_test_mode_players.iter().join(", ")
     );
 
+    tokio::spawn(push_storage_periodically(storage.clone()));
+
     let (bot_ready, bot_ready_receiver) = oneshot::channel();
     let bot = tokio::spawn(async move {
         let intents = serenity::GatewayIntents::GUILD_MESSAGES
             | serenity::GatewayIntents::DIRECT_MESSAGES
             | serenity::GatewayIntents::MESSAGE_CONTENT;
-        let token = config.discord_bot_token.clone();
 
         let framework = poise::Framework::builder()
             .options(poise::FrameworkOptions {
@@ -397,7 +406,7 @@ pub fn run(
                     info!("EloDisco is connected!");
                     poise::builtins::register_globally(ctx, &framework.options().commands).await?;
                     let elodisco =
-                        EloDisco::initialize(bot_state, message_bus.clone(), config.clone(), ctx)
+                        EloDisco::initialize(bot_state, storage, message_bus.clone(), config, ctx)
                             .await?;
                     let elodisco = Arc::new(Mutex::new(elodisco));
                     spawn_message_handler(Arc::clone(&elodisco), message_bus.clone());
@@ -420,6 +429,25 @@ pub fn run(
             ready = bot_ready_receiver => ready.context("Discord bot setup failed"),
             _ = bot => bail!("Discord bot stopped"),
         }
+    }
+}
+
+async fn push_storage_periodically(storage: GitStorage) {
+    let mut interval = tokio::time::interval(STORAGE_PUSH_INTERVAL);
+    // The first tick is immediate, and opening the storage has just pushed.
+    interval.tick().await;
+    loop {
+        interval.tick().await;
+        push_storage(&storage).await;
+    }
+}
+
+/// Commits and pushes the bot's config and state.
+pub async fn push_storage(storage: &GitStorage) {
+    let storage = storage.clone();
+    let pushed = tokio::task::spawn_blocking(move || storage.push("Update Discord bot data")).await;
+    if let Err(e) = pushed.map_err(Error::from).and_then(|r| r) {
+        error!("Failed to push Discord bot data: {e:#}");
     }
 }
 
