@@ -4,11 +4,11 @@ use super::notification_bot::NotificationBot;
 use crate::eloelo::config::Config;
 use crate::eloelo::elodisco::dota_bot::RerollResult;
 use crate::eloelo::message_bus::{
-    AvatarUrl, DiscordPlayerInfo, Message, MessageBus, UiCommand, UiUpdate,
+    AvatarUrl, DiscordPlayerInfo, Event, Message, MessageBus, UiCommand, UiUpdate,
 };
 use crate::eloelo::print_err;
 use anyhow::{bail, Context as _, Result};
-use eloelo_model::player::DiscordUsername;
+use eloelo_model::player::{DiscordUsername, Player, PlayerDb};
 use eloelo_model::PlayerId;
 use log::{debug, error, info, trace};
 use poise::serenity_prelude as serenity;
@@ -42,7 +42,8 @@ impl EloDisco {
             .iter()
             .map(|(p, s)| (p.clone(), s.dota.clone()))
             .collect();
-        let dota_bot = DotaBot::new(dota_bot_state, message_bus.clone(), &config);
+        let player_db = PlayerDb::new(bot_state.eloelo_players.iter().cloned().map(Player::from));
+        let dota_bot = DotaBot::new(dota_bot_state, player_db, message_bus.clone(), &config);
 
         let channel = get_channel(ctx, guild.id, &config.discord_channel_name).await?;
         let test_channel = get_channel(ctx, guild.id, &config.discord_test_channel_name).await?;
@@ -82,6 +83,9 @@ impl EloDisco {
                 self.message_bus
                     .send(Message::UiUpdate(UiUpdate::DiscordInfo(discord_players)));
             }
+            Message::Event(Event::PlayerDbUpdated(_) | Event::MatchStart(_)) => {
+                self.store_bot_state_if_changed().await;
+            }
             _ => {}
         }
     }
@@ -108,13 +112,17 @@ impl EloDisco {
                 )
             })
             .collect();
-        BotState { players }
+        BotState {
+            players,
+            eloelo_players: self.dota_bot.player_db().to_players_config().players,
+        }
     }
 
-    pub async fn store_bot_state_if_changed(&self) {
+    pub async fn store_bot_state_if_changed(&mut self) {
         let current_state = self.collect_bot_state().await;
         if current_state != self.stored_bot_state {
-            self.store_bot_state(current_state).await;
+            self.store_bot_state(current_state.clone()).await;
+            self.stored_bot_state = current_state;
         }
     }
 

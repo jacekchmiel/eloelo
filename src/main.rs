@@ -1,6 +1,6 @@
 use anyhow::Context;
 use eloelo::config::DiscordBotMode;
-use eloelo::message_bus::{Message, MessageBus, UiCommand};
+use eloelo::message_bus::{DiscordBotStatus, Event, Message, MessageBus, UiCommand};
 use eloelo::utils::{terminate_on_signal, unwrap_or_def_verbose, ResultExt as _};
 use eloelo::{api, bridge, elodisco, logging, ocr, store, EloElo};
 use log::{debug, error, info, warn};
@@ -26,8 +26,20 @@ async fn main() {
     let bridge_task = match &config.discord_bot {
         DiscordBotMode::Embedded => {
             let bot_state = unwrap_or_def_verbose(store::load_bot_state());
-            // eloelo doesn't wait for the bot, its messages sent meanwhile are lost.
-            let _ = elodisco::run(config.clone(), bot_state, message_bus.clone());
+            // eloelo doesn't wait for the bot, its messages sent meanwhile are lost. The status
+            // sent once the bot is ready lets eloelo send what the bot needs from the start.
+            let bot_ready = elodisco::run(config.clone(), bot_state, message_bus.clone());
+            tokio::spawn({
+                let message_bus = message_bus.clone();
+                async move {
+                    match bot_ready.await {
+                        Ok(()) => message_bus.send(Message::Event(Event::DiscordBotStatus(
+                            DiscordBotStatus::Embedded,
+                        ))),
+                        Err(e) => error!("{e:#}"),
+                    }
+                }
+            });
             None
         }
         DiscordBotMode::Remote { url } => Some(tokio::spawn(bridge::run_client(

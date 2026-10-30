@@ -174,6 +174,13 @@ impl EloElo {
                     self.on_heroes_assigned(&heroes_assigned);
                 }
                 Ok(Some(Message::Event(Event::DiscordBotStatus(status)))) => {
+                    // Sent when the bot becomes reachable, so it has the players before a match.
+                    if matches!(
+                        status,
+                        DiscordBotStatus::Connected | DiscordBotStatus::Embedded
+                    ) {
+                        self.send_player_db();
+                    }
                     self.discord_bot_status = status;
                 }
                 Ok(Some(_)) => continue,
@@ -312,11 +319,18 @@ impl EloElo {
     fn add_new_player(&mut self, player: Player) {
         self.players.insert(player);
         store::store_players(self.players.to_players_config()).print_err();
+        self.send_player_db();
     }
 
     fn remove_player(&mut self, player_id: &PlayerId) {
         self.players.remove(player_id);
         store::store_players(self.players.to_players_config()).print_err();
+        self.send_player_db();
+    }
+
+    fn send_player_db(&self) {
+        self.message_bus
+            .send(Message::Event(Event::PlayerDbUpdated(self.players.clone())));
     }
 
     fn transfer_player_id(&mut self, player_id: &PlayerId) {

@@ -46,10 +46,11 @@ const TEST_MODE_HEADER: &str = "x-eloelo-test-mode";
 fn to_bot(message: &Message) -> bool {
     matches!(
         message,
-        Message::Event(Event::MatchStart(_) | Event::RichMatchResult(_))
-            | Message::UiCommand(
-                UiCommand::InitializeUi | UiCommand::FinishMatch(FinishMatch::Cancelled)
-            )
+        Message::Event(
+            Event::MatchStart(_) | Event::RichMatchResult(_) | Event::PlayerDbUpdated(_)
+        ) | Message::UiCommand(
+            UiCommand::InitializeUi | UiCommand::FinishMatch(FinishMatch::Cancelled)
+        )
     )
 }
 
@@ -500,6 +501,11 @@ mod tests {
             next_message(&mut bot_messages).await,
             Message::UiCommand(UiCommand::FinishMatch(FinishMatch::Cancelled))
         ));
+        eloelo_bus.send(Message::Event(Event::PlayerDbUpdated(PlayerDb::new([]))));
+        assert!(matches!(
+            next_message(&mut bot_messages).await,
+            Message::Event(Event::PlayerDbUpdated(_))
+        ));
 
         let mut eloelo_messages = eloelo_bus.subscribe().stream().boxed();
         bot_bus.send(Message::UiCommand(UiCommand::ShuffleTeams));
@@ -607,9 +613,10 @@ mod tests {
             players: HashMap::from([("p1".into(), 1000)]),
             name: name.into(),
         };
+        let player_db = PlayerDb::new([player]);
         let match_start = MatchStart {
             game: "Dota".into(),
-            player_db: PlayerDb::new([player]),
+            player_db: player_db.clone(),
             left_team: team("Radiant"),
             right_team: team("Dire"),
         };
@@ -621,6 +628,7 @@ mod tests {
         for message in [
             Message::Event(Event::MatchStart(match_start)),
             Message::Event(Event::HeroesAssigned(heroes_assigned)),
+            Message::Event(Event::PlayerDbUpdated(player_db)),
         ] {
             let json = serde_json::to_value(&message).unwrap();
             let parsed: Message = serde_json::from_value(json.clone()).unwrap();

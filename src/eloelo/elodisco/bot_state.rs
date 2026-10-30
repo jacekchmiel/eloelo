@@ -1,7 +1,7 @@
 use std::collections::{HashMap, HashSet};
 
 use chrono::{DateTime, Local};
-use eloelo_model::player::DiscordUsername;
+use eloelo_model::player::{DiscordUsername, PlayerConfig};
 use log::warn;
 use serde::{Deserialize, Serialize};
 
@@ -11,6 +11,10 @@ use super::dota_bot::Hero;
 #[derive(Clone, Debug, Default, PartialEq, Serialize, Deserialize)]
 pub struct BotState {
     pub players: HashMap<DiscordUsername, PlayerBotState>,
+
+    /// Latest players received from eloelo, used while no eloelo is connected.
+    #[serde(default)]
+    pub eloelo_players: Vec<PlayerConfig>,
 }
 
 impl BotState {
