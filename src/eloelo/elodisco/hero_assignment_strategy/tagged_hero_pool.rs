@@ -2,7 +2,6 @@ use core::f64;
 use std::{
     collections::{HashMap, HashSet},
     fmt::Display,
-    iter::zip,
     str::FromStr,
 };
 
@@ -12,10 +11,10 @@ use itertools::Itertools;
 use log::{info, warn};
 use serde::{Deserialize, Serialize};
 use rand::{
-    Rng, seq::{IteratorRandom, SliceRandom}, thread_rng
+    seq::{IteratorRandom, SliceRandom}, thread_rng
 };
 
-use crate::eloelo::elodisco::hero_assignment_strategy::DotaTeam;
+use crate::eloelo::elodisco::hero_assignment_strategy::{DotaTeam, RoleAssignment};
 use crate::eloelo::elodisco::{
     dota_bot::Hero,
     hero_assignment_strategy::{HeroAssignmentStrategy, PlayerInfo},
@@ -26,12 +25,6 @@ pub enum HeroTag {
     Carry,
     Core,
     Support,
-}
-
-impl HeroTag {
-    pub fn next_tag(tag_id: usize) -> HeroTag {
-        vec![HeroTag::Core, HeroTag::Support, HeroTag::Carry][tag_id % 3].clone()
-    }
 }
 
 impl Display for HeroTag {
@@ -58,8 +51,9 @@ impl FromStr for HeroTag {
     }
 }
 
-#[derive(Default, Clone)]
+#[derive(Clone)]
 pub struct TaggedHeroPool {
+    pub role_assignment: RoleAssignment,
     pub tags: HashMap<HeroTag, HashSet<Hero>>,
     pub hero_assignement: HashMap<PlayerInfo, Vec<Hero>>,
     pub player_tags: HashMap<DiscordUsername, HeroTag>,
@@ -68,19 +62,14 @@ pub struct TaggedHeroPool {
 }
 
 impl TaggedHeroPool {
-    pub fn new() -> Self {
+    pub fn new(role_assignment: RoleAssignment) -> Self {
         TaggedHeroPool {
+            role_assignment,
             tags: Self::read_tags(),
+            hero_assignement: HashMap::new(),
+            player_tags: HashMap::new(),
+            taken: HashSet::new(),
             hero_similarity: Self::read_hero_similarity().unwrap(),
-            ..Default::default()
-        }
-    }
-
-    fn random_tag() -> HeroTag {
-        match thread_rng().gen_range(0..3) {
-            0 => HeroTag::Carry,
-            1 => HeroTag::Core,
-            _ => HeroTag::Support,
         }
     }
 
@@ -205,17 +194,6 @@ impl TaggedHeroPool {
         }
         None
     }
-
-    fn players_pairing(t1_len: usize, t2_len: usize) -> Vec<usize> {
-        let [t_min, t_max] = if t2_len < t1_len {
-            [t2_len, t1_len]
-        } else {
-            [t1_len, t2_len]
-        };
-        let mut pairing_order = (0..t_min).collect_vec();
-        pairing_order.shuffle(&mut rand::thread_rng());
-        pairing_order.into_iter().chain(t_min..t_max).collect()
-    }
 }
 
 impl HeroAssignmentStrategy for TaggedHeroPool {
@@ -242,17 +220,9 @@ impl HeroAssignmentStrategy for TaggedHeroPool {
             .map(|(p, _)| p.number_of_heroes_shown)
             .max()
             .unwrap_or(3);
-        let pairing_order = Self::players_pairing(radiant.len(), dire.len());
-        let mut pairs_tag = (0..pairing_order.len())
-            .map(HeroTag::next_tag)
-            .collect_vec(); // rotate Core -> Support -> Carry -> ... for balanced team composition
+        let position_tags = self.role_assignment.assign(radiant.len(), dire.len());
 
-        if radiant.len() != dire.len() {
-            // To prevent that last player is always carry, assign random tag to the unpaired players
-            pairs_tag.last_mut().map(|t| *t = Self::random_tag()); // assign random tag to unpaired players
-        }
-
-        for (pair_id, pair_tag) in zip(pairing_order.iter(), pairs_tag.iter()) {
+        for (pair_id, pair_tag) in position_tags.iter() {
             for team in [&radiant, &dire] {
                 if let Some((player, _)) = team.get(*pair_id) {
                     self.player_tags.insert(player.name.clone(), pair_tag.clone());
@@ -261,7 +231,7 @@ impl HeroAssignmentStrategy for TaggedHeroPool {
         }
 
         for _ in 0..max_hero_shown {
-            for (pair_id, pair_tag) in zip(pairing_order.iter(), pairs_tag.iter()) {
+            for (pair_id, pair_tag) in position_tags.iter() {
                 let mut paired_hero: Option<Hero> = None;
                 let mut teams = [&radiant, &dire];
                 teams.shuffle(&mut thread_rng());
@@ -347,12 +317,6 @@ impl HeroAssignmentStrategy for TaggedHeroPool {
             .entry(player)
             .insert_entry(new_picks.clone());
         Ok(new_picks)
-    }
-
-    fn clear(&mut self) {
-        self.hero_assignement.clear();
-        self.player_tags.clear();
-        self.taken.clear();
     }
 
     fn assigned_tags(&self) -> HashMap<DiscordUsername, HeroTag> {

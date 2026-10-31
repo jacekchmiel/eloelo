@@ -45,13 +45,25 @@ export type History = {
   entries: { [key: string]: HistoryEntry[] };
 };
 
-export type OptionType = "integer" | "decimal" | "string" | "boolean";
+export type OptionType =
+  | "integer"
+  | "decimal"
+  | "string"
+  | "boolean"
+  | "choice";
+
+export type OptionChoice = {
+  value: string;
+  name: string;
+};
 
 export type DescribedOption = {
   name: string;
   key: string;
   type: OptionType;
   value: number | string | boolean;
+  // Values a "choice" option can take.
+  choices?: OptionChoice[];
 };
 
 export type OptionsGroup = {

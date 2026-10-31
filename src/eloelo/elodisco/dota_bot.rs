@@ -1,9 +1,11 @@
 use super::bot_state::DotaBotState;
 use crate::eloelo::elodisco::config::EloDiscoConfig;
 use crate::eloelo::elodisco::hero_assignment_strategy::{
-    DotaTeam, HeroAssignmentStrategy, PlayerInfo, RandomHeroPool, TaggedHeroPool,
+    DotaTeam, HeroAssignmentStrategy, HeroAssignmentStrategyKind, PlayerInfo, RandomHeroPool,
+    TaggedHeroPool,
 };
 use crate::eloelo::message_bus::{Event, HeroesAssigned, MatchStart, Message, MessageBus};
+use crate::eloelo::options::HeroAssignmentOptions;
 use anyhow::{format_err, Error, Result};
 use chrono::{DateTime, Local};
 use eloelo_model::player::{DiscordUsername, PlayerDb};
@@ -81,6 +83,17 @@ pub enum RerollResult {
     NoRerollUntil(DateTime<Local>),
 }
 
+fn make_hero_assign_strategy(
+    options: &HeroAssignmentOptions,
+) -> Box<dyn HeroAssignmentStrategy + Send + Sync> {
+    match options.strategy {
+        HeroAssignmentStrategyKind::Random => Box::new(RandomHeroPool::default()),
+        HeroAssignmentStrategyKind::Tags => {
+            Box::new(TaggedHeroPool::new(options.role_assignment.clone()))
+        }
+    }
+}
+
 pub struct DotaBot {
     state: HashMap<DiscordUsername, DotaBotState>,
     heroes: HashSet<Hero>,
@@ -118,17 +131,7 @@ impl DotaBot {
             state,
             message_bus,
             heroes: Hero::all(),
-            hero_assign_strategy: match config.hero_assignment_strategy {
-                crate::eloelo::elodisco::config::HeroAssignmentStrategyKind::Random => {
-                    info!("HeroAssignment strategy: Random");
-                    Box::new(RandomHeroPool::default())
-                }
-
-                crate::eloelo::elodisco::config::HeroAssignmentStrategyKind::Tags => {
-                    info!("HeroAssignment strategy: Tags");
-                    Box::new(TaggedHeroPool::new())
-                }
-            },
+            hero_assign_strategy: make_hero_assign_strategy(&HeroAssignmentOptions::default()),
             global_banned_heroes: config.global_banned_heroes.clone(),
             unrestricted_players: config.unrestricted_players.clone(),
             player_db,
@@ -236,7 +239,8 @@ impl DotaBot {
         match_start: &MatchStart,
     ) -> HashMap<DiscordUsername, Vec<Hero>> {
         let hero_pools = self.make_hero_pools(&match_start);
-        self.hero_assign_strategy.clear();
+        info!("Hero assignment: {:?}", match_start.hero_assignment);
+        self.hero_assign_strategy = make_hero_assign_strategy(&match_start.hero_assignment);
         let hero_assignments = self.hero_assign_strategy.assign_heroes(hero_pools);
 
         hero_assignments

@@ -27,9 +27,6 @@ pub struct EloDiscoConfig {
     #[serde(default)]
     pub discord_test_mode_players: HashSet<PlayerId>,
 
-    #[serde(default = "default_hero_assignement_strategy_kind")]
-    pub hero_assignment_strategy: HeroAssignmentStrategyKind,
-
     #[serde(default)]
     pub global_banned_heroes: HashSet<Hero>,
 
@@ -50,23 +47,11 @@ impl Default for EloDiscoConfig {
             test_mode: true,
             discord_test_channel_name: Default::default(),
             discord_test_mode_players: Default::default(),
-            hero_assignment_strategy: default_hero_assignement_strategy_kind(),
             global_banned_heroes: Default::default(),
             unrestricted_players: Default::default(),
             bridge_listen_addr: default_bridge_listen_addr(),
         }
     }
-}
-
-#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
-#[serde(rename_all = "camelCase")]
-pub enum HeroAssignmentStrategyKind {
-    Random,
-    Tags,
-}
-
-fn default_hero_assignement_strategy_kind() -> HeroAssignmentStrategyKind {
-    HeroAssignmentStrategyKind::Random
 }
 
 fn default_bridge_listen_addr() -> String {
@@ -85,6 +70,7 @@ mod tests {
             "discordBotToken: token",
             "bridgeSecret: secret",
             "fosiaudioHost: host",
+            "heroAssignmentStrategy: tags",
         ] {
             assert!(
                 serde_yaml::from_str::<EloDiscoConfig>(yaml).is_err(),

@@ -9,6 +9,31 @@ pub enum OptionValue {
     Integer(i64),
     Decimal(Decimal),
     Text(String),
+    /// One of `DescribedOption::choices`, by its value.
+    Choice(String),
+}
+
+#[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct OptionChoice {
+    /// Serialized value, sent back by the UI.
+    pub value: String,
+    /// Name shown in the UI.
+    pub name: String,
+}
+
+/// An enum shown in the options form as a choice between its values. The option's value
+/// round-trips through the enum's serde representation, which must be a string.
+pub trait ChoiceOption: Serialize + Sized {
+    /// All values, each with the name shown in the UI.
+    fn choices() -> Vec<(Self, &'static str)>;
+}
+
+fn choice_value(value: &impl Serialize) -> String {
+    match serde_json::to_value(value) {
+        Ok(serde_json::Value::String(s)) => s,
+        other => panic!("Choice option value must serialize to a string, got {other:?}"),
+    }
 }
 
 #[derive(Clone, Debug, Serialize, Deserialize)]
@@ -19,6 +44,9 @@ pub struct DescribedOption {
     pub name: String,
     #[serde(flatten)]
     pub value: OptionValue,
+    /// Values a `Choice` option can take.
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub choices: Vec<OptionChoice>,
 }
 
 impl DescribedOption {
@@ -28,6 +56,7 @@ impl DescribedOption {
             key: String::from(key),
             name: String::from(name),
             value: OptionValue::Boolean(value.into()),
+            choices: Vec::new(),
         }
     }
 
@@ -36,6 +65,7 @@ impl DescribedOption {
             key: String::from(key),
             name: String::from(name),
             value: OptionValue::Integer(value.into()),
+            choices: Vec::new(),
         }
     }
 
@@ -44,6 +74,7 @@ impl DescribedOption {
             key: String::from(key),
             name: String::from(name),
             value: OptionValue::Decimal(value),
+            choices: Vec::new(),
         }
     }
 
@@ -53,6 +84,22 @@ impl DescribedOption {
             key: String::from(key),
             name: String::from(name),
             value: OptionValue::Text(value.to_string()),
+            choices: Vec::new(),
+        }
+    }
+
+    pub fn with_choice<T: ChoiceOption>(value: &T, key: &str, name: &str) -> DescribedOption {
+        DescribedOption {
+            key: String::from(key),
+            name: String::from(name),
+            value: OptionValue::Choice(choice_value(value)),
+            choices: T::choices()
+                .into_iter()
+                .map(|(value, name)| OptionChoice {
+                    value: choice_value(&value),
+                    name: String::from(name),
+                })
+                .collect(),
         }
     }
 }
@@ -95,6 +142,7 @@ mod tests {
                 key: "opt1".into(),
                 name: "Option 1".into(),
                 value: OptionValue::Boolean(true),
+                choices: Vec::new(),
             }],
         };
         let options_json = serde_json::to_value(options)?;
@@ -113,6 +161,43 @@ mod tests {
             }"#,
         )?;
         assert_eq!(options_json, expected_json);
+        Ok(())
+    }
+
+    #[derive(Debug, PartialEq, Serialize, Deserialize)]
+    #[serde(rename_all = "camelCase")]
+    enum Fruit {
+        Apple,
+        BlueBerry,
+    }
+
+    impl ChoiceOption for Fruit {
+        fn choices() -> Vec<(Self, &'static str)> {
+            vec![(Fruit::Apple, "Apple"), (Fruit::BlueBerry, "Blue berry")]
+        }
+    }
+
+    #[test]
+    fn serialize_choice_option() -> Result<()> {
+        let option = DescribedOption::with_choice(&Fruit::BlueBerry, "fruit", "Fruit");
+        let expected_json: Value = serde_json::from_str(
+            r#"{
+                "key": "fruit",
+                "name": "Fruit",
+                "type": "choice",
+                "value": "blueBerry",
+                "choices": [
+                    { "value": "apple", "name": "Apple" },
+                    { "value": "blueBerry", "name": "Blue berry" }
+                ]
+            }"#,
+        )?;
+        assert_eq!(serde_json::to_value(option)?, expected_json);
+        // The UI sends the value back, which must deserialize into the enum.
+        assert_eq!(
+            serde_json::from_str::<Fruit>(r#""blueBerry""#)?,
+            Fruit::BlueBerry
+        );
         Ok(())
     }
 }

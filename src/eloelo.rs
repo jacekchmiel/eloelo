@@ -438,6 +438,7 @@ impl EloElo {
                         .map(|p| (p.id, p.elo))
                         .collect(),
                 },
+                hero_assignment: self.options.hero_assignment.clone(),
             })));
     }
 

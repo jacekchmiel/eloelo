@@ -8,14 +8,24 @@ mod tests {
     use crate::eloelo::elodisco::{
         dota_bot::Hero,
         hero_assignment_strategy::{
-            DotaTeam, HeroAssignmentStrategy, PlayerInfo, RandomHeroPool, TaggedHeroPool,
+            DotaTeam, HeroAssignmentStrategy, PlayerInfo, RandomHeroPool, RoleAssignment,
+            TaggedHeroPool,
         },
     };
 
     const N: usize = 100;
 
+    /// Alternates between iterations, so that every test covers all role assignments.
+    fn role_assignment(iteration: usize) -> RoleAssignment {
+        [RoleAssignment::OrderedRotation, RoleAssignment::TeamTable][iteration % 2].clone()
+    }
+
+    /// Enough heroes of every role for a pair of players to get all their heroes.
     fn default_hero_pool() -> Vec<Hero> {
         vec![
+            Hero::from("Alchemist"),
+            Hero::from("Anti-Mage"),
+            Hero::from("Bloodseeker"),
             Hero::from("Puck"),
             Hero::from("Pudge"),
             Hero::from("Razor"),
@@ -141,10 +151,9 @@ mod tests {
     #[test]
     fn test_randomness_random() {
         let mut all_assignements = Vec::new();
-        let mut random_assign = RandomHeroPool::default();
         for _ in 0..N {
             let players = few_players(default_hero_pool());
-            random_assign.clear();
+            let mut random_assign = RandomHeroPool::default();
             let players_assignement = random_assign.assign_heroes(players);
             all_assignements.push(players_assignement);
         }
@@ -160,10 +169,9 @@ mod tests {
 
     #[test]
     fn test_base_tags() {
-        let mut tag_assign = TaggedHeroPool::new();
-        for _ in 0..N {
+        for i in 0..N {
             let players: Vec<(PlayerInfo, Vec<Hero>)> = default_players(default_hero_pool());
-            tag_assign.clear();
+            let mut tag_assign = TaggedHeroPool::new(role_assignment(i));
             let players_assignement = tag_assign.assign_heroes(players);
             assert!(no_duplicates(&players_assignement));
             for (player, assignement) in players_assignement.iter() {
@@ -178,10 +186,10 @@ mod tests {
 
     #[test]
     fn test_small_pool_tags() {
-        let mut tag_assign = TaggedHeroPool::new();
+        // The small pool has no Carry heroes, and ordered rotation deals no Carry to two pairs.
         for _ in 0..N {
             let players = default_players(small_hero_pool());
-            tag_assign.clear();
+            let mut tag_assign = TaggedHeroPool::new(RoleAssignment::OrderedRotation);
             let players_assignement = tag_assign.assign_heroes(players);
             assert!(no_duplicates(&players_assignement));
             for (_, assignement) in players_assignement {
@@ -193,10 +201,9 @@ mod tests {
     #[test]
     fn test_randomness_tags() {
         let mut all_assignements = Vec::new();
-        let mut tag_assign = TaggedHeroPool::new();
-        for _ in 0..N {
+        for i in 0..N {
             let players = few_players(default_hero_pool());
-            tag_assign.clear();
+            let mut tag_assign = TaggedHeroPool::new(role_assignment(i));
             let players_assignement = tag_assign.assign_heroes(players);
             all_assignements.push(players_assignement);
         }
@@ -212,10 +219,9 @@ mod tests {
 
     #[test]
     fn test_tags_consistent() {
-        let mut tag_assign = TaggedHeroPool::new();
-        for _ in 0..N {
+        for i in 0..N {
             let players = default_players(default_hero_pool());
-            tag_assign.clear();
+            let mut tag_assign = TaggedHeroPool::new(role_assignment(i));
             let players_assignement = tag_assign.assign_heroes(players);
             for (_, assignement) in players_assignement.iter() {
                 assert_eq!(
@@ -232,11 +238,10 @@ mod tests {
 
     #[test]
     fn test_assigned_tags_match_heroes() {
-        let mut tag_assign = TaggedHeroPool::new();
-        for _ in 0..N {
+        for i in 0..N {
             let players = default_players(default_hero_pool());
             let usernames: HashSet<_> = players.iter().map(|(p, _)| p.name.clone()).collect();
-            tag_assign.clear();
+            let mut tag_assign = TaggedHeroPool::new(role_assignment(i));
             let players_assignement = tag_assign.assign_heroes(players);
             let tags = tag_assign.assigned_tags();
             assert_eq!(tags.keys().cloned().collect::<HashSet<_>>(), usernames);
@@ -250,10 +255,9 @@ mod tests {
 
     #[test]
     fn test_tags_correspondence() {
-        let mut tag_assign = TaggedHeroPool::new();
-        for _ in 0..N {
+        for i in 0..N {
             let players = default_players(default_hero_pool());
-            tag_assign.clear();
+            let mut tag_assign = TaggedHeroPool::new(role_assignment(i));
             let players_assignement = tag_assign.assign_heroes(players);
             for mut pair in players_assignement
                 .into_iter()
@@ -304,10 +308,9 @@ mod tests {
 
     #[test]
     fn test_reroll_tags() {
-        let mut tag_assign = TaggedHeroPool::new();
-        for _ in 0..N {
+        for i in 0..N {
             let players = few_players(default_hero_pool());
-            tag_assign.clear();
+            let mut tag_assign = TaggedHeroPool::new(role_assignment(i));
             let players_assignement = tag_assign.assign_heroes(players.clone());
             let reroll = tag_assign
                 .reroll(&players[0].0.name, players[0].1.clone())

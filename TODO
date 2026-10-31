@@ -17,7 +17,8 @@
 - [x] S Fix adding new player issue - not working right now.
 - [x] S Global hero bans to config
 - [x] S Display test mode in UI
-- [ ] M Role roll fairness. Avoid two games in a row in the same role for a player.
+- [x] M Role roll fairness: sensible team compositions, and the bigger team's extra player has about the same
+      role odds as everyone else (team table role assignment, `docs/role-assignment.md`).
 - [x] S Players not affected by global hero bans (`unrestrictedPlayers`), instead of ban rules by ELO percentile.
 - [x] S Reroll limits - x per duration
 - [x] S Flag to disable autogrzybke
