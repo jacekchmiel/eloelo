@@ -2,6 +2,7 @@ import {
   Button,
   DialogActions,
   FormControlLabel,
+  MenuItem,
   Stack,
   Switch,
   TextField,
@@ -95,9 +96,32 @@ function boolInput({ opt, value, setValue }: OptionInputProps) {
   );
 }
 
+function choiceInput({ opt, value, setValue }: OptionInputProps) {
+  return (
+    <TextField
+      key={opt.key}
+      label={opt.name}
+      variant="outlined"
+      size="small"
+      select
+      value={value}
+      onChange={(event) => setValue(event.target.value)}
+    >
+      {(opt.choices ?? []).map((choice) => (
+        <MenuItem key={choice.value} value={choice.value}>
+          {choice.name}
+        </MenuItem>
+      ))}
+    </TextField>
+  );
+}
+
 function OptionInput(props: OptionInputProps) {
   if (props.opt.type === "boolean") {
     return boolInput(props);
+  }
+  if (props.opt.type === "choice") {
+    return choiceInput(props);
   }
   return textInput(props);
 }
