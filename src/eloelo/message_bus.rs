@@ -13,7 +13,7 @@ use tokio_stream::wrappers::BroadcastStream;
 
 use crate::eloelo::elodisco::dota_bot::Hero;
 use crate::eloelo::elodisco::hero_assignment_strategy::HeroTag;
-use crate::eloelo::options::EloEloOptions;
+use crate::eloelo::options::{EloEloOptions, HeroAssignmentOptions};
 
 use super::ui_state::UiState;
 
@@ -92,6 +92,9 @@ pub struct MatchStart {
     pub player_db: PlayerDb,
     pub left_team: MatchStartTeam,
     pub right_team: MatchStartTeam,
+    /// Missing when sent by an eloelo older than the bot.
+    #[serde(default)]
+    pub hero_assignment: HeroAssignmentOptions,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]

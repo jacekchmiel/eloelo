@@ -619,6 +619,7 @@ mod tests {
             player_db: player_db.clone(),
             left_team: team("Radiant"),
             right_team: team("Dire"),
+            hero_assignment: Default::default(),
         };
         let heroes_assigned = HeroesAssigned {
             match_start: match_start.clone(),
@@ -634,5 +635,20 @@ mod tests {
             let parsed: Message = serde_json::from_value(json.clone()).unwrap();
             assert_eq!(json, serde_json::to_value(&parsed).unwrap());
         }
+    }
+
+    #[test]
+    fn match_start_from_older_eloelo_uses_default_hero_assignment() {
+        let json = serde_json::json!({"Event": {"MatchStart": {
+            "game": "Dota",
+            "player_db": PlayerDb::new([]),
+            "left_team": {"players": {}, "name": "Radiant"},
+            "right_team": {"players": {}, "name": "Dire"},
+        }}});
+        let Message::Event(Event::MatchStart(match_start)) = serde_json::from_value(json).unwrap()
+        else {
+            panic!("not a MatchStart");
+        };
+        assert_eq!(match_start.hero_assignment, Default::default());
     }
 }

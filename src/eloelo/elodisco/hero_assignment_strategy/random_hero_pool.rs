@@ -93,8 +93,4 @@ impl HeroAssignmentStrategy for RandomHeroPool {
             .insert_entry(new_picks.clone());
         Ok(new_picks)
     }
-
-    fn clear(&mut self) {
-        *self = Self::default();
-    }
 }

@@ -50,7 +50,8 @@ that happened: match start/finish, heroes assigned, Discord bot status, …). Co
   (`ml_elo` recomputes ELO from the whole history).
 - `elodisco` (`src/eloelo/elodisco/`) — Discord bot (poise/serenity): notifications/DMs to players, hero assignment and
   rerolls (`dota_bot.rs`, `hero_assignment_strategy/`), slash commands in `elodisco.rs`. Its own state (hero bans,
-  allowlists) is `discord_bot_state.yaml`.
+  allowlists) is `discord_bot_state.yaml`. How heroes are assigned is an eloelo option (`HeroAssignmentOptions`), sent
+  to the bot with every `MatchStart`.
 - `ocr.rs` — runs `dota-ocr-engine` (Python, `uv run dota-ocr-engine.py`, needs tesseract) on screenshots to detect
   who is in the lobby. `fosiaudio.rs` calls an external "autogrzybke" HTTP service to announce missing players.
 

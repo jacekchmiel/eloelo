@@ -349,12 +349,6 @@ impl HeroAssignmentStrategy for TaggedHeroPool {
         Ok(new_picks)
     }
 
-    fn clear(&mut self) {
-        self.hero_assignement.clear();
-        self.player_tags.clear();
-        self.taken.clear();
-    }
-
     fn assigned_tags(&self) -> HashMap<DiscordUsername, HeroTag> {
         self.player_tags.clone()
     }
