@@ -1,7 +1,7 @@
 # Team role assignment
 
 Each player in a match gets a role tag (Carry, Core or Support) that decides which heroes the Discord bot rolls
-for them (`TaggedHeroPool`, roles strategy). How the roles are dealt is a `RoleAssignment`
+for them (`TaggedHeroPool`, roles strategy; see [hero-picks.md](hero-picks.md)). How the roles are dealt is a `RoleAssignment`
 (`src/eloelo/elodisco/hero_assignment_strategy/role_assignment.rs`), chosen in eloelo's options ("Hero
 assignment" → "Role assignment", `heroAssignment.roleAssignment` in `options.yaml`); team table is the default.
 Both approaches share these rules:
