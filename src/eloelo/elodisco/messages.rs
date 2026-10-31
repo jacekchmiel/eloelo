@@ -125,9 +125,8 @@ fn heroes_str(heroes: impl IntoIterator<Item = impl AsRef<Hero>>) -> Option<Stri
 
 pub fn ephemeral_reroll_reply(reroll: &RerollResult) -> poise::CreateReply {
     match reroll {
-        RerollResult::NewPool(new_pool) if new_pool.is_empty() => {
-            poise::CreateReply::default().content("Sorry bud. No more heroes in the pool.")
-        }
+        RerollResult::NewPool(new_pool) if new_pool.is_empty() => poise::CreateReply::default()
+            .content("Sorry bud. No more heroes in the pool. Keep the heroes you have."),
         RerollResult::NewPool(new_pool) => poise::CreateReply::default().content(format!(
             "**Your random heroes for this match are**\n{}",
             random_heroes_str(new_pool)

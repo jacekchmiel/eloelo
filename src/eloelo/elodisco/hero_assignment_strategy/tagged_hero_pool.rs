@@ -158,10 +158,6 @@ impl TaggedHeroPool {
             .intersection(hero_pool)
             .cloned()
             .collect();
-        if heroes.len() == 0 {
-            info!("Fallback to random hero assignment.");
-            return self.assign_random_hero(hero_pool);
-        }
         heroes.into_iter().choose(&mut rand::thread_rng())
     }
 
@@ -250,12 +246,28 @@ impl HeroAssignmentStrategy for TaggedHeroPool {
                         continue;
                     }
 
-                    let assigned_pick = match paired_hero.clone() {
-                        Some(hero) => self.assign_similar_hero(&hero, hero_pool, pair_tag),
-                        None => {
-                            paired_hero = self.assign_tagged_hero(hero_pool, pair_tag);
-                            paired_hero.clone()
+                    let in_role_pick = match &paired_hero {
+                        Some(hero) => self.assign_similar_hero(hero, hero_pool, pair_tag),
+                        None => self.assign_tagged_hero(hero_pool, pair_tag),
+                    };
+                    let has_heroes = self
+                        .hero_assignement
+                        .get(player)
+                        .is_some_and(|v| !v.is_empty());
+                    let assigned_pick = match in_role_pick {
+                        Some(hero) => {
+                            // Only an in-role hero makes the other player of the pair pick a similar one.
+                            if paired_hero.is_none() {
+                                paired_hero = Some(hero.clone());
+                            }
+                            Some(hero)
                         }
+                        // A single out-of-role hero, so that nobody is left without heroes.
+                        None if !has_heroes => {
+                            info!("Fallback to random hero assignment.");
+                            self.assign_random_hero(hero_pool)
+                        }
+                        None => None,
                     };
                     if let Some(pick) = assigned_pick {
                         self.hero_assignement
@@ -305,6 +317,13 @@ impl HeroAssignmentStrategy for TaggedHeroPool {
                 hero
             })
             .collect_vec();
+        if new_picks.is_empty() {
+            info!(
+                "No free {} heroes left for {}, keeping their heroes.",
+                player_tag, username
+            );
+            return Ok(Vec::new());
+        }
         let old_picks = self.hero_assignement.get(&player).unwrap().clone();
         self.taken = self
             .taken
