@@ -8,10 +8,12 @@ use serde::{Deserialize, Serialize};
 use crate::eloelo::elodisco::dota_bot::Hero;
 
 mod random_hero_pool;
+mod role_assignment;
 mod tagged_hero_pool;
 mod tests;
 
 pub use random_hero_pool::RandomHeroPool;
+pub use role_assignment::RoleAssignment;
 pub use tagged_hero_pool::{HeroTag, TaggedHeroPool};
 
 #[derive(Debug, Clone, Default, Serialize, Deserialize, PartialEq)]

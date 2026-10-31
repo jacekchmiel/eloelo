@@ -2,7 +2,7 @@ use super::bot_state::DotaBotState;
 use crate::eloelo::elodisco::config::EloDiscoConfig;
 use crate::eloelo::elodisco::hero_assignment_strategy::{
     DotaTeam, HeroAssignmentStrategy, HeroAssignmentStrategyKind, PlayerInfo, RandomHeroPool,
-    TaggedHeroPool,
+    RoleAssignment, TaggedHeroPool,
 };
 use crate::eloelo::message_bus::{Event, HeroesAssigned, MatchStart, Message, MessageBus};
 use crate::eloelo::options::HeroAssignmentOptions;
@@ -88,7 +88,9 @@ fn make_hero_assign_strategy(
 ) -> Box<dyn HeroAssignmentStrategy + Send + Sync> {
     match options.strategy {
         HeroAssignmentStrategyKind::Random => Box::new(RandomHeroPool::default()),
-        HeroAssignmentStrategyKind::Tags => Box::new(TaggedHeroPool::new()),
+        HeroAssignmentStrategyKind::Tags => {
+            Box::new(TaggedHeroPool::new(RoleAssignment::OrderedRotation))
+        }
     }
 }
 
