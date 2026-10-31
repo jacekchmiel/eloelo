@@ -10,9 +10,11 @@ pub struct Config {
     #[serde(default)]
     pub games: Vec<Game>,
 
-    /// Disables priv messages, storing match history and syncing the history git mirror. Finished
-    /// matches are kept in memory only. Useful for development and testing. The Discord bot
-    /// follows the value of the connected eloelo.
+    /// Disables priv messages, storing match history and syncing the history git mirror, and
+    /// storing changed players and options. Finished matches and those changes are kept in memory
+    /// only. Nothing in eloelo's storage is committed or pushed, including this file's own changes.
+    /// Useful for development and testing. The Discord bot follows the value of the connected
+    /// eloelo.
     #[serde(default)]
     pub test_mode: bool,
 

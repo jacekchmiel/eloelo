@@ -202,8 +202,25 @@ impl EloElo {
             match_tags: self.match_tags.clone(),
         };
         store::store_state(&state)?;
-        store::store_options(&self.storage, &self.options)?;
+        self.store_options()?;
         Ok(())
+    }
+
+    /// Config, players and options are shared, so test mode keeps their changes in memory only.
+    fn store_options(&self) -> Result<()> {
+        if self.config.test_mode {
+            info!("Test mode: options not stored.");
+            return Ok(());
+        }
+        store::store_options(&self.storage, &self.options)
+    }
+
+    fn store_players(&self) -> Result<()> {
+        if self.config.test_mode {
+            info!("Test mode: players not stored.");
+            return Ok(());
+        }
+        store::store_players(&self.storage, &self.players.to_players_config())
     }
 
     pub fn ui_state(&self) -> UiState {
@@ -313,13 +330,13 @@ impl EloElo {
 
     fn add_new_player(&mut self, player: Player) {
         self.players.insert(player);
-        store::store_players(&self.storage, &self.players.to_players_config()).print_err();
+        self.store_players().print_err();
         self.send_player_db();
     }
 
     fn remove_player(&mut self, player_id: &PlayerId) {
         self.players.remove(player_id);
-        store::store_players(&self.storage, &self.players.to_players_config()).print_err();
+        self.store_players().print_err();
         self.send_player_db();
     }
 
@@ -450,7 +467,7 @@ impl EloElo {
     fn update_options(&mut self, options: EloEloOptions) {
         info!("Update options: {:?}", options);
         self.options = options;
-        store::store_options(&self.storage, &self.options).print_err();
+        self.store_options().print_err();
     }
 
     fn mk_finish_match_commit_message(

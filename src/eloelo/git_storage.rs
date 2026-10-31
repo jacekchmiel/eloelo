@@ -29,6 +29,8 @@ pub struct GitStorage {
     dir: PathBuf,
     /// Whether `dir` is a git repository.
     git: bool,
+    /// Whether changes are committed and pushed, see `without_commits`.
+    commits: bool,
     push_on_update: bool,
     /// Serializes writes and git commands, so a commit never sees a half-written file.
     lock: Arc<Mutex<()>>,
@@ -39,12 +41,23 @@ impl GitStorage {
     /// fails, so the app doesn't run with a backup that silently stopped working. Without a git
     /// repository in `dir` only creates `dir` if needed.
     pub fn open(dir: PathBuf, push_on_update: bool) -> Result<Self> {
+        let storage = Self::open_pull_only(dir, push_on_update)?;
+        storage
+            .push("Changes from previous run")
+            .context("Cannot push to the backup repository")?;
+        Ok(storage)
+    }
+
+    /// Like `open`, but only pulls. For a storage whose own files decide whether it may commit:
+    /// the caller then calls `push` to commit changes left on disk, or `without_commits`.
+    pub fn open_pull_only(dir: PathBuf, push_on_update: bool) -> Result<Self> {
         info!("Opening git storage in {}", dir.to_string_lossy());
         // Checked in `dir` itself: git would also find a repository in a parent directory.
         let git = dir.join(".git").exists();
         let storage = GitStorage {
             dir,
             git,
+            commits: true,
             push_on_update,
             lock: Default::default(),
         };
@@ -62,12 +75,21 @@ impl GitStorage {
             storage
                 .git(&["pull", "--ff-only"])
                 .context("Cannot update from the backup repository")?;
-            storage.commit("Changes from previous run")?;
-            storage
-                .git(&["push"])
-                .context("Cannot push to the backup repository")?;
         }
         Ok(storage)
+    }
+
+    /// Never commits or pushes, so nothing reaches the backup repository. Files are still written,
+    /// and stay uncommitted until a storage with commits opens them.
+    pub fn without_commits(self) -> Self {
+        info!(
+            "{}: changes won't be committed or pushed.",
+            self.dir.to_string_lossy()
+        );
+        Self {
+            commits: false,
+            ..self
+        }
     }
 
     pub fn dir(&self) -> &Path {
@@ -106,7 +128,7 @@ impl GitStorage {
         }
         fs::rename(&tmp_path, &path)
             .with_context(|| format!("Cannot replace {}", path.to_string_lossy()))?;
-        if self.git && self.push_on_update {
+        if self.git && self.commits && self.push_on_update {
             self.commit(change)?;
             self.git(&["push"])?;
         }
@@ -115,7 +137,7 @@ impl GitStorage {
 
     /// Commits all changes with `message` and pushes, also commits left unpushed before.
     pub fn push(&self, message: &str) -> Result<()> {
-        if !self.git {
+        if !self.git || !self.commits {
             return Ok(());
         }
         let _lock = self.lock();
@@ -318,6 +340,24 @@ mod tests {
 
         let upstream = read_upstream(tmp_dir.path(), "data.json")?.unwrap();
         assert_eq!(serde_json::from_str::<Vec<i32>>(&upstream)?, value);
+        Ok(())
+    }
+
+    #[test]
+    fn without_commits_pulls_but_never_commits() -> Result<()> {
+        let (tmp_dir, repo_dir) = setup()?;
+        commit_upstream(tmp_dir.path(), "remote.yaml", "remote")?;
+        fs::write(repo_dir.join("local.yaml"), "local")?;
+
+        let storage = GitStorage::open_pull_only(repo_dir.clone(), true)?.without_commits();
+        storage.store("data.yaml", &vec![1], "Store data")?;
+        storage.push("Push data")?;
+
+        assert_eq!(fs::read_to_string(repo_dir.join("remote.yaml"))?, "remote");
+        assert_eq!(read_upstream(tmp_dir.path(), "local.yaml")?, None);
+        assert_eq!(read_upstream(tmp_dir.path(), "data.yaml")?, None);
+        let status = cmd!("git", "status", "--porcelain").dir(&repo_dir).read()?;
+        assert!(status.contains("local.yaml") && status.contains("data.yaml"));
         Ok(())
     }
 

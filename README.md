@@ -38,7 +38,7 @@ Everything lives in the data dir, `~/.local/share/eloelo/` on Linux (`$XDG_DATA_
 
 | Path | Contents | Backup |
 |------|----------|--------|
-| `eloelo/` | `config.yaml`, `players.yaml`, `options.yaml` | git, pushed on exit |
+| `eloelo/` | `config.yaml`, `players.yaml`, `options.yaml` | git, pushed on exit; in test mode only pulled, never committed or pushed |
 | `elodisco/` | Discord bot `config.yaml`, `discord_bot_state.yaml` | git, pushed every hour and on exit |
 | `history/` | match history (`<game>.history.json`) | git, pushed after every match, untouched in test mode |
 | `discord_bot_token`, `bridge_secret` | secrets, one per file | none |

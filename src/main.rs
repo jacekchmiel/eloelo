@@ -10,8 +10,21 @@ use tokio_util::sync::CancellationToken;
 #[tokio::main]
 async fn main() {
     logging::init();
-    let storage = unwrap_or_exit(GitStorage::open(store::eloelo_dir(), false));
+    // Pulled before the config is read, which decides whether the storage may commit.
+    let storage = unwrap_or_exit(GitStorage::open_pull_only(store::eloelo_dir(), false));
     let config = unwrap_or_exit(store::load_config(&storage));
+    // Test mode never commits or pushes the shared config, players and options, e.g. a testMode
+    // set by hand.
+    let storage = if config.test_mode {
+        storage.without_commits()
+    } else {
+        unwrap_or_exit(
+            storage
+                .push("Changes from previous run")
+                .context("Cannot push to the backup repository"),
+        );
+        storage
+    };
     if config.test_mode {
         warn!("Running in test mode.");
     } else {

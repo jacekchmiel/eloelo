@@ -74,8 +74,10 @@ is offline.
 
 `testMode` in eloelo's `config.yaml` makes the app safe to try out: the shared history repo is never touched, and the
 bot uses `discordTestChannelName` / DMs only `discordTestModePlayers`. It is shown in the UI. Keep new side effects
-(Discord messages, history writes, external calls) gated on it. It doesn't affect the eloelo and elodisco storages:
-config, players, options and players' bot data are real either way.
+(Discord messages, history writes, external calls) gated on it. eloelo doesn't write its storage in test mode either
+(changed players and options stay in memory) and never commits or pushes it, so nothing changed by hand (e.g.
+`testMode: true` itself) reaches its repo: `main.rs` opens it with `open_pull_only` and switches to `without_commits`
+once the config says test mode. The elodisco storage is unaffected: players' bot data is real either way.
 
 ### Data and persistence
 
