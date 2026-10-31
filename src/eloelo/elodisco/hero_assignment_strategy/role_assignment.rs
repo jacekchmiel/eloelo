@@ -1,3 +1,4 @@
+use eloelo_model::options::ChoiceOption;
 use itertools::Itertools;
 use log::warn;
 use rand::{
@@ -5,6 +6,7 @@ use rand::{
     seq::SliceRandom,
     thread_rng, Rng,
 };
+use serde::{Deserialize, Serialize};
 
 use super::HeroTag;
 
@@ -13,10 +15,21 @@ use super::HeroTag;
 /// Both teams are sorted by ELO. A position is a rank in that order: the players of both teams at
 /// the same rank form a pair and get the same role. The bigger team's lowest-ELO players have
 /// positions without a pair.
-#[derive(Debug, Clone, PartialEq)]
+#[derive(Debug, Clone, Default, PartialEq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
 pub enum RoleAssignment {
     OrderedRotation,
+    #[default]
     TeamTable,
+}
+
+impl ChoiceOption for RoleAssignment {
+    fn choices() -> Vec<(Self, &'static str)> {
+        vec![
+            (RoleAssignment::OrderedRotation, "Ordered rotation (legacy)"),
+            (RoleAssignment::TeamTable, "Team table"),
+        ]
+    }
 }
 
 impl RoleAssignment {

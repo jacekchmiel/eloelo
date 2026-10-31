@@ -2,7 +2,9 @@ use eloelo_model::options::{DescribedOption, DescribedOptionsGroup, Options};
 use serde::{Deserialize, Serialize};
 use spawelo::{MlEloOptions, PityBonusOptions, SpaweloOptions};
 
-use crate::eloelo::elodisco::hero_assignment_strategy::HeroAssignmentStrategyKind;
+use crate::eloelo::elodisco::hero_assignment_strategy::{
+    HeroAssignmentStrategyKind, RoleAssignment,
+};
 
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
@@ -62,6 +64,8 @@ impl EloEloOptions {
 #[serde(default)]
 pub struct HeroAssignmentOptions {
     pub strategy: HeroAssignmentStrategyKind,
+    /// Only used by the roles strategy.
+    pub role_assignment: RoleAssignment,
 }
 
 impl Options for HeroAssignmentOptions {
@@ -74,11 +78,14 @@ impl Options for HeroAssignmentOptions {
     }
 
     fn to_described_options(&self) -> Vec<DescribedOption> {
-        vec![DescribedOption::with_choice(
-            &self.strategy,
-            "strategy",
-            "Strategy",
-        )]
+        vec![
+            DescribedOption::with_choice(&self.strategy, "strategy", "Strategy"),
+            DescribedOption::with_choice(
+                &self.role_assignment,
+                "roleAssignment",
+                "Role assignment (roles strategy only)",
+            ),
+        ]
     }
 }
 

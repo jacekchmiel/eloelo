@@ -2,7 +2,9 @@
 
 Each player in a match gets a role tag (Carry, Core or Support) that decides which heroes the Discord bot rolls
 for them (`TaggedHeroPool`, roles strategy). How the roles are dealt is a `RoleAssignment`
-(`src/eloelo/elodisco/hero_assignment_strategy/role_assignment.rs`). Both approaches share these rules:
+(`src/eloelo/elodisco/hero_assignment_strategy/role_assignment.rs`), chosen in eloelo's options ("Hero
+assignment" → "Role assignment", `heroAssignment.roleAssignment` in `options.yaml`); team table is the default.
+Both approaches share these rules:
 
 - Each team is sorted by ELO. Players at the same rank in both teams form a pair and get the same role.
 - In an uneven match the bigger team's lowest-ELO player has no pair: they are the extra player.
