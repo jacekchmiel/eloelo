@@ -403,4 +403,40 @@ mod tests {
             );
         }
     }
+
+    #[test]
+    fn test_failed_reroll_keeps_heroes() {
+        for i in 0..N {
+            // j has a single hero of their role, which they already got.
+            let mut players = default_players(default_hero_pool());
+            players[0].1 = one_hero_per_role_pool();
+            let (j, j_pool) = players[0].clone();
+            let mut tag_assign = TaggedHeroPool::new(role_assignment(i));
+            let players_assignement = tag_assign.assign_heroes(players);
+            let reroll = tag_assign.reroll(&j.name, j_pool).unwrap();
+            assert!(reroll.is_empty());
+            assert_eq!(tag_assign.hero_assignement[&j], players_assignement[&j]);
+            assert!(tag_assign.taken.contains(&players_assignement[&j][0]));
+        }
+    }
+
+    #[test]
+    fn test_reroll_never_out_of_role() {
+        for i in 0..N {
+            // dragon has only Carry heroes and gets an out-of-role hero unless they play Carry.
+            let mut players = default_players(default_hero_pool());
+            players[2].1 = carry_hero_pool();
+            let (dragon, dragon_pool) = players[2].clone();
+            let mut tag_assign = TaggedHeroPool::new(role_assignment(i));
+            tag_assign.assign_heroes(players);
+            let tag = tag_assign.assigned_tags()[&dragon.name].clone();
+            let reroll = tag_assign.reroll(&dragon.name, dragon_pool).unwrap();
+            if tag == HeroTag::Carry {
+                assert_eq!(reroll.len(), 1);
+            } else {
+                assert!(reroll.is_empty());
+            }
+            assert!(reroll.iter().all(|h| tag_assign.deduce_tag(h) == tag));
+        }
+    }
 }

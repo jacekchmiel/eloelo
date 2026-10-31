@@ -310,15 +310,20 @@ impl HeroAssignmentStrategy for TaggedHeroPool {
         let hero_pool_set = HashSet::from_iter(hero_pool.into_iter());
         let new_picks = (0..player.number_of_heroes_shown)
             .filter_map(|_| {
-                let hero = self
-                    .assign_tagged_hero(&hero_pool_set, &player_tag)
-                    .or_else(|| self.assign_random_hero(&hero_pool_set));
+                let hero = self.assign_tagged_hero(&hero_pool_set, &player_tag);
                 if let Some(hero) = &hero {
                     self.taken.insert(hero.clone());
                 }
                 hero
             })
             .collect_vec();
+        if new_picks.is_empty() {
+            info!(
+                "No free {} heroes left for {}, keeping their heroes.",
+                player_tag, username
+            );
+            return Ok(Vec::new());
+        }
         let old_picks = self.hero_assignement.get(&player).unwrap().clone();
         self.taken = self
             .taken
