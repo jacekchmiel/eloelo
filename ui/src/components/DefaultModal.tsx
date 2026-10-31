@@ -28,7 +28,8 @@ export function DefaultModal({
           boxShadow: 24,
           p: 4,
           overflowY: "auto",
-          maxHeight: "90%",
+          // Keep the bottom edge at 95% of the window, whatever the top.
+          maxHeight: `calc(95% - ${top})`,
         }}
       >
         {children}
