@@ -8,7 +8,7 @@ mod tests {
     use crate::eloelo::elodisco::{
         dota_bot::Hero,
         hero_assignment_strategy::{
-            DotaTeam, HeroAssignmentStrategy, PlayerInfo, RandomHeroPool, RoleAssignment,
+            DotaTeam, HeroAssignmentStrategy, HeroTag, PlayerInfo, RandomHeroPool, RoleAssignment,
             TaggedHeroPool,
         },
     };
@@ -41,6 +41,24 @@ mod tests {
             Hero::from("Pudge"),
             Hero::from("Io"),
             Hero::from("Lion"),
+        ]
+    }
+
+    /// Only Carry heroes, none of them in the default pool.
+    fn carry_hero_pool() -> Vec<Hero> {
+        vec![
+            Hero::from("Arc Warden"),
+            Hero::from("Bristleback"),
+            Hero::from("Chaos Knight"),
+        ]
+    }
+
+    /// One hero of each role, none of them in the default pool.
+    fn one_hero_per_role_pool() -> Vec<Hero> {
+        vec![
+            Hero::from("Arc Warden"),
+            Hero::from("Axe"),
+            Hero::from("Bane"),
         ]
     }
 
@@ -250,6 +268,50 @@ mod tests {
                     assert_eq!(tag_assign.deduce_tag(hero), tags[&player.name]);
                 }
             }
+        }
+    }
+
+    #[test]
+    fn test_out_of_role_hero_is_the_only_one() {
+        for i in 0..N {
+            // j and dragon show 2 heroes, the others 1.
+            let mut players = default_players(default_hero_pool());
+            players[0].1 = carry_hero_pool();
+            players[2].1 = carry_hero_pool();
+            let carry_pool_players = [players[0].0.clone(), players[2].0.clone()];
+            let mut tag_assign = TaggedHeroPool::new(role_assignment(i));
+            let players_assignement = tag_assign.assign_heroes(players);
+            let tags = tag_assign.assigned_tags();
+            assert!(no_duplicates(&players_assignement));
+            for (player, assignement) in players_assignement.iter() {
+                let tag = &tags[&player.name];
+                let in_role = assignement.iter().all(|h| tag_assign.deduce_tag(h) == *tag);
+                if carry_pool_players.contains(player) && *tag != HeroTag::Carry {
+                    assert_eq!(assignement.len(), 1);
+                    assert!(!in_role);
+                } else {
+                    assert_eq!(assignement.len(), player.number_of_heroes_shown as usize);
+                    assert!(in_role);
+                }
+            }
+        }
+    }
+
+    #[test]
+    fn test_only_in_role_heroes_when_pool_has_some() {
+        for i in 0..N {
+            // j shows 2 heroes but has only one of each role.
+            let mut players = default_players(default_hero_pool());
+            players[0].1 = one_hero_per_role_pool();
+            let j = players[0].0.clone();
+            let mut tag_assign = TaggedHeroPool::new(role_assignment(i));
+            let players_assignement = tag_assign.assign_heroes(players);
+            let tags = tag_assign.assigned_tags();
+            assert_eq!(players_assignement[&j].len(), 1);
+            assert_eq!(
+                tag_assign.deduce_tag(&players_assignement[&j][0]),
+                tags[&j.name]
+            );
         }
     }
 
