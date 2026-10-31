@@ -1,4 +1,5 @@
 import {
+  Box,
   Button,
   DialogActions,
   FormControlLabel,
@@ -142,31 +143,41 @@ export function OptionsView({
   return (
     <>
       <Stack spacing={2} minWidth={300}>
-        {options.map((group: OptionsGroup) => (
-          <>
-            <Typography variant="h6" key={group.key}>
-              {group.name}
-            </Typography>
-            {group.options.map((opt: DescribedOption) => (
-              <OptionInput
-                key={opt.key}
-                opt={opt}
-                value={values[group.key][opt.key]}
-                setValue={(value: Value) => {
-                  setValues((current) => {
-                    return {
-                      ...current,
-                      [group.key]: {
-                        ...current[group.key],
-                        [opt.key]: value,
-                      },
-                    };
-                  });
-                }}
-              />
-            ))}
-          </>
-        ))}
+        <Box
+          sx={{
+            width: { md: 700 },
+            columnCount: { xs: 1, md: 2 },
+            columnGap: 4,
+          }}
+        >
+          {options.map((group: OptionsGroup) => (
+            <Stack
+              key={group.key}
+              spacing={2}
+              sx={{ breakInside: "avoid", paddingBottom: 3 }}
+            >
+              <Typography variant="h6">{group.name}</Typography>
+              {group.options.map((opt: DescribedOption) => (
+                <OptionInput
+                  key={opt.key}
+                  opt={opt}
+                  value={values[group.key][opt.key]}
+                  setValue={(value: Value) => {
+                    setValues((current) => {
+                      return {
+                        ...current,
+                        [group.key]: {
+                          ...current[group.key],
+                          [opt.key]: value,
+                        },
+                      };
+                    });
+                  }}
+                />
+              ))}
+            </Stack>
+          ))}
+        </Box>
         <DialogActions>
           <Button onClick={onCancel}>Cancel</Button>
           <Button variant="contained" onClick={onSave}>
