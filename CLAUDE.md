@@ -52,7 +52,8 @@ that happened: match start/finish, heroes assigned, Discord bot status, …). Co
   rerolls (`dota_bot.rs`, `hero_assignment_strategy/`), slash commands in `elodisco.rs`. Its own state (hero bans,
   allowlists) is `discord_bot_state.yaml`. How heroes are assigned is an eloelo option (`HeroAssignmentOptions`), sent
   to the bot with every `MatchStart`. Only DotA 2 has heroes (`dota_bot::HEROES_GAME`, the one place that says so):
-  other games get an empty `HeroesAssigned` (still needed, it triggers the match announcement). How roles are dealt and heroes picked under the roles strategy is described in
+  other games get an empty `HeroesAssigned` (still needed, it triggers the match announcement), and `/reroll` works
+  only while a DotA 2 match is in progress (until `FinishMatch`). How roles are dealt and heroes picked under the roles strategy is described in
   `docs/role-assignment.md` and `docs/hero-picks.md`; update them with the code (the odds tables need recomputing when
   role assignment changes).
 - `ocr.rs` — runs `dota-ocr-engine` (Python, `uv run dota-ocr-engine.py`, needs tesseract) on screenshots to detect

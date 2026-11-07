@@ -204,6 +204,7 @@ impl NotificationBot {
             }
             RerollResult::NewPool(_) => {}
             RerollResult::NoRerollUntil(_) => {}
+            RerollResult::NoMatchWithHeroes => {}
         }
     }
 }

@@ -4,7 +4,9 @@ use crate::eloelo::elodisco::hero_assignment_strategy::{
     DotaTeam, HeroAssignmentStrategy, HeroAssignmentStrategyKind, PlayerInfo, RandomHeroPool,
     TaggedHeroPool,
 };
-use crate::eloelo::message_bus::{Event, HeroesAssigned, MatchStart, Message, MessageBus};
+use crate::eloelo::message_bus::{
+    Event, HeroesAssigned, MatchStart, Message, MessageBus, UiCommand,
+};
 use crate::eloelo::options::HeroAssignmentOptions;
 use anyhow::{format_err, Error, Result};
 use chrono::{DateTime, Local};
@@ -88,6 +90,7 @@ impl AsRef<Hero> for Hero {
 pub enum RerollResult {
     NewPool(Vec<Hero>),
     NoRerollUntil(DateTime<Local>),
+    NoMatchWithHeroes,
 }
 
 fn make_hero_assign_strategy(
@@ -110,6 +113,8 @@ pub struct DotaBot {
     unrestricted_players: HashSet<PlayerId>,
     /// Latest players received from eloelo.
     player_db: PlayerDb,
+    /// Whether a match with heroes is in progress, so heroes can be rerolled.
+    match_with_heroes: bool,
 }
 
 impl DotaBot {
@@ -146,6 +151,7 @@ impl DotaBot {
             global_banned_heroes: config.global_banned_heroes.clone(),
             unrestricted_players: config.unrestricted_players.clone(),
             player_db,
+            match_with_heroes: false,
         }
     }
 
@@ -156,7 +162,8 @@ impl DotaBot {
             }
             Message::Event(Event::MatchStart(match_start)) => {
                 self.player_db = match_start.player_db.clone();
-                let (assignments, tags) = if has_heroes(&match_start.game) {
+                self.match_with_heroes = has_heroes(&match_start.game);
+                let (assignments, tags) = if self.match_with_heroes {
                     let assignments = self.on_match_start(match_start).await;
                     (assignments, self.hero_assign_strategy.assigned_tags())
                 } else {
@@ -171,6 +178,7 @@ impl DotaBot {
                         tags,
                     })))
             }
+            Message::UiCommand(UiCommand::FinishMatch(_)) => self.match_with_heroes = false,
             _ => {}
         }
     }
@@ -268,6 +276,9 @@ impl DotaBot {
     }
 
     pub fn reroll(&mut self, username: &DiscordUsername) -> Result<RerollResult> {
+        if !self.match_with_heroes {
+            return Ok(RerollResult::NoMatchWithHeroes);
+        }
         let state = self.state.entry(username.clone()).or_default();
         let now = Local::now();
         cleanup_reroll_log(state, now);
@@ -375,7 +386,7 @@ fn next_reroll_at(state: &mut DotaBotState, now: DateTime<Local>) -> DateTime<Lo
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::eloelo::message_bus::MatchStartTeam;
+    use crate::eloelo::message_bus::{FinishMatch, MatchStartTeam};
     use eloelo_model::player::Player;
     use futures_util::StreamExt as _;
 
@@ -409,12 +420,13 @@ mod tests {
     }
 
     #[tokio::test]
-    async fn assigns_heroes_only_in_a_game_with_heroes() {
+    async fn assigns_heroes_and_rerolls_only_in_a_game_with_heroes() {
         let message_bus = MessageBus::new();
         let mut messages = message_bus.subscribe().stream().boxed();
         let a = DiscordUsername::from("a");
         let a_state = DotaBotState {
             num_heroes_shown: 3,
+            reroll_limit_num: 1,
             ..Default::default()
         };
         let mut bot = DotaBot::new(
@@ -423,17 +435,25 @@ mod tests {
             message_bus,
             &EloDiscoConfig::default(),
         );
+        let no_match = |r: Result<RerollResult>| matches!(r, Ok(RerollResult::NoMatchWithHeroes));
+        assert!(no_match(bot.reroll(&a)));
 
         let start = Message::Event(Event::MatchStart(match_start("Deadlock")));
         bot.on_message(&start).await;
         let assigned = next_heroes_assigned(&mut messages).await;
         assert!(assigned.assignments.is_empty());
         assert!(assigned.tags.is_empty());
+        assert!(no_match(bot.reroll(&a)));
 
         let start = Message::Event(Event::MatchStart(match_start(HEROES_GAME)));
         bot.on_message(&start).await;
         let assigned = next_heroes_assigned(&mut messages).await;
         assert!(!assigned.assignments[&a].is_empty());
+        assert!(matches!(bot.reroll(&a), Ok(RerollResult::NewPool(_))));
+
+        let finish = Message::UiCommand(UiCommand::FinishMatch(FinishMatch::Cancelled));
+        bot.on_message(&finish).await;
+        assert!(no_match(bot.reroll(&a)));
     }
 
     #[tokio::test]

@@ -138,6 +138,10 @@ pub fn ephemeral_reroll_reply(reroll: &RerollResult) -> poise::CreateReply {
             "Sorry bud. Reroll limit exhausted. You can reroll again at {}",
             timestamp.format("%Y-%m-%d %H:%M:%S")
         )),
+        RerollResult::NoMatchWithHeroes => poise::CreateReply::default().content(format!(
+            "Sorry bud. There's no {} match in progress, nothing to reroll.",
+            dota_bot::HEROES_GAME
+        )),
     }
     .ephemeral(true)
 }
