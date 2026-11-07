@@ -36,6 +36,8 @@ So:
   in-role hero.
 - A player whose pool has fewer free in-role heroes than their number of heroes shown gets only those.
 
+How a small pool affects the other players' odds is simulated in [small-hero-pools.md](small-hero-pools.md).
+
 ## Reroll
 
 A reroll draws a new set of heroes for one player, the same number as shown, only from the in-role heroes of
