@@ -113,7 +113,11 @@ impl DotaBot {
         config: &EloDiscoConfig,
     ) -> Self {
         if !config.global_banned_heroes.is_empty() {
-            let banned_list: Vec<_> = config.global_banned_heroes.iter().map(|h| h.as_str()).collect();
+            let banned_list: Vec<_> = config
+                .global_banned_heroes
+                .iter()
+                .map(|h| h.as_str())
+                .collect();
             info!("Globally banned heroes: {}", banned_list.join(", "));
         }
         if !config.unrestricted_players.is_empty() {
@@ -166,13 +170,15 @@ impl DotaBot {
             &self.global_banned_heroes
         };
         let pool: Vec<_> = if !user_state.allowed_heroes.is_empty() {
-            user_state.allowed_heroes
+            user_state
+                .allowed_heroes
                 .difference(banned)
                 .cloned()
                 .collect()
         } else {
             self.heroes
-                .difference(&user_state.banned_heroes).cloned()
+                .difference(&user_state.banned_heroes)
+                .cloned()
                 .collect::<HashSet<_>>()
                 .difference(banned)
                 .cloned()
@@ -207,9 +213,7 @@ impl DotaBot {
                 .clone();
             PlayerInfo {
                 elo,
-                number_of_heroes_shown: self
-                    .get_user_state(&discord_username)
-                    .num_heroes_shown,
+                number_of_heroes_shown: self.get_user_state(&discord_username).num_heroes_shown,
                 dota_team,
                 name: discord_username,
             }
@@ -403,8 +407,9 @@ mod tests {
     #[test]
     fn test_global_banned_heroes_excluded_from_pool() {
         let mut config = EloDiscoConfig::default();
-        config.global_banned_heroes =
-            [Hero::from("Phantom Lancer"), Hero::from("Medusa")].into_iter().collect();
+        config.global_banned_heroes = [Hero::from("Phantom Lancer"), Hero::from("Medusa")]
+            .into_iter()
+            .collect();
         let message_bus = MessageBus::new();
         let bot = DotaBot::new(HashMap::new(), PlayerDb::new([]), message_bus, &config);
         let user = DiscordUsername::from("test_user");
@@ -416,8 +421,9 @@ mod tests {
     #[test]
     fn test_global_banned_heroes_with_user_allowlist() {
         let mut config = EloDiscoConfig::default();
-        config.global_banned_heroes =
-            [Hero::from("Phantom Lancer"), Hero::from("Medusa")].into_iter().collect();
+        config.global_banned_heroes = [Hero::from("Phantom Lancer"), Hero::from("Medusa")]
+            .into_iter()
+            .collect();
         let message_bus = MessageBus::new();
         let user = DiscordUsername::from("test_user");
 
@@ -448,8 +454,9 @@ mod tests {
     #[test]
     fn test_global_banned_heroes_with_user_banlist() {
         let mut config = EloDiscoConfig::default();
-        config.global_banned_heroes =
-            [Hero::from("Phantom Lancer"), Hero::from("Medusa")].into_iter().collect();
+        config.global_banned_heroes = [Hero::from("Phantom Lancer"), Hero::from("Medusa")]
+            .into_iter()
+            .collect();
         let message_bus = MessageBus::new();
         let user = DiscordUsername::from("test_user");
 
@@ -515,4 +522,3 @@ mod tests {
         assert!(!pool.contains(&Hero::from("Medusa")));
     }
 }
-

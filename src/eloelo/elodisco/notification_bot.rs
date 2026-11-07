@@ -146,7 +146,8 @@ impl NotificationBot {
         hero_assignments: &HashMap<DiscordUsername, Vec<Hero>>,
         tags: &HashMap<DiscordUsername, HeroTag>,
     ) {
-        self.match_start(&match_start, &hero_assignments, tags).await;
+        self.match_start(&match_start, &hero_assignments, tags)
+            .await;
 
         let Some(channel) = self.channel() else {
             return;
