@@ -1,7 +1,7 @@
 use std::collections::HashMap;
 
 use crate::eloelo::elodisco::bot_state::DotaBotState;
-use crate::eloelo::elodisco::dota_bot::{Hero, RerollResult};
+use crate::eloelo::elodisco::dota_bot::{self, Hero, RerollResult};
 use crate::eloelo::elodisco::hero_assignment_strategy::HeroTag;
 use crate::eloelo::message_bus::MatchStart;
 use crate::utils;
@@ -10,7 +10,7 @@ use eloelo_model::PlayerId;
 use log::info;
 use poise::serenity_prelude as serenity;
 
-/// Match start DM, including player's hero assignment.
+/// Match start DM, including player's hero assignment in a game with heroes.
 pub fn personal_match_start_message(
     p: &PlayerId,
     username: impl Into<DiscordUsername>,
@@ -19,6 +19,9 @@ pub fn personal_match_start_message(
     tags: &HashMap<DiscordUsername, HeroTag>,
 ) -> serenity::CreateMessage {
     let match_start_message = match_start_str(p, match_start);
+    if !dota_bot::has_heroes(&match_start.game) {
+        return serenity::CreateMessage::new().content(match_start_message);
+    }
     let hero_assignment_message = hero_assignment_str(username, hero_assignments, tags);
     serenity::CreateMessage::new()
         .content(format!("{match_start_message}\n{hero_assignment_message}"))
