@@ -294,9 +294,11 @@ impl DotaBot {
 
     pub fn ban_hero(&mut self, username: &DiscordUsername, hero: &Hero) {
         info!("{username} banned {hero}");
-        if let Some(s) = self.state.get_mut(username) {
-            s.banned_heroes.insert(hero.clone());
-        };
+        self.state
+            .entry(username.clone())
+            .or_default()
+            .banned_heroes
+            .insert(hero.clone());
     }
 
     pub fn unban_hero(&mut self, username: &DiscordUsername, hero: &Hero) {
@@ -307,9 +309,11 @@ impl DotaBot {
     }
     pub fn allow_hero(&mut self, username: &DiscordUsername, hero: &Hero) {
         info!("{username} allowed {hero}");
-        if let Some(s) = self.state.get_mut(username) {
-            s.allowed_heroes.insert(hero.clone());
-        };
+        self.state
+            .entry(username.clone())
+            .or_default()
+            .allowed_heroes
+            .insert(hero.clone());
     }
     pub fn unallow_hero(&mut self, username: &DiscordUsername, hero: &Hero) {
         info!("{username} unallowed {hero}");
@@ -379,6 +383,21 @@ mod tests {
             player.discord_username(),
             Some(&DiscordUsername::from("powerwazniak"))
         );
+    }
+
+    #[test]
+    fn test_ban_and_allow_for_player_without_state() {
+        let config = EloDiscoConfig::default();
+        let mut bot = DotaBot::new(HashMap::new(), PlayerDb::new([]), MessageBus::new(), &config);
+        let banning = DiscordUsername::from("banning");
+        bot.ban_hero(&banning, &Hero::from("Pudge"));
+        let pool = bot.user_hero_pool(&banning);
+        assert!(!pool.contains(&Hero::from("Pudge")));
+        assert_eq!(pool.len(), Hero::all().len() - 1);
+
+        let allowing = DiscordUsername::from("allowing");
+        bot.allow_hero(&allowing, &Hero::from("Axe"));
+        assert_eq!(bot.user_hero_pool(&allowing), vec![Hero::from("Axe")]);
     }
 
     #[test]

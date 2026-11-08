@@ -49,7 +49,7 @@ pub struct PlayerBotState {
     pub dota: DotaBotState,
 }
 
-#[derive(Clone, Debug, Default, PartialEq, Serialize, Deserialize)]
+#[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
 pub struct DotaBotState {
     /// List of banned heroes that won't show up in randomizer.
     pub banned_heroes: HashSet<Hero>,
@@ -86,6 +86,24 @@ pub struct DotaBotState {
     pub reroll_log: Vec<DateTime<Local>>,
 }
 
+/// The same as a player without these fields in `discord_bot_state.yaml`, e.g. a player the bot
+/// has no state for yet.
+impl Default for DotaBotState {
+    fn default() -> Self {
+        Self {
+            banned_heroes: Default::default(),
+            allowed_heroes: Default::default(),
+            num_heroes_shown: default_num_heroes_shown(),
+            last_match_heroes: Default::default(),
+            last_match_date: Default::default(),
+            duplicate_heroes_opt_out: Default::default(),
+            reroll_limit_num: default_reroll_limit_x(),
+            reroll_limit_duration_minutes: default_reroll_limit_duration_minutes(),
+            reroll_log: Default::default(),
+        }
+    }
+}
+
 fn default_num_heroes_shown() -> u32 {
     3
 }
@@ -102,6 +120,14 @@ fn default_reroll_limit_duration_minutes() -> u32 {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn default_dota_bot_state_matches_loaded_one() {
+        let yaml = "banned_heroes: []\nallowed_heroes: []";
+        let loaded: DotaBotState = serde_yaml::from_str(yaml).unwrap();
+        assert_eq!(loaded, DotaBotState::default());
+        assert_eq!(loaded.num_heroes_shown, 3);
+    }
 
     #[test]
     fn validate_discards_unknown_heroes() {
