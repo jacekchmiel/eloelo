@@ -1,6 +1,7 @@
 #!/bin/bash
 # Deploys the Discord bot server (elodisco binary) to HOST, where it runs as the elodisco systemd
-# service. The binary is built locally, so HOST needs a glibc/OpenSSL compatible with this machine.
+# service. In a checkout the binary is built locally, so HOST needs a glibc/OpenSSL compatible with
+# this machine. In an extracted release archive the binary next to this script is deployed.
 #
 # Usage: ./deploy-elodisco.sh HOST            build, back up the current binary, install, restart
 #        ./deploy-elodisco.sh HOST rollback   restore the backup made by the last deploy, restart
@@ -31,8 +32,13 @@ show_startup_log() {
 case "$COMMAND" in
 deploy)
     cd "$PROJECT_ROOT"
-    cargo build --release --bin elodisco
-    scp target/release/elodisco "$HOST:$UPLOAD"
+    if [ -f Cargo.toml ]; then
+        cargo build --release --bin elodisco
+        LOCAL_BINARY=target/release/elodisco
+    else
+        LOCAL_BINARY=elodisco
+    fi
+    scp "$LOCAL_BINARY" "$HOST:$UPLOAD"
     # Copied over the old file, so it keeps its owner and mode. The service is stopped first,
     # a running binary can't be overwritten.
     ssh "$HOST" bash -s <<EOF

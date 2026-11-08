@@ -89,6 +89,8 @@ To deploy it to a host running it as the `elodisco` systemd service (binary in
 ./deploy-elodisco.sh HOST rollback  # restore the binary from before the last deploy
 ```
 
+Release builds of both binaries are also on the GitHub releases page (see Releases below).
+
 The main server keeps reconnecting while the bot server is unreachable; the Discord icon in the UI
 app bar is red until the connection is back (hover it for the error).
 
@@ -101,3 +103,23 @@ runs, so move that directory to the bot server when switching to remote mode.
 ## DotA agent
 
 Supplements main EloElo app with automated screenshot analysis to determine who's in lobby.
+
+## Releases
+
+Pushing a tag like `v2026.11.0` builds a GitHub release (`.github/workflows/release.yml`); a tag
+with a suffix, e.g. `v2026.11.0-rc1`, makes a prerelease.
+
+```shell
+git tag v2026.11.1 && git push origin v2026.11.1
+```
+
+The release has:
+
+- `eloelo-<tag>-linux-x86_64.tar.gz`: `eloelo` and `elodisco`, the built UI (with
+  `dota-agent.zip`), `dota-ocr-engine/` and `deploy-elodisco.sh`. Run `./eloelo` from the extracted
+  directory, since it finds the UI and the OCR engine relative to the working directory. There,
+  `./deploy-elodisco.sh HOST` deploys the bundled `elodisco` instead of building it.
+- `elodisco-<tag>-linux-x86_64`: the bot server binary alone.
+- `SHA256SUMS`.
+
+The binaries are built on Ubuntu 22.04, so they run there and on newer Linux systems.

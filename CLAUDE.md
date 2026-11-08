@@ -32,7 +32,11 @@ npx vitest run ui/src/Duration.test.ts   # single UI test
 ```
 
 `./pre-commit` = `cargo fmt --check` + `npm run check`. CI (`.github/workflows`) runs `cargo check`/`cargo test --workspace`
-on Rust changes and `npm run check`/`test`/`build` on `ui/` changes.
+on Rust changes and `npm run check`/`test`/`build` on `ui/` changes. Pushing a tag like `v2026.11.0` (`-suffix` makes a
+prerelease) runs `release.yml`: tests, then a GitHub release with `eloelo-<tag>-linux-x86_64.tar.gz` (both binaries,
+`ui/dist` with `dota-agent.zip`, `dota-ocr-engine/`, `deploy-elodisco.sh`, which deploys the bundled binary when there
+is no `Cargo.toml` next to it; run it from where it's extracted) and the bare `elodisco` binary,
+built on Ubuntu 22.04 to match the bot server.
 
 ## Architecture
 
