@@ -4,17 +4,26 @@ use crate::eloelo::elodisco::hero_assignment_strategy::{
     DotaTeam, HeroAssignmentStrategy, HeroAssignmentStrategyKind, PlayerInfo, RandomHeroPool,
     TaggedHeroPool,
 };
-use crate::eloelo::message_bus::{Event, HeroesAssigned, MatchStart, Message, MessageBus};
+use crate::eloelo::message_bus::{
+    Event, HeroesAssigned, MatchStart, Message, MessageBus, UiCommand,
+};
 use crate::eloelo::options::HeroAssignmentOptions;
 use anyhow::{format_err, Error, Result};
 use chrono::{DateTime, Local};
 use eloelo_model::player::{DiscordUsername, PlayerDb};
-use eloelo_model::PlayerId;
+use eloelo_model::{GameId, PlayerId};
 use log::{debug, info};
 use serde::{Deserialize, Serialize};
 use std::borrow::Borrow;
 use std::collections::{HashMap, HashSet};
 use std::fmt::Display;
+
+/// The only game with heroes. Matches of other games get no hero assignment.
+pub const HEROES_GAME: &str = "DotA 2";
+
+pub fn has_heroes(game: &GameId) -> bool {
+    game.as_str() == HEROES_GAME
+}
 
 #[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Hash, Serialize, Deserialize)]
 pub struct Hero(String);
@@ -81,6 +90,7 @@ impl AsRef<Hero> for Hero {
 pub enum RerollResult {
     NewPool(Vec<Hero>),
     NoRerollUntil(DateTime<Local>),
+    NoMatchWithHeroes,
 }
 
 fn make_hero_assign_strategy(
@@ -103,6 +113,8 @@ pub struct DotaBot {
     unrestricted_players: HashSet<PlayerId>,
     /// Latest players received from eloelo.
     player_db: PlayerDb,
+    /// Whether a match with heroes is in progress, so heroes can be rerolled.
+    match_with_heroes: bool,
 }
 
 impl DotaBot {
@@ -113,7 +125,11 @@ impl DotaBot {
         config: &EloDiscoConfig,
     ) -> Self {
         if !config.global_banned_heroes.is_empty() {
-            let banned_list: Vec<_> = config.global_banned_heroes.iter().map(|h| h.as_str()).collect();
+            let banned_list: Vec<_> = config
+                .global_banned_heroes
+                .iter()
+                .map(|h| h.as_str())
+                .collect();
             info!("Globally banned heroes: {}", banned_list.join(", "));
         }
         if !config.unrestricted_players.is_empty() {
@@ -135,6 +151,7 @@ impl DotaBot {
             global_banned_heroes: config.global_banned_heroes.clone(),
             unrestricted_players: config.unrestricted_players.clone(),
             player_db,
+            match_with_heroes: false,
         }
     }
 
@@ -145,14 +162,23 @@ impl DotaBot {
             }
             Message::Event(Event::MatchStart(match_start)) => {
                 self.player_db = match_start.player_db.clone();
-                let assignments = self.on_match_start(match_start).await;
+                self.match_with_heroes = has_heroes(&match_start.game);
+                let (assignments, tags) = if self.match_with_heroes {
+                    let assignments = self.on_match_start(match_start).await;
+                    (assignments, self.hero_assign_strategy.assigned_tags())
+                } else {
+                    info!("{}: no hero assignment", match_start.game);
+                    Default::default()
+                };
+                // Sent for every match: it triggers the match start announcement.
                 self.message_bus
                     .send(Message::Event(Event::HeroesAssigned(HeroesAssigned {
                         match_start: match_start.clone(),
                         assignments,
-                        tags: self.hero_assign_strategy.assigned_tags(),
+                        tags,
                     })))
             }
+            Message::UiCommand(UiCommand::FinishMatch(_)) => self.match_with_heroes = false,
             _ => {}
         }
     }
@@ -166,13 +192,15 @@ impl DotaBot {
             &self.global_banned_heroes
         };
         let pool: Vec<_> = if !user_state.allowed_heroes.is_empty() {
-            user_state.allowed_heroes
+            user_state
+                .allowed_heroes
                 .difference(banned)
                 .cloned()
                 .collect()
         } else {
             self.heroes
-                .difference(&user_state.banned_heroes).cloned()
+                .difference(&user_state.banned_heroes)
+                .cloned()
                 .collect::<HashSet<_>>()
                 .difference(banned)
                 .cloned()
@@ -207,9 +235,7 @@ impl DotaBot {
                 .clone();
             PlayerInfo {
                 elo,
-                number_of_heroes_shown: self
-                    .get_user_state(&discord_username)
-                    .num_heroes_shown,
+                number_of_heroes_shown: self.get_user_state(&discord_username).num_heroes_shown,
                 dota_team,
                 name: discord_username,
             }
@@ -250,6 +276,9 @@ impl DotaBot {
     }
 
     pub fn reroll(&mut self, username: &DiscordUsername) -> Result<RerollResult> {
+        if !self.match_with_heroes {
+            return Ok(RerollResult::NoMatchWithHeroes);
+        }
         let state = self.state.entry(username.clone()).or_default();
         let now = Local::now();
         cleanup_reroll_log(state, now);
@@ -357,7 +386,75 @@ fn next_reroll_at(state: &mut DotaBotState, now: DateTime<Local>) -> DateTime<Lo
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::eloelo::message_bus::{FinishMatch, MatchStartTeam};
     use eloelo_model::player::Player;
+    use futures_util::StreamExt as _;
+
+    fn match_start(game: &str) -> MatchStart {
+        let team = |name: &str, player: &str| MatchStartTeam {
+            players: HashMap::from([(PlayerId::from(player), 1000)]),
+            name: name.into(),
+        };
+        MatchStart {
+            game: GameId::from(game),
+            player_db: PlayerDb::new(["a", "b"].map(|p| Player::new(PlayerId::from(p)))),
+            left_team: team("Left", "a"),
+            right_team: team("Right", "b"),
+            hero_assignment: HeroAssignmentOptions {
+                strategy: HeroAssignmentStrategyKind::Random,
+                ..Default::default()
+            },
+        }
+    }
+
+    async fn next_heroes_assigned(
+        messages: &mut (impl futures_util::Stream<Item = Result<Message>> + Unpin),
+    ) -> HeroesAssigned {
+        loop {
+            if let Message::Event(Event::HeroesAssigned(h)) =
+                messages.next().await.unwrap().unwrap()
+            {
+                return h;
+            }
+        }
+    }
+
+    #[tokio::test]
+    async fn assigns_heroes_and_rerolls_only_in_a_game_with_heroes() {
+        let message_bus = MessageBus::new();
+        let mut messages = message_bus.subscribe().stream().boxed();
+        let a = DiscordUsername::from("a");
+        let a_state = DotaBotState {
+            num_heroes_shown: 3,
+            reroll_limit_num: 1,
+            ..Default::default()
+        };
+        let mut bot = DotaBot::new(
+            HashMap::from([(a.clone(), a_state)]),
+            PlayerDb::new([]),
+            message_bus,
+            &EloDiscoConfig::default(),
+        );
+        let no_match = |r: Result<RerollResult>| matches!(r, Ok(RerollResult::NoMatchWithHeroes));
+        assert!(no_match(bot.reroll(&a)));
+
+        let start = Message::Event(Event::MatchStart(match_start("Deadlock")));
+        bot.on_message(&start).await;
+        let assigned = next_heroes_assigned(&mut messages).await;
+        assert!(assigned.assignments.is_empty());
+        assert!(assigned.tags.is_empty());
+        assert!(no_match(bot.reroll(&a)));
+
+        let start = Message::Event(Event::MatchStart(match_start(HEROES_GAME)));
+        bot.on_message(&start).await;
+        let assigned = next_heroes_assigned(&mut messages).await;
+        assert!(!assigned.assignments[&a].is_empty());
+        assert!(matches!(bot.reroll(&a), Ok(RerollResult::NewPool(_))));
+
+        let finish = Message::UiCommand(UiCommand::FinishMatch(FinishMatch::Cancelled));
+        bot.on_message(&finish).await;
+        assert!(no_match(bot.reroll(&a)));
+    }
 
     #[tokio::test]
     async fn test_keeps_player_db_received_from_eloelo() {
@@ -403,8 +500,9 @@ mod tests {
     #[test]
     fn test_global_banned_heroes_excluded_from_pool() {
         let mut config = EloDiscoConfig::default();
-        config.global_banned_heroes =
-            [Hero::from("Phantom Lancer"), Hero::from("Medusa")].into_iter().collect();
+        config.global_banned_heroes = [Hero::from("Phantom Lancer"), Hero::from("Medusa")]
+            .into_iter()
+            .collect();
         let message_bus = MessageBus::new();
         let bot = DotaBot::new(HashMap::new(), PlayerDb::new([]), message_bus, &config);
         let user = DiscordUsername::from("test_user");
@@ -416,8 +514,9 @@ mod tests {
     #[test]
     fn test_global_banned_heroes_with_user_allowlist() {
         let mut config = EloDiscoConfig::default();
-        config.global_banned_heroes =
-            [Hero::from("Phantom Lancer"), Hero::from("Medusa")].into_iter().collect();
+        config.global_banned_heroes = [Hero::from("Phantom Lancer"), Hero::from("Medusa")]
+            .into_iter()
+            .collect();
         let message_bus = MessageBus::new();
         let user = DiscordUsername::from("test_user");
 
@@ -448,8 +547,9 @@ mod tests {
     #[test]
     fn test_global_banned_heroes_with_user_banlist() {
         let mut config = EloDiscoConfig::default();
-        config.global_banned_heroes =
-            [Hero::from("Phantom Lancer"), Hero::from("Medusa")].into_iter().collect();
+        config.global_banned_heroes = [Hero::from("Phantom Lancer"), Hero::from("Medusa")]
+            .into_iter()
+            .collect();
         let message_bus = MessageBus::new();
         let user = DiscordUsername::from("test_user");
 
@@ -515,4 +615,3 @@ mod tests {
         assert!(!pool.contains(&Hero::from("Medusa")));
     }
 }
-

@@ -30,8 +30,7 @@ use tokio_tungstenite::{MaybeTlsStream, WebSocketStream};
 use tokio_util::sync::CancellationToken;
 
 use crate::message_bus::{
-    DiscordBotStatus, Event, FinishMatch, Message, MessageBus, MessageBusSubscription, UiCommand,
-    UiUpdate,
+    DiscordBotStatus, Event, Message, MessageBus, MessageBusSubscription, UiCommand, UiUpdate,
 };
 use crate::utils::print_err;
 
@@ -48,9 +47,7 @@ fn to_bot(message: &Message) -> bool {
         message,
         Message::Event(
             Event::MatchStart(_) | Event::RichMatchResult(_) | Event::PlayerDbUpdated(_)
-        ) | Message::UiCommand(
-            UiCommand::InitializeUi | UiCommand::FinishMatch(FinishMatch::Cancelled)
-        )
+        ) | Message::UiCommand(UiCommand::InitializeUi | UiCommand::FinishMatch(_))
     )
 }
 
@@ -384,8 +381,9 @@ mod tests {
     use super::*;
     use crate::elodisco::dota_bot::Hero;
     use crate::elodisco::hero_assignment_strategy::HeroTag;
-    use crate::message_bus::{HeroesAssigned, MatchStart, MatchStartTeam};
+    use crate::message_bus::{FinishMatch, HeroesAssigned, MatchInfo, MatchStart, MatchStartTeam};
     use eloelo_model::player::{Player, PlayerConfig, PlayerDb};
+    use eloelo_model::{Team, WinScale};
     use futures_util::Stream;
     use std::collections::HashMap;
 
@@ -500,6 +498,18 @@ mod tests {
         assert!(matches!(
             next_message(&mut bot_messages).await,
             Message::UiCommand(UiCommand::FinishMatch(FinishMatch::Cancelled))
+        ));
+        eloelo_bus.send(Message::UiCommand(UiCommand::FinishMatch(
+            FinishMatch::Finished(MatchInfo {
+                winner: Team::Left,
+                scale: WinScale::Even,
+                duration: Duration::from_secs(60),
+                fake: true,
+            }),
+        )));
+        assert!(matches!(
+            next_message(&mut bot_messages).await,
+            Message::UiCommand(UiCommand::FinishMatch(FinishMatch::Finished(_)))
         ));
         eloelo_bus.send(Message::Event(Event::PlayerDbUpdated(PlayerDb::new([]))));
         assert!(matches!(

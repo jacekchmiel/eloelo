@@ -396,8 +396,17 @@ impl EloElo {
     }
 
     fn change_game(&mut self, game: GameId) {
+        if self.game_state == GameState::MatchInProgress {
+            warn!("Not changing game to {game}: a match is in progress");
+            return;
+        }
+        if !self.config.games.iter().any(|g| g.name == game) {
+            warn!("Not changing game to {game}: no such game in config");
+            return;
+        }
         self.selected_game = game;
         self.recalculate_elo_from_history();
+        self.update_teams_elo();
     }
 
     fn start_match(&mut self) {

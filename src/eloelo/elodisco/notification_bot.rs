@@ -6,7 +6,7 @@ use itertools::join;
 use log::{error, info, warn};
 
 use crate::eloelo::elodisco::config::EloDiscoConfig;
-use crate::eloelo::elodisco::dota_bot::{Hero, RerollResult};
+use crate::eloelo::elodisco::dota_bot::{self, Hero, RerollResult};
 use crate::eloelo::elodisco::hero_assignment_strategy::HeroTag;
 use crate::eloelo::elodisco::messages;
 use crate::eloelo::elodisco::utils::DirectMessenger;
@@ -14,7 +14,7 @@ use crate::eloelo::message_bus::{
     Event, FinishMatch, MatchStart, MatchStartTeam, Message, RichMatchResult, UiCommand,
 };
 use crate::utils::print_err;
-use eloelo_model::{GameId, PlayerId, WinScale};
+use eloelo_model::{PlayerId, WinScale};
 use poise::serenity_prelude as serenity;
 
 pub struct NotificationBot {
@@ -146,31 +146,21 @@ impl NotificationBot {
         hero_assignments: &HashMap<DiscordUsername, Vec<Hero>>,
         tags: &HashMap<DiscordUsername, HeroTag>,
     ) {
-        self.match_start(&match_start, &hero_assignments, tags).await;
+        self.match_start(&match_start, &hero_assignments, tags)
+            .await;
 
         let Some(channel) = self.channel() else {
             return;
         };
         info!("Sending match start message to common channel");
-        if match_start.game == GameId::from("DotA 2") {
-            send_start_match_message(
-                &self.ctx,
-                &channel,
-                match_start.clone(),
-                &hero_assignments,
-                tags,
-            )
-            .await;
-        } else {
-            send_start_match_message(
-                &self.ctx,
-                &channel,
-                match_start.clone(),
-                &HashMap::new(),
-                &HashMap::new(),
-            )
-            .await;
-        }
+        send_start_match_message(
+            &self.ctx,
+            &channel,
+            match_start.clone(),
+            &hero_assignments,
+            tags,
+        )
+        .await;
     }
 
     pub async fn send_match_result(&self, match_result: &RichMatchResult) {
@@ -214,6 +204,7 @@ impl NotificationBot {
             }
             RerollResult::NewPool(_) => {}
             RerollResult::NoRerollUntil(_) => {}
+            RerollResult::NoMatchWithHeroes => {}
         }
     }
 }
@@ -240,15 +231,18 @@ async fn send_start_match_message(
     hero_assignments: &HashMap<DiscordUsername, Vec<Hero>>,
     tags: &HashMap<DiscordUsername, HeroTag>,
 ) {
+    let heroes = dota_bot::has_heroes(&msg.game);
     let msg = serenity::CreateMessage::new()
         .content(format!("# {} Match Starting", msg.game))
         .add_embeds(vec![
             make_team_embed(
                 TeamEmbedData::new(&msg.player_db, &msg.left_team, hero_assignments, tags),
+                heroes,
                 serenity::Colour::DARK_GREEN,
             ),
             make_team_embed(
                 TeamEmbedData::new(&msg.player_db, &msg.right_team, hero_assignments, tags),
+                heroes,
                 serenity::Colour::DARK_RED,
             ),
         ]);
@@ -311,21 +305,38 @@ impl TeamEmbedData {
     }
 }
 
-fn make_team_embed(team: TeamEmbedData, colour: serenity::Colour) -> serenity::CreateEmbed {
+impl PlayerEmbedData {
+    fn header(&self) -> String {
+        let tag = self
+            .tag
+            .as_ref()
+            .map(|t| format!("   {t}"))
+            .unwrap_or_default();
+        format!("{}   [{}]{}", self.name, self.rank, tag)
+    }
+}
+
+/// With `heroes`, a field per player with their hero recommendations, otherwise a list of players.
+fn make_team_embed(
+    team: TeamEmbedData,
+    heroes: bool,
+    colour: serenity::Colour,
+) -> serenity::CreateEmbed {
     let total_elo: i32 = team.players.iter().map(|p| p.rank).sum();
     let mut players = team.players.clone();
     players.sort_by_key(|p| p.rank);
     players.reverse();
-    serenity::CreateEmbed::new()
-        .title(team.name)
-        .fields(players.into_iter().map(|p| {
-            let tag = p.tag.map(|t| format!("   {t}")).unwrap_or_default();
-            (
-                format!("{}   [{}]{}", p.name, p.rank, tag),
-                format!("{}", p.recommendations),
-                false,
-            )
-        }))
+    let embed = serenity::CreateEmbed::new().title(team.name);
+    let embed = if heroes {
+        embed.fields(
+            players
+                .into_iter()
+                .map(|p| (p.header(), p.recommendations, false)),
+        )
+    } else {
+        embed.description(join(players.iter().map(PlayerEmbedData::header), "\n"))
+    };
+    embed
         .colour(colour)
         .footer(serenity::CreateEmbedFooter::new(format!(
             "Total rank: {}",
